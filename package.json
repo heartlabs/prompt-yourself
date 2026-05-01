@@ -2,11 +2,13 @@
   "name": "prompt-yourself",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/cli/index.js",
   "scripts": {
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "cli": "node src/cli/index.js",
+    "build:plugin": "bash scripts/build-plugin.sh"
   },
   "keywords": [],
   "author": "",

@@ -1,12 +1,17 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
-import OpenAI from 'openai';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import 'dotenv/config';
+import { chatCompletion, buildInitialMessages } from '../shared/api.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const filePath = process.argv[2];
 
 if (!filePath) {
-  console.error('Usage: node index.js <path-to-markdown-file>');
+  console.error('Usage: node src/cli/index.js <path-to-markdown-file>');
   process.exit(1);
 }
 
@@ -23,22 +28,10 @@ if (!apiKey || apiKey === 'your-api-key-here') {
 
 const fileContent = readFileSync(filePath, 'utf-8');
 
-const client = new OpenAI({
-  apiKey,
-  baseURL: 'https://api.deepseek.com',
-});
+const systemPromptPath = resolve(__dirname, '../shared/system-prompt.md');
+const systemPrompt = readFileSync(systemPromptPath, 'utf-8');
 
-const systemPrompt = readFileSync('system-prompt.md', 'utf-8');
-
-const messages = [
-  { role: 'system', content: systemPrompt },
-  {
-    role: 'user',
-    content: `Here is the document to reference:
-
-${fileContent}`,
-  },
-];
+const messages = buildInitialMessages(systemPrompt, fileContent);
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 
@@ -50,14 +43,15 @@ while (true) {
 
   messages.push({ role: 'user', content: userInput });
 
-  const response = await client.chat.completions.create({
-    model: 'deepseek-chat',
-    messages,
-    max_tokens: 500,
-  });
-
-  const reply = response.choices[0].message.content;
-  console.log(`\n${reply}\n`);
-
-  messages.push({ role: 'assistant', content: reply });
+  try {
+    const reply = await chatCompletion({
+      apiKey,
+      messages,
+      maxTokens: 500,
+    });
+    console.log(`\n${reply}\n`);
+    messages.push({ role: 'assistant', content: reply });
+  } catch (err) {
+    console.error(`\nError: ${err.message}\n`);
+  }
 }

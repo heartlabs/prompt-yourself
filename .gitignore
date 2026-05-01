@@ -1,2 +1,5 @@
 node_modules/
 .env
+obsidian-plugin/
+dist/
+.DS_Store
