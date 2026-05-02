@@ -1,5 +1,16 @@
 node_modules/
 .env
-/obsidian-plugin/
 dist/
 .DS_Store
+
+# Added by cargo
+/target
+
+# Obsidian plugin build outputs
+obsidian-plugin/main.js
+obsidian-plugin/src/core_wasm.js
+obsidian-plugin/src/core_wasm_bg.wasm
+obsidian-plugin/src/core_wasm.d.ts
+obsidian-plugin/package-lock.json
+obsidian-plugin/data.json
+obsidian-plugin/node_modules/

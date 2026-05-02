@@ -1,93 +1,37 @@
 /*
  * Prompt Yourself – Obsidian Plugin
+ *
  * Side panel chat that uses the DeepSeek API to answer questions about a vault folder
  * (produced as a YAML document with all text files).
+ *
+ * Core logic (YAML producer, API client) is implemented in Rust and compiled to WASM.
+ * See ../core-wasm/ for the Rust source and ../../core/ for the domain logic.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * NOTE about WASM loading strategy
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * Currently this plugin BUNDLES the WASM module into a single main.js via esbuild.
+ * If you want to switch to RUNTIME dynamic import instead (to avoid the build step):
+ *
+ *   async onload() {
+ *     const wasm = await import('./core_wasm.js');
+ *     // wasm is now auto-initialized, use wasm.produceYaml(), wasm.chatCompletion() etc.
+ *   }
+ *
+ * Pros of dynamic import: no build step, lazy loading.
+ * Cons: async init can be flaky across Obsidian versions, error handling is manual,
+ * must ship two extra files (core_wasm.js + core_wasm_bg.wasm).
+ *
+ * The bundling approach (esbuild) was chosen for reliability and single-file distribution.
+ * ═══════════════════════════════════════════════════════════════════════════════
  */
 
-const { Plugin, ItemView, PluginSettingTab, Setting, Notice } = require('obsidian');
-
-// ─── Shared: YAML producer ──────────────────────────────────────────────────
-
-function produceYaml(files, indent) {
-  indent = indent || 2;
-  if (!files || files.length === 0) {
-    return '# (no files)\n';
-  }
-  const lines = [];
-  for (const file of files) {
-    lines.push('- path: ' + yamlQuote(file.path));
-    if (file.content === null) {
-      lines.push(sp(indent) + 'content: null');
-    } else {
-      lines.push(sp(indent) + 'content: |');
-      const body = typeof file.content === 'string' ? file.content : String(file.content);
-      const bodyLines = body.split('\n');
-      if (bodyLines.length === 0 || (bodyLines.length === 1 && bodyLines[0] === '')) {
-        lines.push(sp(indent * 2) + '""');
-      } else {
-        for (const line of bodyLines) {
-          lines.push(sp(indent * 2) + line);
-        }
-      }
-    }
-  }
-  return lines.join('\n') + '\n';
-}
-
-function yamlQuote(value) {
-  if (typeof value !== 'string') return String(value);
-  if (/^[a-zA-Z0-9_./\u{80}-\u{10FFFF} -]+$/u.test(value)) {
-    return value;
-  }
-  const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  return '"' + escaped + '"';
-}
-
-function sp(count) {
-  let s = '';
-  for (let i = 0; i < count; i++) s += ' ';
-  return s;
-}
-
-// ─── Shared: API client ─────────────────────────────────────────────────────
-
-async function chatCompletion({ apiKey, messages, signal, maxTokens }) {
-  maxTokens = maxTokens || 1000;
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + apiKey,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: messages,
-      max_tokens: maxTokens,
-    }),
-    signal: signal,
-  });
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error('DeepSeek API error (' + response.status + '): ' + errBody);
-  }
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
-
-function buildInitialMessages(documentContent) {
-  return [
-    { role: 'system', content: SYSTEM_PROMPT },
-    {
-      role: 'user',
-      content: 'Here is the document to reference:\n\n' + documentContent,
-    },
-  ];
-}
+import { Plugin, ItemView, PluginSettingTab, Setting, Notice } from 'obsidian';
+import { initSync, produceYaml, buildInitialMessages, setApiKey, chatCompletion } from './core_wasm.js';
+import wasmBytes from './core_wasm_bg.wasm';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-
-const SYSTEM_PROMPT =
-  'You are a helpful assistant that answers questions about a provided document.';
 
 const TEXT_EXTENSIONS = new Set([
   '.md', '.txt', '.json', '.yaml', '.yml', '.toml', '.csv',
@@ -162,7 +106,7 @@ class PromptYourselfView extends ItemView {
 
   async loadFolder() {
     const folderPath = this.plugin.settings.folderPath;
-    if (!folderPath && folderPath !== '') return;
+    if (folderPath === undefined) return;
 
     // Reset conversation
     this.messages = [];
@@ -183,8 +127,9 @@ class PromptYourselfView extends ItemView {
     }
 
     const files = await this.collectFolderFiles(folder, folderPath);
-    const yamlContent = produceYaml(files);
-    this.messages = buildInitialMessages(yamlContent);
+    const filesJson = JSON.stringify(files);
+    const yamlContent = produceYaml(filesJson);
+    this.messages = JSON.parse(buildInitialMessages(yamlContent));
     this.addMessage('system', 'Loaded folder "' + (folderPath || '/') + '" (' + files.length + ' files). Ask away!');
   }
 
@@ -260,15 +205,12 @@ class PromptYourselfView extends ItemView {
     this.abortController = new AbortController();
 
     try {
-      const reply = await chatCompletion({
-        apiKey,
-        messages: this.messages,
-        signal: this.abortController.signal,
-        maxTokens: 1000,
-      });
+      const messagesJson = JSON.stringify(this.messages);
+      const reply = await chatCompletion(messagesJson, 1000);
       this.addMessage('assistant', reply);
       this.messages.push({ role: 'assistant', content: reply });
     } catch (err) {
+      // AbortError is thrown by wasm-bindgen, check by name
       if (err.name === 'AbortError') return;
       this.addMessage('system', '❌ Error: ' + err.message);
     } finally {
@@ -381,6 +323,18 @@ class PromptYourselfSettingTab extends PluginSettingTab {
 class PromptYourselfPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
+
+    // ── Initialise WASM ────────────────────────────────────────────────────
+    // Pass {module: bytes} to avoid the deprecation warning about the
+    // bare-Uint8Array argument form.
+    initSync({ module: wasmBytes });
+
+    // Pass the stored API key to the WASM module.
+    // This sets a Rust OnceLock<String> inside the WASM instance's linear
+    // memory, so it persists for the lifetime of the WASM module.
+    if (this.settings.apiKey) {
+      setApiKey(this.settings.apiKey);
+    }
 
     this.registerView(VIEW_TYPE, (leaf) => new PromptYourselfView(leaf, this));
 

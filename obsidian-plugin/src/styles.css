@@ -1,0 +1,103 @@
+.prompt-yourself-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px;
+  gap: 8px;
+}
+
+.prompt-yourself-container .file-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prompt-yourself-container .chat-area {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--background-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prompt-yourself-container .message {
+  padding: 8px 10px;
+  border-radius: 8px;
+  line-height: 1.5;
+  font-size: 13px;
+  max-width: 90%;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.prompt-yourself-container .message.user {
+  align-self: flex-end;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.prompt-yourself-container .message.assistant {
+  align-self: flex-start;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+}
+
+.prompt-yourself-container .message.system {
+  align-self: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  padding: 4px 8px;
+}
+
+.prompt-yourself-container .input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.prompt-yourself-container .input-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.prompt-yourself-container .input-row input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.prompt-yourself-container .input-row button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.prompt-yourself-container .input-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prompt-yourself-container .input-row button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.prompt-yourself-container .error {
+  color: var(--text-error);
+  font-size: 12px;
+  padding: 4px 8px;
+}

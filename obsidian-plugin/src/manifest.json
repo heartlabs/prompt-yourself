@@ -1,0 +1,9 @@
+{
+  "id": "prompt-yourself",
+  "name": "Prompt Yourself",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Ask questions about your current file using an AI assistant in a side panel.",
+  "author": "",
+  "isDesktopOnly": false
+}
