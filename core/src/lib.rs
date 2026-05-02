@@ -3,8 +3,7 @@ pub mod yaml_producer;
 pub mod client;
 
 /// The system prompt packaged at compile time.
-pub const SYSTEM_PROMPT: &str =
-    "You are a helpful assistant that answers questions about a provided document.";
+pub const SYSTEM_PROMPT: &str = include_str!("../resources/system-prompt.md");
 
 /// Build the initial messages array: system prompt + the document content.
 pub fn build_initial_messages(document_content: &str) -> Vec<openai::ChatMessage> {

@@ -270,6 +270,11 @@ class PromptYourselfSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.apiKey = value.trim();
             await this.plugin.saveSettings();
+            // Sync the API key to WASM immediately so the user doesn't
+            // have to reload the plugin after changing the key.
+            if (this.plugin.settings.apiKey) {
+              setApiKey(this.plugin.settings.apiKey);
+            }
           })
       );
 
