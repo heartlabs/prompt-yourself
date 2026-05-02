@@ -1,6 +1,4 @@
 /**
- * Shared API client for the "Prompt Yourself" tool.
- * Works in Node.js and the browser (for Obsidian plugin).
  *
  * @typedef {Object} Message
  * @property {'system'|'user'|'assistant'} role
