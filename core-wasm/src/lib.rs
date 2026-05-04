@@ -32,13 +32,13 @@ use std::sync::OnceLock;
 
 use prompt_yourself_core::openai::ChatMessage;
 use prompt_yourself_core::yaml_producer::{produce_yaml, FileEntry};
-use prompt_yourself_core::build_initial_messages;
 use wasm_bindgen::prelude::*;
 
 // ─── Global state ───────────────────────────────────────────────────────────
 
 static API_KEY: OnceLock<String> = OnceLock::new();
 static API_BASE: OnceLock<String> = OnceLock::new();
+static SYSTEM_PROMPT: OnceLock<String> = OnceLock::new();
 
 /// Set the API key (e.g. DeepSeek). Must be called before `chatCompletion`.
 #[wasm_bindgen(js_name = setApiKey)]
@@ -67,11 +67,19 @@ pub fn wasm_produce_yaml(files_json: &str) -> Result<String, JsError> {
 
 // ─── Build initial messages ─────────────────────────────────────────────────
 
+/// Set the system prompt (overrides the compiled-in default).
+#[wasm_bindgen(js_name = setSystemPrompt)]
+pub fn wasm_set_system_prompt(prompt: &str) {
+    let _ = SYSTEM_PROMPT.set(prompt.to_string());
+}
+
 /// Build the initial messages array (system + user with the document).
+/// Uses the override set by `setSystemPrompt` if available, otherwise the compiled-in prompt.
 /// Returns a JSON string representing the messages array.
 #[wasm_bindgen(js_name = buildInitialMessages)]
 pub fn wasm_build_initial_messages(document_content: &str) -> String {
-    let messages = build_initial_messages(document_content);
+    let prompt = SYSTEM_PROMPT.get().map(|s| s.as_str()).unwrap_or(prompt_yourself_core::SYSTEM_PROMPT);
+    let messages = prompt_yourself_core::build_initial_messages_with_prompt(document_content, prompt);
     serde_json::to_string(&messages).unwrap_or_else(|_| "[]".to_string())
 }
 

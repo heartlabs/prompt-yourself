@@ -28,7 +28,7 @@
  */
 
 import { Plugin, ItemView, PluginSettingTab, Setting, Notice } from 'obsidian';
-import { initSync, produceYaml, buildInitialMessages, setApiKey, chatCompletion } from './core_wasm.js';
+import { initSync, produceYaml, buildInitialMessages, setApiKey, setSystemPrompt, chatCompletion } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -244,6 +244,7 @@ class PromptYourselfView extends ItemView {
 const DEFAULT_SETTINGS = {
   apiKey: '',
   folderPath: '',
+  systemPromptPath: '/Users/neidhartorlich/dev/prompt-yourself/core/resources/system-prompt.md',
 };
 
 class PromptYourselfSettingTab extends PluginSettingTab {
@@ -339,6 +340,12 @@ class PromptYourselfPlugin extends Plugin {
       setApiKey(this.settings.apiKey);
     }
 
+    // ── Load system prompt from disk ──────────────────────────────────────
+    // The prompt file lives at workspace-root/core/resources/system-prompt.md.
+    // We resolve it relative to the plugin directory (which is inside the
+    // workspace's .obsidian/plugins/ folder).
+    await this.loadSystemPrompt();
+
     this.registerView(VIEW_TYPE, (leaf) => new PromptYourselfView(leaf, this));
 
     this.addRibbonIcon('message-square', 'Prompt Yourself', () => {
@@ -374,6 +381,32 @@ class PromptYourselfPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  async loadSystemPrompt() {
+    // Read the system prompt from a file on disk using Node's fs module.
+    // The vault adapter is sandboxed to vault-relative paths, so for absolute
+    // paths outside the vault we need fs directly.
+    const promptPath = this.settings.systemPromptPath;
+
+    if (!promptPath) {
+      console.log('[Prompt Yourself] No systemPromptPath configured - using compiled-in default');
+      return;
+    }
+
+    try {
+      const fs = require('fs');
+      const exists = fs.existsSync(promptPath);
+      if (exists) {
+        const content = fs.readFileSync(promptPath, 'utf-8');
+        setSystemPrompt(content);
+        console.log('[Prompt Yourself] Loaded system prompt from', promptPath);
+      } else {
+        console.log('[Prompt Yourself] File not found:', promptPath, '- using compiled-in default');
+      }
+    } catch (err) {
+      console.warn('[Prompt Yourself] Failed to load system prompt:', err.message);
+    }
   }
 }
 
