@@ -35,9 +35,7 @@ import wasmBytes from './core_wasm_bg.wasm';
 
 const TEXT_EXTENSIONS = new Set([
   '.md', '.txt', '.json', '.yaml', '.yml', '.toml', '.csv',
-  '.js', '.ts', '.jsx', '.tsx', '.py', '.rb', '.go', '.rs',
-  '.html', '.css', '.scss', '.xml', '.svg', '.env',
-  '.cfg', '.ini', '.conf', '.log',
+  '.html', '.css', '.scss', '.xml', '.log',
 ]);
 
 const VIEW_TYPE = 'prompt-yourself-view';

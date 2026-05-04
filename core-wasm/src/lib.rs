@@ -30,11 +30,27 @@
 
 use std::sync::OnceLock;
 
-use prompt_yourself_core::client::{ChatError, OpenAIClient};
-use prompt_yourself_core::openai::{ChatCompletionRequest, ChatMessage};
+use prompt_yourself_core::openai::ChatMessage;
 use prompt_yourself_core::yaml_producer::{produce_yaml, FileEntry};
 use prompt_yourself_core::build_initial_messages;
 use wasm_bindgen::prelude::*;
+
+// ─── Global state ───────────────────────────────────────────────────────────
+
+static API_KEY: OnceLock<String> = OnceLock::new();
+static API_BASE: OnceLock<String> = OnceLock::new();
+
+/// Set the API key (e.g. DeepSeek). Must be called before `chatCompletion`.
+#[wasm_bindgen(js_name = setApiKey)]
+pub fn wasm_set_api_key(key: &str) {
+    let _ = API_KEY.set(key.to_string());
+}
+
+/// Set the API base URL. Defaults to `https://api.deepseek.com` if not set.
+#[wasm_bindgen(js_name = setApiBase)]
+pub fn wasm_set_api_base(base: &str) {
+    let _ = API_BASE.set(base.to_string());
+}
 
 // ─── Produce YAML ───────────────────────────────────────────────────────────
 
@@ -59,92 +75,7 @@ pub fn wasm_build_initial_messages(document_content: &str) -> String {
     serde_json::to_string(&messages).unwrap_or_else(|_| "[]".to_string())
 }
 
-// ─── Chat completion (web-sys fetch) ────────────────────────────────────────
-
-/// Global state for the API key (set once at plugin init).
-static API_KEY: OnceLock<String> = OnceLock::new();
-
-/// Set the DeepSeek API key. Must be called before `chatCompletion`.
-#[wasm_bindgen(js_name = setApiKey)]
-pub fn wasm_set_api_key(key: &str) {
-    let _ = API_KEY.set(key.to_string());
-}
-
-/// A WASM-compatible HTTP client using `web_sys::fetch`.
-struct WasmFetchClient;
-
-#[async_trait::async_trait(?Send)]
-impl OpenAIClient for WasmFetchClient {
-    async fn chat_completion(
-        &self,
-        request: ChatCompletionRequest,
-    ) -> Result<String, ChatError> {
-        let api_key = API_KEY.get().ok_or_else(|| {
-            ChatError::HttpError("API key not set. Call setApiKey() first.".to_string())
-        })?;
-
-        let body = serde_json::to_string(&request)
-            .map_err(|e| ChatError::HttpError(e.to_string()))?;
-
-        let opts = web_sys::RequestInit::new();
-        opts.set_method("POST");
-        opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
-        opts.set_mode(web_sys::RequestMode::Cors);
-
-        let url = "https://api.deepseek.com/chat/completions";
-
-        let request_obj = web_sys::Request::new_with_str_and_init(url, &opts)
-            .map_err(|e| ChatError::HttpError(format!("Failed to create request: {:?}", e)))?;
-
-        request_obj
-            .headers()
-            .set("Content-Type", "application/json")
-            .map_err(|e| ChatError::HttpError(format!("Failed to set header: {:?}", e)))?;
-        request_obj
-            .headers()
-            .set("Authorization", &format!("Bearer {api_key}"))
-            .map_err(|e| ChatError::HttpError(format!("Failed to set header: {:?}", e)))?;
-
-        let window = web_sys::window().ok_or_else(|| {
-            ChatError::HttpError("No global `window` object found".to_string())
-        })?;
-
-        let promise = window.fetch_with_request(&request_obj);
-        let response = wasm_bindgen_futures::JsFuture::from(promise)
-            .await
-            .map_err(|e| ChatError::HttpError(format!("Fetch failed: {:?}", e)))?;
-
-        let response: web_sys::Response = response
-            .dyn_into()
-            .map_err(|_| ChatError::HttpError("Failed to cast response".to_string()))?;
-
-        if !response.ok() {
-            let status = response.status();
-            let body_promise = response
-                .text()
-                .map_err(|e| ChatError::HttpError(format!("Failed to read response: {:?}", e)))?;
-            let body = wasm_bindgen_futures::JsFuture::from(body_promise)
-                .await
-                .map_err(|e| ChatError::HttpError(format!("Failed to read body: {:?}", e)))?;
-            let body_str: String = body.as_string().unwrap_or_default();
-            return Err(ChatError::ApiError { status, body: body_str });
-        }
-
-        let body_promise = response
-            .text()
-            .map_err(|e| ChatError::HttpError(format!("Failed to read response: {:?}", e)))?;
-        let body = wasm_bindgen_futures::JsFuture::from(body_promise)
-            .await
-            .map_err(|e| ChatError::HttpError(format!("Failed to read body: {:?}", e)))?;
-        let body_str: String = body.as_string().unwrap_or_default();
-
-        let data: prompt_yourself_core::openai::ChatCompletionResponse =
-            serde_json::from_str(&body_str)
-                .map_err(|e| ChatError::HttpError(format!("JSON parse error: {e}")))?;
-
-        Ok(data.choices[0].message.content.clone())
-    }
-}
+// ─── Chat completion ────────────────────────────────────────────────────────
 
 /// Send a chat completion request and return the assistant's reply.
 ///
@@ -153,13 +84,27 @@ impl OpenAIClient for WasmFetchClient {
 /// @returns {Promise<string>}
 #[wasm_bindgen(js_name = chatCompletion)]
 pub async fn wasm_chat_completion(messages_json: &str, max_tokens: u32) -> Result<String, JsError> {
+    let api_key = API_KEY.get().ok_or_else(|| {
+        JsError::new("API key not set. Call setApiKey() first.")
+    })?;
+
+    let api_base = API_BASE
+        .get()
+        .map(|s| s.as_str())
+        .unwrap_or("https://api.deepseek.com");
+
     let messages: Vec<ChatMessage> = serde_json::from_str(messages_json)
         .map_err(|e| JsError::new(&format!("Invalid messages JSON: {e}")))?;
 
-    let client = WasmFetchClient;
-    let reply = client
-        .chat(messages, max_tokens)
-        .await
-        .map_err(|e| JsError::new(&e.to_string()))?;
+    let reply = prompt_yourself_core::openai::chat_completion(
+        api_key,
+        api_base,
+        "deepseek-chat",
+        messages,
+        max_tokens,
+    )
+    .await
+    .map_err(|e| JsError::new(&e.to_string()))?;
+
     Ok(reply)
 }

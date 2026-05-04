@@ -3,12 +3,9 @@ use std::io::{self, BufRead, Write};
 use std::path::Path;
 
 use clap::Parser;
-use prompt_yourself_core::client::{ChatError, OpenAIClient};
-use prompt_yourself_core::openai::{ChatCompletionRequest, ChatMessage, Role};
+use prompt_yourself_core::openai::{ChatMessage, Role};
 use prompt_yourself_core::yaml_producer::{produce_yaml, FileEntry};
 use prompt_yourself_core::build_initial_messages;
-use async_trait::async_trait;
-use reqwest::Client;
 use walkdir::WalkDir;
 
 // ─── CLI args ───────────────────────────────────────────────────────────────
@@ -27,9 +24,8 @@ struct Args {
 // ─── Text extensions (same set as JS original) ──────────────────────────────
 
 const TEXT_EXTENSIONS: &[&str] = &[
-    ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".csv", ".js", ".ts",
-    ".jsx", ".tsx", ".py", ".rb", ".go", ".rs", ".html", ".css", ".scss",
-    ".xml", ".svg", ".env", ".cfg", ".ini", ".conf", ".log",
+    ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".csv",".html", ".css", ".scss",
+    ".xml", ".log",
 ];
 
 fn is_text_file(path: &Path) -> bool {
@@ -81,55 +77,6 @@ fn walk_directory(dir: &Path) -> Vec<FileEntry> {
     results
 }
 
-// ─── Native HTTP client (reqwest) ──────────────────────────────────────────
-
-struct DeepSeekClient {
-    http: Client,
-    api_key: String,
-}
-
-impl DeepSeekClient {
-    fn new(api_key: &str) -> Self {
-        Self {
-            http: Client::new(),
-            api_key: api_key.to_string(),
-        }
-    }
-}
-
-#[async_trait(?Send)]
-impl OpenAIClient for DeepSeekClient {
-    async fn chat_completion(
-        &self,
-        request: ChatCompletionRequest,
-    ) -> Result<String, ChatError> {
-        let response = self
-            .http
-            .post("https://api.deepseek.com/chat/completions")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ChatError::HttpError(e.to_string()))?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(ChatError::ApiError {
-                status: status.as_u16(),
-                body,
-            });
-        }
-
-        let data: prompt_yourself_core::openai::ChatCompletionResponse = response
-            .json()
-            .await
-            .map_err(|e| ChatError::HttpError(e.to_string()))?;
-
-        Ok(data.choices[0].message.content.clone())
-    }
-}
-
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -143,19 +90,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let api_key = std::env::var("DEEPSEEK_API_KEY")
-        .map_err(|_| {
+        .ok()
+        .filter(|k| k != "your-api-key-here")
+        .unwrap_or_else(|| {
             eprintln!("Error: DEEPSEEK_API_KEY is missing or unset in .env");
             std::process::exit(1);
-        })
-        .ok();
-
-    let api_key = match api_key {
-        Some(k) if k != "your-api-key-here" => k,
-        _ => {
-            eprintln!("Error: DEEPSEEK_API_KEY is missing or unset in .env");
-            std::process::exit(1);
-        }
-    };
+        });
 
     // Produce document content
     let (document_content, label) = if input_path.is_file() {
@@ -171,7 +111,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut messages = build_initial_messages(&document_content);
-    let client = DeepSeekClient::new(&api_key);
+
+    const MODEL: &str = "deepseek-chat";
 
     println!("{label}");
     println!("Ask questions about the content. (Ctrl+C to exit)\n");
@@ -198,7 +139,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             content: input,
         });
 
-        match client.chat(messages.clone(), args.max_tokens).await {
+        match prompt_yourself_core::openai::chat_completion(
+            &api_key,
+            "https://api.deepseek.com",
+            MODEL,
+            messages.clone(),
+            args.max_tokens,
+        )
+        .await
+        {
             Ok(reply) => {
                 println!("\n{reply}\n");
                 messages.push(ChatMessage {

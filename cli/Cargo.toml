@@ -5,10 +5,8 @@ edition = "2021"
 
 [dependencies]
 prompt-yourself-core = { path = "../core" }
-async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
 walkdir = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
