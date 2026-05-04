@@ -117,6 +117,12 @@ async function bundle(watch) {
     await esbuild.build(buildOptions);
     console.log('✅ Plugin bundled to', path.join(PLUGIN_OUT, 'main.js'));
   }
+
+  // Copy styles.css from src/ to the output directory
+  const srcCss = path.join(PLUGIN_SRC, 'styles.css');
+  const dstCss = path.join(PLUGIN_OUT, 'styles.css');
+  fs.copyFileSync(srcCss, dstCss);
+  console.log('✅ Copied styles.css');
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────

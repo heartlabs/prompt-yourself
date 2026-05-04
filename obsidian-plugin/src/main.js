@@ -27,7 +27,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
-import { Plugin, ItemView, PluginSettingTab, Setting, Notice } from 'obsidian';
+import { Plugin, ItemView, PluginSettingTab, Setting, Notice, MarkdownRenderer } from 'obsidian';
 import { initSync, produceYaml, buildInitialMessages, setApiKey, setSystemPrompt, chatCompletion } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 
@@ -220,8 +220,16 @@ class PromptYourselfView extends ItemView {
   addMessage(role, content) {
     const msgEl = this.chatAreaEl.createEl('div', {
       cls: 'message ' + role,
-      text: content,
     });
+
+    if (role === 'assistant' || role === 'user') {
+      // Render markdown for assistant and user messages
+      MarkdownRenderer.render(this.app, content, msgEl, '/', this);
+    } else {
+      // System messages use plain text
+      msgEl.setText(content);
+    }
+
     this.chatAreaEl.scrollTo(0, this.chatAreaEl.scrollHeight);
     return msgEl;
   }
