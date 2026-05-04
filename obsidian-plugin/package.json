@@ -8,7 +8,7 @@
     "dev": "node build.js --watch"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.0",
     "obsidian": "^1.8.7"
   }
 }

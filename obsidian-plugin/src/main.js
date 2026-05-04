@@ -176,6 +176,43 @@ class PromptYourselfView extends ItemView {
     return results;
   }
 
+  /**
+   * Re-read all files from the configured folder, regenerate the YAML document,
+   * and rebuild the conversation's initial messages (system prompt + document).
+   *
+   * This keeps the agent's context up to date with any file edits made between
+   * questions, without losing the conversation history.
+   */
+  async refreshDocument() {
+    const folderPath = this.plugin.settings.folderPath;
+    if (!folderPath && folderPath !== '') return;
+
+    let folder;
+    if (folderPath === '' || folderPath === '/') {
+      folder = this.app.vault.getRoot();
+    } else {
+      folder = this.app.vault.getAbstractFileByPath(folderPath);
+    }
+
+    if (!folder || !folder.children) return;
+
+    const files = await this.collectFolderFiles(folder, folderPath);
+    const filesJson = JSON.stringify(files);
+    const yamlContent = produceYaml(filesJson);
+
+    // Rebuild only the first (system + document) messages, preserving any user/assistant
+    // messages that came after.
+    const freshInitialMessages = JSON.parse(buildInitialMessages(yamlContent));
+
+    // Keep the conversation history but replace the initial document messages
+    if (this.messages.length >= 2) {
+      // Preserve the user/assistant conversation after the first two messages
+      this.messages = [...freshInitialMessages, ...this.messages.slice(2)];
+    } else {
+      this.messages = freshInitialMessages;
+    }
+  }
+
   async handleSend() {
     const text = this.inputEl.value.trim();
     if (!text) return;
@@ -190,6 +227,9 @@ class PromptYourselfView extends ItemView {
       this.addMessage('system', '⚠️ Select a folder in Plugin Settings first.');
       return;
     }
+
+    // ── Regenerate the YAML document so the agent sees the latest files ──
+    await this.refreshDocument();
 
     this.addMessage('user', text);
     this.messages.push({ role: 'user', content: text });
