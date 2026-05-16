@@ -1,25 +1,6 @@
-pub mod openai;
+pub (crate) mod infrastructure;
+pub mod api;
+pub mod domain;
 pub mod yaml_producer;
 
-/// The system prompt packaged at compile time.
-pub const SYSTEM_PROMPT: &str = include_str!("../resources/system-prompt.md");
-
-/// Build the initial messages array: system prompt + the document content.
-pub fn build_initial_messages(document_content: &str) -> Vec<openai::ChatMessage> {
-    build_initial_messages_with_prompt(document_content, SYSTEM_PROMPT)
-}
-
-/// Build the initial messages array with an explicit system prompt.
-pub fn build_initial_messages_with_prompt(document_content: &str, system_prompt: &str) -> Vec<openai::ChatMessage> {
-    vec![
-        openai::ChatMessage {
-            role: openai::Role::System,
-            content: system_prompt.to_string(),
-        },
-        openai::ChatMessage {
-            role: openai::Role::User,
-            content: format!("Here is the document to reference:\n\n{document_content}"),
-        },
-    ]
-}
-
+pub use infrastructure::openai::OpenAiAdapter;

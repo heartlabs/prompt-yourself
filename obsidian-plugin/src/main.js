@@ -28,7 +28,7 @@
  */
 
 import { Plugin, ItemView, PluginSettingTab, Setting, Notice, MarkdownRenderer } from 'obsidian';
-import { initSync, produceYaml, buildInitialMessages, setApiKey, setSystemPrompt, chatCompletion } from './core_wasm.js';
+import { initSync, produceYaml, setApiKey, setSystemPrompt, initChat, chatCompletion, resetChat, setDocumentContext } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -39,6 +39,7 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const VIEW_TYPE = 'prompt-yourself-view';
+const CHAT_MODEL = 'deepseek-chat';
 
 // ─── View (side panel) ───────────────────────────────────────────────────────
 
@@ -46,7 +47,6 @@ class PromptYourselfView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
-    this.messages = [];
     this.abortController = null;
   }
 
@@ -106,8 +106,7 @@ class PromptYourselfView extends ItemView {
     const folderPath = this.plugin.settings.folderPath;
     if (folderPath === undefined) return;
 
-    // Reset conversation
-    this.messages = [];
+    // Reset UI
     this.chatAreaEl.empty();
     this.updateFolderLabel();
 
@@ -127,7 +126,22 @@ class PromptYourselfView extends ItemView {
     const files = await this.collectFolderFiles(folder, folderPath);
     const filesJson = JSON.stringify(files);
     const yamlContent = produceYaml(filesJson);
-    this.messages = JSON.parse(buildInitialMessages(yamlContent));
+
+    const apiKey = this.plugin.settings.apiKey;
+    if (apiKey && apiKey !== 'your-api-key-here') {
+      try {
+        // Initialise the Rust-side Chat (system prompt + API config)
+        initChat(CHAT_MODEL);
+        // Set the document context (YAML journal) — this persists across resets
+        // and is included in every API call without costing extra tokens.
+        setDocumentContext(yamlContent);
+        // Start with a clean conversation slate
+        resetChat();
+      } catch (e) {
+        this.addMessage('system', '⚠️ Failed to initialise chat: ' + e.message);
+      }
+    }
+
     this.addMessage('system', 'Loaded folder "' + (folderPath || '/') + '" (' + files.length + ' files). Ask away!');
   }
 
@@ -178,10 +192,10 @@ class PromptYourselfView extends ItemView {
 
   /**
    * Re-read all files from the configured folder, regenerate the YAML document,
-   * and rebuild the conversation's initial messages (system prompt + document).
+   * and update the Rust Chat's document context.
    *
-   * This keeps the agent's context up to date with any file edits made between
-   * questions, without losing the conversation history.
+   * The conversation history is preserved — only the YAML journal is refreshed
+   * so the AI always sees the latest file contents.
    */
   async refreshDocument() {
     const folderPath = this.plugin.settings.folderPath;
@@ -200,17 +214,9 @@ class PromptYourselfView extends ItemView {
     const filesJson = JSON.stringify(files);
     const yamlContent = produceYaml(filesJson);
 
-    // Rebuild only the first (system + document) messages, preserving any user/assistant
-    // messages that came after.
-    const freshInitialMessages = JSON.parse(buildInitialMessages(yamlContent));
-
-    // Keep the conversation history but replace the initial document messages
-    if (this.messages.length >= 2) {
-      // Preserve the user/assistant conversation after the first two messages
-      this.messages = [...freshInitialMessages, ...this.messages.slice(2)];
-    } else {
-      this.messages = freshInitialMessages;
-    }
+    // Update the document context in-place — the conversation continues
+    // but the AI gets fresh file contents on the next API call.
+    setDocumentContext(yamlContent);
   }
 
   async handleSend() {
@@ -232,28 +238,16 @@ class PromptYourselfView extends ItemView {
     await this.refreshDocument();
 
     this.addMessage('user', text);
-    this.messages.push({ role: 'user', content: text });
-
     this.inputEl.value = '';
     this.setLoading(true);
 
-    if (this.abortController) {
-      this.abortController.abort();
-    }
-    this.abortController = new AbortController();
-
     try {
-      const messagesJson = JSON.stringify(this.messages);
-      const reply = await chatCompletion(messagesJson, 1000);
+      const reply = await chatCompletion(text);
       this.addMessage('assistant', reply);
-      this.messages.push({ role: 'assistant', content: reply });
     } catch (err) {
-      // AbortError is thrown by wasm-bindgen, check by name
-      if (err.name === 'AbortError') return;
       this.addMessage('system', '❌ Error: ' + err.message);
     } finally {
       this.setLoading(false);
-      this.abortController = null;
     }
   }
 
@@ -393,6 +387,10 @@ class PromptYourselfPlugin extends Plugin {
     // We resolve it relative to the plugin directory (which is inside the
     // workspace's .obsidian/plugins/ folder).
     await this.loadSystemPrompt();
+
+    // ── Initialise the Rust-side Chat instance ────────────────────────────
+    // This must happen after setApiKey / setSystemPrompt.
+    initChat(CHAT_MODEL);
 
     this.registerView(VIEW_TYPE, (leaf) => new PromptYourselfView(leaf, this));
 

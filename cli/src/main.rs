@@ -3,9 +3,9 @@ use std::io::{self, BufRead, Write};
 use std::path::Path;
 
 use clap::Parser;
-use prompt_yourself_core::openai::{ChatMessage, Role};
+use prompt_yourself_core::domain::ports::journal::{JournalError, JournalPort};
+use prompt_yourself_core::OpenAiAdapter;
 use prompt_yourself_core::yaml_producer::{produce_yaml, FileEntry};
-use prompt_yourself_core::build_initial_messages;
 use walkdir::WalkDir;
 
 // ─── CLI args ───────────────────────────────────────────────────────────────
@@ -15,16 +15,47 @@ use walkdir::WalkDir;
 struct Args {
     /// Path to a markdown file or folder
     path: String,
+}
 
-    /// Maximum tokens in the response
-    #[arg(long, default_value = "500")]
-    max_tokens: u32,
+// ─── CLI journal adapter ────────────────────────────────────────────────────
+
+/// Adapter that loads a journal from the native filesystem.
+struct CliJournalAdapter;
+
+impl JournalPort for CliJournalAdapter {
+    fn load_journal(&self, path: &str) -> Result<String, JournalError> {
+        let input_path = Path::new(path);
+
+        if !input_path.exists() {
+            return Err(JournalError::Io(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Path not found — {path}"),
+            )));
+        }
+
+        let (yaml, label) = if input_path.is_file() {
+            let content = fs::read_to_string(input_path)?;
+            (content, format!("File: {path}"))
+        } else if input_path.is_dir() {
+            let files = walk_directory(input_path);
+            let yaml = produce_yaml(&files);
+            (yaml, format!("Folder: {path} ({} files)", files.len()))
+        } else {
+            return Err(JournalError::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Not a file or directory — {path}"),
+            )));
+        };
+
+        eprintln!("{label}");
+        Ok(yaml)
+    }
 }
 
 // ─── Text extensions (same set as JS original) ──────────────────────────────
 
 const TEXT_EXTENSIONS: &[&str] = &[
-    ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".csv",".html", ".css", ".scss",
+    ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".csv", ".html", ".css", ".scss",
     ".xml", ".log",
 ];
 
@@ -45,7 +76,6 @@ fn walk_directory(dir: &Path) -> Vec<FileEntry> {
     for entry in WalkDir::new(dir)
         .into_iter()
         .filter_entry(|e| {
-            // Skip hidden files/dirs and node_modules
             let name = e.file_name().to_str().unwrap_or("");
             !name.starts_with('.') && name != "node_modules"
         })
@@ -82,12 +112,6 @@ fn walk_directory(dir: &Path) -> Vec<FileEntry> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let input_path = Path::new(&args.path);
-
-    if !input_path.exists() {
-        eprintln!("Error: Path not found — {}", args.path);
-        std::process::exit(1);
-    }
 
     let api_key = std::env::var("DEEPSEEK_API_KEY")
         .ok()
@@ -97,24 +121,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         });
 
-    // Produce document content
-    let (document_content, label) = if input_path.is_file() {
-        let content = fs::read_to_string(input_path)?;
-        (content, format!("File: {}", args.path))
-    } else if input_path.is_dir() {
-        let files = walk_directory(input_path);
-        let yaml = produce_yaml(&files);
-        (yaml, format!("Folder: {} ({} files)", args.path, files.len()))
-    } else {
-        eprintln!("Error: Not a file or directory — {}", args.path);
-        std::process::exit(1);
-    };
-
-    let mut messages = build_initial_messages(&document_content);
-
     const MODEL: &str = "deepseek-chat";
+    const API_BASE: &str = "https://api.deepseek.com";
 
-    println!("{label}");
+    // Load journal
+    let journal_adapter = CliJournalAdapter;
+    let journal_yaml = journal_adapter.load_journal(&args.path)?;
+
+    // Build OpenAI adapter and chat, then seed the document context
+    let openai_adapter = OpenAiAdapter::new(api_key, API_BASE.to_string(), MODEL.to_string());
+    let mut chat = prompt_yourself_core::api::chat::Chat::new(
+        Box::new(openai_adapter),
+        prompt_yourself_core::api::chat::SYSTEM_PROMPT.to_string(),
+    );
+    chat.set_document_context(&journal_yaml);
+
     println!("Ask questions about the content. (Ctrl+C to exit)\n");
 
     let stdin = io::stdin();
@@ -134,26 +155,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        messages.push(ChatMessage {
-            role: Role::User,
-            content: input,
-        });
-
-        match prompt_yourself_core::openai::chat_completion(
-            &api_key,
-            "https://api.deepseek.com",
-            MODEL,
-            messages.clone(),
-            args.max_tokens,
-        )
-        .await
-        {
+        match chat.user_message(input).await {
             Ok(reply) => {
                 println!("\n{reply}\n");
-                messages.push(ChatMessage {
-                    role: Role::Assistant,
-                    content: reply,
-                });
             }
             Err(e) => {
                 eprintln!("\nError: {e}\n");
