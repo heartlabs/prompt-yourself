@@ -9,7 +9,11 @@ pub struct FileEntry {
     pub content: Option<String>,
     /// Last modification timestamp, or `None` if unknown.
     /// Uses `lastModified` in JSON (Obsidian convention), snake_case in YAML.
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "lastModified")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "lastModified"
+    )]
     pub last_modified: Option<DateTime<Utc>>,
 }
 
@@ -44,7 +48,10 @@ pub fn produce_yaml(files: &[FileEntry]) -> String {
         if let Some(ts) = &file.last_modified {
             result.push_str(&spaces(indent));
             // Use `Z` suffix instead of `+00:00` for a cleaner YAML output.
-            result.push_str(&format!("last_modified: {}\n", ts.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)));
+            result.push_str(&format!(
+                "last_modified: {}\n",
+                ts.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+            ));
         }
 
         match &file.content {

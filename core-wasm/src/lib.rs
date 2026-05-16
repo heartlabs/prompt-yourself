@@ -92,10 +92,7 @@ struct WasmJournalAdapter;
 #[cfg(not(target_arch = "wasm32"))]
 #[async_trait::async_trait]
 impl JournalPort for WasmJournalAdapter {
-    async fn load_entries(
-        &self,
-        _since: &DateTime<Utc>,
-    ) -> Result<Vec<FileEntry>, JournalError> {
+    async fn load_entries(&self, _since: &DateTime<Utc>) -> Result<Vec<FileEntry>, JournalError> {
         unreachable!("WasmJournalAdapter should never be used on native targets")
     }
 }
@@ -134,14 +131,11 @@ impl JournalPort for WasmJournalAdapter {
             .await
             .map_err(|e| JournalError::Other(format!("loadEntries callback rejected: {:?}", e)))?;
 
-        let json_str: String = json_val
-            .as_string()
-            .ok_or_else(|| {
-                JournalError::Other(
-                    "loadEntries callback must return a string (JSON array of FileEntry)"
-                        .to_string(),
-                )
-            })?;
+        let json_str: String = json_val.as_string().ok_or_else(|| {
+            JournalError::Other(
+                "loadEntries callback must return a string (JSON array of FileEntry)".to_string(),
+            )
+        })?;
 
         let entries: Vec<FileEntry> =
             serde_json::from_str(&json_str).map_err(|e| JournalError::Other(e.to_string()))?;

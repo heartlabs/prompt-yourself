@@ -15,9 +15,7 @@ pub(crate) struct CliJournalAdapter {
 
 impl CliJournalAdapter {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self {
-            path: path.into(),
-        }
+        Self { path: path.into() }
     }
 }
 
