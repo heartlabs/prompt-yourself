@@ -8,7 +8,8 @@ pub struct FileEntry {
     /// File content. `None` indicates a binary or unreadable file.
     pub content: Option<String>,
     /// Last modification timestamp, or `None` if unknown.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Uses `lastModified` in JSON (Obsidian convention), snake_case in YAML.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "lastModified")]
     pub last_modified: Option<DateTime<Utc>>,
 }
 

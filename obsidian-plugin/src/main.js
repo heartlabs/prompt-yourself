@@ -187,6 +187,14 @@ class PromptYourselfView extends ItemView {
       };
 
       await walk(folder.children);
+
+      if (results.length > 0) {
+        console.log(
+          `[prompt-yourself] loadEntries(sinceMs=${sinceMs}) returned ${results.length} file(s):`,
+          results.map(r => `${r.path} (${r.lastModified ?? '?'})`).join(', ')
+        );
+      }
+
       return JSON.stringify(results);
     };
   }
