@@ -1,34 +1,27 @@
 /*
  * Prompt Yourself – Obsidian Plugin
  *
- * Side panel chat that uses the DeepSeek API to answer questions about a vault folder
- * (produced as a YAML document with all text files).
+ * Side panel chat that uses the DeepSeek API to answer questions about a vault folder.
  *
- * Core logic (YAML producer, API client) is implemented in Rust and compiled to WASM.
- * See ../core-wasm/ for the Rust source and ../../core/ for the domain logic.
+ * Core logic is implemented in Rust and compiled to WASM. The Rust `Chat` calls a JS
+ * callback (`setLoadEntriesCallback`) to load file entries — from the core's perspective
+ * there is zero difference between CLI and Obsidian.
  *
  * ═══════════════════════════════════════════════════════════════════════════════
- * NOTE about WASM loading strategy
+ * Re-entrancy warning
  * ═══════════════════════════════════════════════════════════════════════════════
  *
- * Currently this plugin BUNDLES the WASM module into a single main.js via esbuild.
- * If you want to switch to RUNTIME dynamic import instead (to avoid the build step):
+ * The `loadEntries` callback (registered with `setLoadEntriesCallback`) is called
+ * from Rust every time a new user message is sent. The callback MUST NOT call any
+ * WASM function that acquires the chat lock (e.g. `chatCompletion`,
+ * `loadInitialContext`, `resetChat`), or a "Re-entry detected" error will be thrown.
  *
- *   async onload() {
- *     const wasm = await import('./core_wasm.js');
- *     // wasm is now auto-initialized, use wasm.produceYaml(), wasm.chatCompletion() etc.
- *   }
- *
- * Pros of dynamic import: no build step, lazy loading.
- * Cons: async init can be flaky across Obsidian versions, error handling is manual,
- * must ship two extra files (core_wasm.js + core_wasm_bg.wasm).
- *
- * The bundling approach (esbuild) was chosen for reliability and single-file distribution.
- * ═══════════════════════════════════════════════════════════════════════════════
+ * The callback is a pure data-fetching function — it reads the vault, filters by
+ * mtime, and returns a JSON string. No WASM calls.
  */
 
-import { Plugin, ItemView, PluginSettingTab, Setting, Notice, MarkdownRenderer } from 'obsidian';
-import { initSync, produceYaml, setApiKey, setSystemPrompt, initChat, chatCompletion, resetChat, setDocumentContext } from './core_wasm.js';
+import { Plugin, ItemView, PluginSettingTab, Setting, MarkdownRenderer } from 'obsidian';
+import { initSync, setApiKey, setSystemPrompt, setLoadEntriesCallback, initChat, loadInitialContext, chatCompletion, resetChat } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -41,13 +34,47 @@ const TEXT_EXTENSIONS = new Set([
 const VIEW_TYPE = 'prompt-yourself-view';
 const CHAT_MODEL = 'deepseek-chat';
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Parse an ISO 8601 UTC timestamp string to milliseconds since epoch.
+ * Handles format "YYYY-MM-DDTHH:MM:SSZ".
+ */
+function parseIso8601Ms(s) {
+  if (!s || s.length < 20) return null;
+  try {
+    const year = parseInt(s.slice(0, 4), 10);
+    const month = parseInt(s.slice(5, 7), 10) - 1;
+    const day = parseInt(s.slice(8, 10), 10);
+    const hour = parseInt(s.slice(11, 13), 10);
+    const min = parseInt(s.slice(14, 16), 10);
+    const sec = parseInt(s.slice(17, 19), 10);
+    return Date.UTC(year, month, day, hour, min, sec);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Convert milliseconds since epoch to an ISO 8601 UTC timestamp string.
+ */
+function msToIso8601(ms) {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const h = String(d.getUTCHours()).padStart(2, '0');
+  const min = String(d.getUTCMinutes()).padStart(2, '0');
+  const s = String(d.getUTCSeconds()).padStart(2, '0');
+  return `${y}-${m}-${day}T${h}:${min}:${s}Z`;
+}
+
 // ─── View (side panel) ───────────────────────────────────────────────────────
 
 class PromptYourselfView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
-    this.abortController = null;
   }
 
   getViewType() {
@@ -102,121 +129,117 @@ class PromptYourselfView extends ItemView {
     }
   }
 
+  /**
+   * Build the JS callback that the Rust core calls via `JournalPort::load_entries`.
+   *
+   * The callback receives an ISO 8601 `since` timestamp and must return a
+   * Promise<string> — a JSON array of `{path, content, lastModified}` objects
+   * for every file whose mtime is strictly after `since`.
+   *
+   * ⚠️ This callback MUST NOT call any WASM function that locks the chat
+   * (e.g. chatCompletion, loadInitialContext, resetChat) — see re-entrancy doc.
+   */
+  buildLoadEntriesCallback() {
+    const folderPath = this.plugin.settings.folderPath;
+    const app = this.app;
+
+    return async (since) => {
+      let folder;
+      if (folderPath === '' || folderPath === '/') {
+        folder = app.vault.getRoot();
+      } else {
+        folder = app.vault.getAbstractFileByPath(folderPath);
+      }
+
+      if (!folder || !folder.children) return '[]';
+
+      const sinceMs = parseIso8601Ms(since);
+      const results = [];
+
+      // Normalise rootPath
+      const prefix = folderPath ? folderPath.replace(/^\/+|\/+$/g, '') : '';
+
+      const walk = async (children) => {
+        for (const child of children) {
+          if (child.name.startsWith('.')) continue;
+          if (child.name === 'node_modules') continue;
+
+          if (child.children) {
+            await walk(child.children);
+          } else {
+            // Relative path
+            const childAbs = child.path.replace(/^\//, '');
+            let relPath;
+            if (!prefix) {
+              relPath = childAbs;
+            } else if (childAbs === prefix) {
+              relPath = '';
+            } else if (childAbs.startsWith(prefix + '/')) {
+              relPath = childAbs.slice(prefix.length + 1);
+            } else {
+              relPath = childAbs;
+            }
+
+            // mtime filter
+            const mtimeMs = child.stat && child.stat.mtime;
+            if (sinceMs !== null && mtimeMs !== null && mtimeMs <= sinceMs) {
+              continue;
+            }
+
+            // Content
+            const dotIdx = child.name.lastIndexOf('.');
+            const ext = dotIdx !== -1 ? child.name.slice(dotIdx).toLowerCase() : '';
+            let content = null;
+            if (TEXT_EXTENSIONS.has(ext)) {
+              try {
+                content = await app.vault.read(child);
+                content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+              } catch (_) {
+                content = null;
+              }
+            }
+
+            const lastModified = mtimeMs != null ? msToIso8601(mtimeMs) : '';
+            results.push({ path: relPath, content, lastModified });
+          }
+        }
+      };
+
+      await walk(folder.children);
+      return JSON.stringify(results);
+    };
+  }
+
   async loadFolder() {
     const folderPath = this.plugin.settings.folderPath;
     if (folderPath === undefined) return;
 
-    // Reset UI
+    // Reset the chat panel UI
     this.chatAreaEl.empty();
     this.updateFolderLabel();
 
-    let folder;
-    if (folderPath === '' || folderPath === '/') {
-      // Whole vault
-      folder = this.app.vault.getRoot();
-    } else {
-      folder = this.app.vault.getAbstractFileByPath(folderPath);
-    }
-
-    if (!folder || !folder.children) {
-      this.addMessage('system', '⚠️ Folder not found: "' + folderPath + '". Check settings.');
-      return;
-    }
-
-    const files = await this.collectFolderFiles(folder, folderPath);
-    const filesJson = JSON.stringify(files);
-    const yamlContent = produceYaml(filesJson);
+    // Register the loadEntries callback BEFORE initChat or any WASM calls
+    const callback = this.buildLoadEntriesCallback();
+    setLoadEntriesCallback(callback);
 
     const apiKey = this.plugin.settings.apiKey;
     if (apiKey && apiKey !== 'your-api-key-here') {
       try {
-        // Initialise the Rust-side Chat (system prompt + API config)
+        // Initialise the Rust-side Chat (system prompt + API config).
+        // The journal adapter is WasmJournalAdapter which calls the JS callback above.
         initChat(CHAT_MODEL);
-        // Set the document context (YAML journal) — this persists across resets
-        // and is included in every API call without costing extra tokens.
-        setDocumentContext(yamlContent);
+        // Load every file (since epoch) — the callback handles the vault scan.
+        const fileCount = await loadInitialContext();
         // Start with a clean conversation slate
         resetChat();
+
+        this.addMessage('system', 'Loaded folder "' + (folderPath || '/') + '" (' + fileCount + ' files). Ask away!');
       } catch (e) {
         this.addMessage('system', '⚠️ Failed to initialise chat: ' + e.message);
       }
-    }
-
-    this.addMessage('system', 'Loaded folder "' + (folderPath || '/') + '" (' + files.length + ' files). Ask away!');
-  }
-
-  async collectFolderFiles(folder, rootPath) {
-    const results = [];
-    const children = folder.children || [];
-
-    // Normalise rootPath: strip leading/trailing slashes, empty string means whole vault
-    const prefix = rootPath ? rootPath.replace(/^\/+|\/+$/g, '') : '';
-
-    for (const child of children) {
-      if (child.name.startsWith('.')) continue;
-      if (child.name === 'node_modules') continue;
-
-      if (child.children) {
-        // Folder
-        const sub = await this.collectFolderFiles(child, rootPath);
-        results.push(...sub);
-      } else {
-        // File — compute relative path
-        const childAbs = child.path.replace(/^\//, '');
-        let relPath;
-        if (!prefix) {
-          relPath = childAbs; // whole vault
-        } else if (childAbs === prefix) {
-          relPath = '';
-        } else if (childAbs.startsWith(prefix + '/')) {
-          relPath = childAbs.slice(prefix.length + 1);
-        } else {
-          relPath = childAbs;
-        }
-
-        const dotIdx = child.name.lastIndexOf('.');
-        const ext = dotIdx !== -1 ? child.name.slice(dotIdx).toLowerCase() : '';
-        let content = null;
-        if (TEXT_EXTENSIONS.has(ext)) {
-          try {
-            content = await this.app.vault.read(child);
-          } catch (_) {
-            content = null;
-          }
-        }
-        results.push({ path: relPath, content });
-      }
-    }
-    return results;
-  }
-
-  /**
-   * Re-read all files from the configured folder, regenerate the YAML document,
-   * and update the Rust Chat's document context.
-   *
-   * The conversation history is preserved — only the YAML journal is refreshed
-   * so the AI always sees the latest file contents.
-   */
-  async refreshDocument() {
-    const folderPath = this.plugin.settings.folderPath;
-    if (!folderPath && folderPath !== '') return;
-
-    let folder;
-    if (folderPath === '' || folderPath === '/') {
-      folder = this.app.vault.getRoot();
     } else {
-      folder = this.app.vault.getAbstractFileByPath(folderPath);
+      this.addMessage('system', '⚠️ Please set your DeepSeek API key in Plugin Settings.');
     }
-
-    if (!folder || !folder.children) return;
-
-    const files = await this.collectFolderFiles(folder, folderPath);
-    const filesJson = JSON.stringify(files);
-    const yamlContent = produceYaml(filesJson);
-
-    // Update the document context in-place — the conversation continues
-    // but the AI gets fresh file contents on the next API call.
-    setDocumentContext(yamlContent);
   }
 
   async handleSend() {
@@ -234,14 +257,15 @@ class PromptYourselfView extends ItemView {
       return;
     }
 
-    // ── Regenerate the YAML document so the agent sees the latest files ──
-    await this.refreshDocument();
-
     this.addMessage('user', text);
     this.inputEl.value = '';
     this.setLoading(true);
 
     try {
+      // chatCompletion calls user_message internally, which:
+      //   1. Calls loadEntries(since_last_check) via the JS callback
+      //   2. Injects "Note: File ... updated" messages for any changes
+      //   3. Sends the full conversation to the API
       const reply = await chatCompletion(text);
       this.addMessage('assistant', reply);
     } catch (err) {
@@ -257,10 +281,8 @@ class PromptYourselfView extends ItemView {
     });
 
     if (role === 'assistant' || role === 'user') {
-      // Render markdown for assistant and user messages
       MarkdownRenderer.render(this.app, content, msgEl, '/', this);
     } else {
-      // System messages use plain text
       msgEl.setText(content);
     }
 
@@ -275,9 +297,7 @@ class PromptYourselfView extends ItemView {
   }
 
   async onClose() {
-    if (this.abortController) {
-      this.abortController.abort();
-    }
+    // no-op
   }
 }
 
@@ -311,8 +331,6 @@ class PromptYourselfSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.apiKey = value.trim();
             await this.plugin.saveSettings();
-            // Sync the API key to WASM immediately so the user doesn't
-            // have to reload the plugin after changing the key.
             if (this.plugin.settings.apiKey) {
               setApiKey(this.plugin.settings.apiKey);
             }
@@ -328,12 +346,10 @@ class PromptYourselfSettingTab extends PluginSettingTab {
         'All text files inside are bundled into a YAML document for the AI.'
       )
       .addDropdown((dropdown) => {
-        // Collect all folder paths from the vault
         const allFiles = this.app.vault.getAllLoadedFiles();
         const pathSet = new Set();
         for (const f of allFiles) {
           if (f.children) {
-            // It's a TFolder — collect its path
             const p = f.path === '/' ? '' : f.path;
             pathSet.add(p);
           }
@@ -351,7 +367,6 @@ class PromptYourselfSettingTab extends PluginSettingTab {
           this.plugin.settings.folderPath = value;
           await this.plugin.saveSettings();
 
-          // Reload the panel if it's open
           const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
           if (leaves.length > 0) {
             const view = leaves[0].view;
@@ -370,27 +385,15 @@ class PromptYourselfPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-    // ── Initialise WASM ────────────────────────────────────────────────────
-    // Pass {module: bytes} to avoid the deprecation warning about the
-    // bare-Uint8Array argument form.
+    // Initialise WASM
     initSync({ module: wasmBytes });
 
-    // Pass the stored API key to the WASM module.
-    // This sets a Rust OnceLock<String> inside the WASM instance's linear
-    // memory, so it persists for the lifetime of the WASM module.
     if (this.settings.apiKey) {
       setApiKey(this.settings.apiKey);
     }
 
-    // ── Load system prompt from disk ──────────────────────────────────────
-    // The prompt file lives at workspace-root/core/resources/system-prompt.md.
-    // We resolve it relative to the plugin directory (which is inside the
-    // workspace's .obsidian/plugins/ folder).
+    // Load system prompt from disk
     await this.loadSystemPrompt();
-
-    // ── Initialise the Rust-side Chat instance ────────────────────────────
-    // This must happen after setApiKey / setSystemPrompt.
-    initChat(CHAT_MODEL);
 
     this.registerView(VIEW_TYPE, (leaf) => new PromptYourselfView(leaf, this));
 
@@ -409,14 +412,11 @@ class PromptYourselfPlugin extends Plugin {
 
   async activateView() {
     const { workspace } = this.app;
-
     let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
-
     if (!leaf) {
       leaf = workspace.getRightLeaf(false);
       await leaf.setViewState({ type: VIEW_TYPE, active: true });
     }
-
     workspace.revealLeaf(leaf);
   }
 
@@ -430,20 +430,14 @@ class PromptYourselfPlugin extends Plugin {
   }
 
   async loadSystemPrompt() {
-    // Read the system prompt from a file on disk using Node's fs module.
-    // The vault adapter is sandboxed to vault-relative paths, so for absolute
-    // paths outside the vault we need fs directly.
     const promptPath = this.settings.systemPromptPath;
-
     if (!promptPath) {
       console.log('[Prompt Yourself] No systemPromptPath configured - using compiled-in default');
       return;
     }
-
     try {
       const fs = require('fs');
-      const exists = fs.existsSync(promptPath);
-      if (exists) {
+      if (fs.existsSync(promptPath)) {
         const content = fs.readFileSync(promptPath, 'utf-8');
         setSystemPrompt(content);
         console.log('[Prompt Yourself] Loaded system prompt from', promptPath);

@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Write};
 
 use clap::Parser;
-use prompt_yourself_core::{domain::ports::journal::JournalPort, OpenAiAdapter};
+use prompt_yourself_core::OpenAiAdapter;
 
 // ─── CLI args ───────────────────────────────────────────────────────────────
 
@@ -33,17 +33,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const MODEL: &str = "deepseek-chat";
     const API_BASE: &str = "https://api.deepseek.com";
 
-    // Load journal
-    let journal_adapter = journal::CliJournalAdapter;
-    let journal_yaml = journal_adapter.load_journal(&args.path)?;
-
-    // Build OpenAI adapter and chat, then seed the document context
+    // Build adapters and chat
     let openai_adapter = OpenAiAdapter::new(api_key, API_BASE.to_string(), MODEL.to_string());
+    let journal_adapter = journal::CliJournalAdapter::new(&args.path);
+
     let mut chat = prompt_yourself_core::api::chat::Chat::new(
         Box::new(openai_adapter),
         prompt_yourself_core::api::chat::SYSTEM_PROMPT.to_string(),
+        Box::new(journal_adapter),
     );
-    chat.set_document_context(&journal_yaml);
+
+    // Load the initial document context (loads ALL files since epoch)
+    let file_count = chat.load_initial_context().await?;
+    eprintln!("Folder: {} ({} files)", args.path, file_count);
 
     println!("Ask questions about the content. (Ctrl+C to exit)\n");
 

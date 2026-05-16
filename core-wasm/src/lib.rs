@@ -3,36 +3,34 @@
 //! This crate provides `#[wasm_bindgen]` exports that wrap the domain logic
 //! in `prompt-yourself-core` for consumption from JavaScript (e.g., the Obsidian plugin).
 //!
-//! ## Alternatives considered
+//! ## Architecture
 //!
-//! Instead of a separate `core-wasm` crate, we considered compiling the `core` crate
-//! directly with `--target wasm32-unknown-unknown`. The separate crate approach was chosen
-//! to keep WASM-specific dependencies (`wasm-bindgen`, `web-sys`, `js-sys`) isolated from
-//! the pure domain logic.
+//! The WASM adapter for [`JournalPort`] delegates to a JS callback registered
+//! via [`setLoadEntriesCallback`]. This means from the **core**'s perspective
+//! there is zero difference between the CLI and Obsidian — both just implement
+//! `load_entries(since)` and the core calls it at the right times.
 //!
-//! If in the future we want to simplify the build pipeline, we could merge this logic
-//! back into `core` behind a `#[cfg(target_arch = "wasm32")]` gate.
+//! ## Re-entrancy guard
 //!
-//! ## Runtime WASM loading (alternative to bundling)
-//!
-//! Currently the Obsidian plugin bundles this WASM via esbuild. An alternative approach
-//! would be dynamic `import()` at runtime in the plugin:
-//!
-//! ```js
-//! // Inside Obsidian plugin's onload():
-//! const wasm = await import('./core_wasm.js');
-//! wasm.init(); // or the module auto-initializes
-//! ```
-//!
-//! Pros of dynamic import: no build step for the plugin, lazy loading.
-//! Cons: async init can be flaky across Obsidian versions, need to handle init failures,
-//! must ship two extra files (glue .js + .wasm) alongside main.js.
+//! The JS callback **must not** call back into any WASM function that locks
+//! [`CHAT`] (e.g. [`chatCompletion`], [`loadInitialContext`]), or a deadlock
+//! will occur. A [`ReentryGuard`] is checked before `load_entries` calls into
+//! JS, and will return an error if re-entrancy is detected.
 
+use std::cell::RefCell;
 use std::sync::{Mutex, OnceLock};
+
+// Set a panic hook that logs to console.error so we can see Rust panic
+// messages instead of just "RuntimeError: unreachable".
+#[wasm_bindgen(start)]
+pub fn start() {
+    console_error_panic_hook::set_once();
+}
 
 use prompt_yourself_core::{
     api::chat::Chat,
-    yaml_producer::{produce_yaml, FileEntry},
+    domain::ports::journal::{JournalError, JournalPort},
+    yaml_producer::FileEntry,
     OpenAiAdapter,
 };
 use wasm_bindgen::prelude::*;
@@ -44,7 +42,118 @@ static API_BASE: OnceLock<String> = OnceLock::new();
 static SYSTEM_PROMPT: OnceLock<String> = OnceLock::new();
 static CHAT: OnceLock<Mutex<Chat>> = OnceLock::new();
 
+// JS callback registered by the Obsidian plugin.
+// Signature: `(since: string) => Promise<string>`
+thread_local! {
+    static LOAD_ENTRIES_CALLBACK: RefCell<Option<js_sys::Function>> = const { RefCell::new(None) };
+}
+
+// Re-entrancy guard (WASM only — native stub never instantiates WasmJournalAdapter).
+// WASM is single-threaded, so we use a simple thread-local boolean.
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static REENTRY_GUARD: RefCell<bool> = const { RefCell::new(false) };
+}
+
+#[cfg(target_arch = "wasm32")]
+struct ReentryGuard;
+#[cfg(target_arch = "wasm32")]
+impl ReentryGuard {
+    fn try_enter() -> Result<Self, String> {
+        REENTRY_GUARD.with(|g| {
+            let mut guard = g.borrow_mut();
+            if *guard {
+                return Err("Re-entry detected: the loadEntries callback must not call back into WASM functions (e.g. chatCompletion)".to_string());
+            }
+            *guard = true;
+            Ok(ReentryGuard)
+        })
+    }
+}
+#[cfg(target_arch = "wasm32")]
+impl Drop for ReentryGuard {
+    fn drop(&mut self) {
+        REENTRY_GUARD.with(|g| *g.borrow_mut() = false);
+    }
+}
+
+// ─── WASM journal adapter ───────────────────────────────────────────────────
+
+/// Adapter that calls a JS callback to load file entries.
+///
+/// The callback is registered via [`setLoadEntriesCallback`] and must return
+/// a JSON-serialized `Vec<FileEntry>`.
+struct WasmJournalAdapter;
+
+// The adapter is only ever instantiated on WASM. On native (host-target builds
+// like `cargo check --workspace`) we provide a stub that panics — this keeps
+// the compiler happy while we still use ?Send on WASM.
+#[cfg(not(target_arch = "wasm32"))]
+#[async_trait::async_trait]
+impl JournalPort for WasmJournalAdapter {
+    async fn load_entries(&self, _since: &str) -> Result<Vec<FileEntry>, JournalError> {
+        unreachable!("WasmJournalAdapter should never be used on native targets")
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[async_trait::async_trait(?Send)]
+impl JournalPort for WasmJournalAdapter {
+    async fn load_entries(&self, since: &str) -> Result<Vec<FileEntry>, JournalError> {
+        // Check re-entrancy before calling into JS
+        let _guard = ReentryGuard::try_enter().map_err(JournalError::Other)?;
+
+        // Get the callback outside the async block (RefCell can't cross await)
+        let cb = LOAD_ENTRIES_CALLBACK.with(|c| c.borrow().clone());
+        let cb = cb
+            .ok_or_else(|| JournalError::Other(
+                "loadEntries callback not set. Call setLoadEntriesCallback() before initChat().".to_string()
+            ))?;
+
+        let this = JsValue::null();
+        let arg = JsValue::from(since);
+
+        // Call the JS function — it returns a Promise (which we get as JsValue)
+        let promise_val = cb
+            .call1(&this, &arg)
+            .map_err(|e| JournalError::Other(format!("loadEntries callback threw: {:?}", e)))?;
+
+        let promise = js_sys::Promise::from(promise_val);
+        let future = wasm_bindgen_futures::JsFuture::from(promise);
+
+        let json_val = future
+            .await
+            .map_err(|e| JournalError::Other(format!("loadEntries callback rejected: {:?}", e)))?;
+
+        let json_str: String = json_val
+            .as_string()
+            .ok_or_else(|| JournalError::Other(
+                "loadEntries callback must return a string (JSON array of FileEntry)".to_string()
+            ))?;
+
+        let entries: Vec<FileEntry> =
+            serde_json::from_str(&json_str).map_err(|e| JournalError::Other(e.to_string()))?;
+
+        Ok(entries)
+    }
+}
+
 // ─── Setters ────────────────────────────────────────────────────────────────
+
+/// Register a JS callback that loads file entries.
+///
+/// The callback receives an ISO 8601 `since` timestamp and must **return a
+/// promise** that resolves to a JSON string — an array of
+/// `{path, content, lastModified}` objects.
+///
+/// **⚠️ Re-entrancy:** The callback must **not** call back into any WASM
+/// function that acquires the chat lock (e.g. `chatCompletion`,
+/// `loadInitialContext`, `resetChat`, `setApiKey`), or a
+/// `"Re-entry detected"` error will be returned.
+#[wasm_bindgen(js_name = setLoadEntriesCallback)]
+pub fn wasm_set_load_entries_callback(cb: js_sys::Function) {
+    LOAD_ENTRIES_CALLBACK.with(|f| *f.borrow_mut() = Some(cb));
+}
 
 /// Set the API key (e.g. DeepSeek). Must be called before `initChat`.
 #[wasm_bindgen(js_name = setApiKey)]
@@ -68,8 +177,13 @@ pub fn wasm_set_system_prompt(prompt: &str) {
 
 /// Initialise (or reset) the global Chat instance with the given model.
 ///
-/// Must be called after `setApiKey` (and optionally `setApiBase` / `setSystemPrompt`).
-/// Calling this again discards the previous conversation history.
+/// Must be called after `setApiKey` (and optionally `setApiBase` /
+/// `setSystemPrompt` / `setLoadEntriesCallback`). Calling this again
+/// discards the previous conversation history.
+///
+/// The journal adapter uses the JS callback registered via
+/// [`setLoadEntriesCallback`] — the callback must be set **before** this
+/// function is called, or every `load_entries` call will fail.
 #[wasm_bindgen(js_name = initChat)]
 pub fn wasm_init_chat(model: &str) -> Result<(), JsError> {
     let api_key = API_KEY
@@ -88,24 +202,35 @@ pub fn wasm_init_chat(model: &str) -> Result<(), JsError> {
 
     let adapter = OpenAiAdapter::new(api_key.clone(), api_base.to_string(), model.to_string());
 
-    let chat = Chat::new(Box::new(adapter), system_prompt.to_owned());
+    let chat = Chat::new(
+        Box::new(adapter),
+        system_prompt.to_owned(),
+        Box::new(WasmJournalAdapter),
+    );
 
-    // Replace the existing chat if any, or set for the first time.
     let _ = CHAT.set(Mutex::new(chat));
     Ok(())
 }
 
-// ─── Produce YAML ───────────────────────────────────────────────────────────
+// ─── Initial context ────────────────────────────────────────────────────────
 
-/// Produce a YAML document from a list of file entries.
+/// Load the initial document context from the journal.
 ///
-/// Accepts a JSON string representing an array of `{path: string, content: string | null}`.
-/// Returns the YAML string.
-#[wasm_bindgen(js_name = produceYaml)]
-pub fn wasm_produce_yaml(files_json: &str) -> Result<String, JsError> {
-    let files: Vec<FileEntry> =
-        serde_json::from_str(files_json).map_err(|e| JsError::new(&e.to_string()))?;
-    Ok(produce_yaml(&files))
+/// This calls the JS `loadEntries` callback with the epoch timestamp, so
+/// every file is returned. The YAML document is built from the result and
+/// stored as the AI's reference context.
+///
+/// Must be called once after `initChat()` and before the first
+/// `chatCompletion()`.
+#[wasm_bindgen(js_name = loadInitialContext)]
+pub async fn wasm_load_initial_context() -> Result<usize, JsError> {
+    let chat_mutex = CHAT
+        .get()
+        .ok_or_else(|| JsError::new("Chat not initialised. Call initChat() first."))?;
+
+    let mut chat = chat_mutex.lock().expect("Chat mutex poisoned");
+    let count = chat.load_initial_context().await?;
+    Ok(count)
 }
 
 // ─── Chat completion ────────────────────────────────────────────────────────
@@ -113,6 +238,10 @@ pub fn wasm_produce_yaml(files_json: &str) -> Result<String, JsError> {
 /// Send a chat completion request and return the assistant's reply.
 ///
 /// The global Chat instance must have been initialised via `initChat()` first.
+///
+/// Before the API call, `loadEntries(since_last_check)` is called
+/// automatically via the journal adapter's JS callback, so file changes
+/// are detected and injected as update messages without any JS intervention.
 ///
 /// @param {string} userMessage - the user's message to append
 /// @returns {Promise<string>}
@@ -132,25 +261,24 @@ pub async fn wasm_chat_completion(user_message: &str) -> Result<String, JsError>
     Ok(reply)
 }
 
-/// Set the document context (YAML journal) that the AI will reference.
-///
-/// Call this after `initChat()` and before the first `chatCompletion()`.
-/// The context persists across `resetChat()` calls, so the AI always has
-/// access to the journal regardless of conversation resets.
-#[wasm_bindgen(js_name = setDocumentContext)]
-pub fn wasm_set_document_context(yaml_content: &str) -> Result<(), JsError> {
-    let chat_mutex = CHAT
-        .get()
-        .ok_or_else(|| JsError::new("Chat not initialised. Call initChat() first."))?;
+// ─── Produce YAML ───────────────────────────────────────────────────────────
 
-    let mut chat = chat_mutex.lock().expect("Chat mutex poisoned");
-    chat.set_document_context(yaml_content);
-    Ok(())
+/// Produce a YAML document from a list of file entries.
+///
+/// Accepts a JSON string representing an array of `{path, content, lastModified}`.
+/// Returns the YAML string.
+///
+/// This is kept as a utility for the JS side (e.g. logging).
+#[wasm_bindgen(js_name = produceYaml)]
+pub fn wasm_produce_yaml(files_json: &str) -> Result<String, JsError> {
+    let files: Vec<FileEntry> =
+        serde_json::from_str(files_json).map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(prompt_yourself_core::yaml_producer::produce_yaml(&files))
 }
 
 /// Reset the conversation history so the next `chatCompletion` starts fresh.
 ///
-/// Keeps the same API key, base URL, model, system prompt and document context.
+/// Keeps the same API key, base URL, model, system prompt and journal adapter.
 #[wasm_bindgen(js_name = resetChat)]
 pub fn wasm_reset_chat() {
     if let Some(chat_mutex) = CHAT.get() {
