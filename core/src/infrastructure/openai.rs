@@ -75,23 +75,25 @@ fn to_openai_messages(messages: Vec<ChatMessage>) -> Vec<ChatCompletionRequestMe
     messages
         .into_iter()
         .map(|m| match m.role {
-            Role::System => ChatCompletionRequestMessage::System(
-                ChatCompletionRequestSystemMessage {
+            Role::System => {
+                ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
                     content: ChatCompletionRequestSystemMessageContent::Text(m.content),
                     name: None,
-                },
-            ),
+                })
+            }
             Role::User => ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
                 content: ChatCompletionRequestUserMessageContent::Text(m.content),
                 name: None,
             }),
-            Role::Assistant => ChatCompletionRequestMessage::Assistant(
-                ChatCompletionRequestAssistantMessage {
-                    content: Some(ChatCompletionRequestAssistantMessageContent::Text(m.content)),
+            Role::Assistant => {
+                ChatCompletionRequestMessage::Assistant(ChatCompletionRequestAssistantMessage {
+                    content: Some(ChatCompletionRequestAssistantMessageContent::Text(
+                        m.content,
+                    )),
                     name: None,
                     ..Default::default()
-                },
-            ),
+                })
+            }
         })
         .collect()
 }

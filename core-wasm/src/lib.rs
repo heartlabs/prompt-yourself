@@ -32,8 +32,8 @@ use std::sync::{Mutex, OnceLock};
 
 use prompt_yourself_core::{
     api::chat::Chat,
-    OpenAiAdapter,
     yaml_producer::{produce_yaml, FileEntry},
+    OpenAiAdapter,
 };
 use wasm_bindgen::prelude::*;
 
@@ -86,11 +86,7 @@ pub fn wasm_init_chat(model: &str) -> Result<(), JsError> {
         .map(|s| s.as_str())
         .unwrap_or(prompt_yourself_core::api::chat::SYSTEM_PROMPT);
 
-    let adapter = OpenAiAdapter::new(
-        api_key.clone(),
-        api_base.to_string(),
-        model.to_string(),
-    );
+    let adapter = OpenAiAdapter::new(api_key.clone(), api_base.to_string(), model.to_string());
 
     let chat = Chat::new(Box::new(adapter), system_prompt.to_owned());
 
