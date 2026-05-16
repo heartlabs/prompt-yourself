@@ -1,12 +1,11 @@
+use chrono::{DateTime, Utc};
+
 use crate::domain::ports::journal::JournalPort;
 use crate::domain::ports::openai::{ChatError, ChatMessage, OpenAiPort, Role};
 use crate::yaml_producer::FileEntry;
 
 pub const SYSTEM_PROMPT: &str = include_str!("../../resources/system-prompt.md");
 const MAX_TOKENS: u32 = 500;
-
-/// The lowest possible ISO 8601 timestamp, used to load *all* entries on first call.
-pub const EPOCH: &str = "1970-01-01T00:00:00Z";
 
 // ─── Driving port ───────────────────────────────────────────────────────────
 
@@ -28,9 +27,9 @@ pub struct Chat {
     system_prompt: String,
     openai_port: Box<dyn OpenAiPort>,
     journal: Box<dyn JournalPort>,
-    /// ISO 8601 timestamp of the most recent check. Used as `since` parameter
-    /// for the next `load_entries` call. Updated after every `user_message`.
-    last_check_time: String,
+    /// Timestamp of the most recent check. Used as `since` parameter for the
+    /// next `load_entries` call. Updated after every `user_message`.
+    last_check_time: DateTime<Utc>,
 }
 
 impl Chat {
@@ -51,7 +50,7 @@ impl Chat {
             system_prompt,
             openai_port,
             journal,
-            last_check_time: EPOCH.to_string(),
+            last_check_time: DateTime::UNIX_EPOCH,
         }
     }
 
@@ -77,11 +76,7 @@ impl Chat {
 
     /// Set the last-check timestamp to the current time.
     fn stamp_now(&mut self) {
-        let now = web_time::SystemTime::now()
-            .duration_since(web_time::UNIX_EPOCH)
-            .map(|d| d.as_secs_f64())
-            .unwrap_or(0.0);
-        self.last_check_time = format_iso8601(now);
+        self.last_check_time = Utc::now();
     }
 
     /// Reset the conversation history, keeping the system prompt and document context.
@@ -97,11 +92,11 @@ impl Chat {
     fn inject_updates(&mut self, updates: Vec<FileEntry>) {
         for entry in updates {
             let path = &entry.path;
-            let timestamp = if entry.last_modified.is_empty() {
-                "unknown time".to_string()
-            } else {
-                entry.last_modified.clone()
-            };
+            let timestamp = entry
+                .last_modified
+                .as_ref()
+                .map(|ts| ts.to_rfc3339())
+                .unwrap_or_else(|| "unknown time".to_string());
 
             let msg = match &entry.content {
                 Some(content) => format!(
@@ -175,53 +170,9 @@ impl Chat {
     pub fn document_context(&self) -> Option<&ChatMessage> {
         self.document_context.as_ref()
     }
-}
 
-/// Format Unix seconds as an ISO 8601 UTC string.
-fn format_iso8601(unix_seconds: f64) -> String {
-    let total_secs = unix_seconds as u64;
-    let days = total_secs / 86400;
-    let time_secs = total_secs % 86400;
-    let hours = time_secs / 3600;
-    let minutes = (time_secs % 3600) / 60;
-    let seconds = time_secs % 60;
-
-    let mut y = 1970i64;
-    let mut remaining = days as i64;
-    loop {
-        let days_in_year = if is_leap(y) { 366 } else { 365 };
-        if remaining < days_in_year {
-            break;
-        }
-        remaining -= days_in_year;
-        y += 1;
+    /// Return a reference to the last check time.
+    pub fn last_check_time(&self) -> &DateTime<Utc> {
+        &self.last_check_time
     }
-    let month_days = if is_leap(y) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut m = 0usize;
-    for (i, &md) in month_days.iter().enumerate() {
-        if remaining < md as i64 {
-            m = i;
-            break;
-        }
-        remaining -= md as i64;
-    }
-    let d = remaining + 1;
-
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        y,
-        m + 1,
-        d,
-        hours,
-        minutes,
-        seconds
-    )
-}
-
-fn is_leap(year: i64) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }

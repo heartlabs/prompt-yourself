@@ -14,17 +14,21 @@ use crate::yaml_producer::FileEntry;
 /// Obsidian vault APIs for the plugin). The path is configured at construction
 /// and is not part of the trait interface.
 ///
-/// Each entry includes the relative path, full file content, and an ISO 8601
-/// timestamp of the last modification time.
+/// Each entry includes the relative path, full file content, and a UTC
+/// modification timestamp.
+///
+/// The `since` parameter is a [`chrono::DateTime<chrono::Utc>`][chrono::DateTime]
+/// — pass [`DateTime::UNIX_EPOCH`] to load every file.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 pub trait JournalPort: Send {
     /// Return all file entries whose `last_modified` is strictly after `since`.
     ///
-    /// `since` is an ISO 8601 UTC timestamp (e.g. `"2026-05-16T10:00:00Z"`).
-    /// Pass the lowest possible time (e.g. `"1970-01-01T00:00:00Z"`) to load
-    /// every file.
-    async fn load_entries(&self, since: &str) -> Result<Vec<FileEntry>, JournalError>;
+    /// `since` is a UTC timestamp. Pass [`DateTime::UNIX_EPOCH`] to load every file.
+    async fn load_entries(
+        &self,
+        since: &chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<FileEntry>, JournalError>;
 }
 
 // ─── Error type ─────────────────────────────────────────────────────────────

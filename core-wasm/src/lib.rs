@@ -27,6 +27,7 @@ pub fn start() {
     console_error_panic_hook::set_once();
 }
 
+use chrono::{DateTime, Utc};
 use prompt_yourself_core::{
     api::chat::Chat,
     domain::ports::journal::{JournalError, JournalPort},
@@ -43,7 +44,7 @@ static SYSTEM_PROMPT: OnceLock<String> = OnceLock::new();
 static CHAT: OnceLock<Mutex<Chat>> = OnceLock::new();
 
 // JS callback registered by the Obsidian plugin.
-// Signature: `(since: string) => Promise<string>`
+// Signature: `(sinceMs: number) => Promise<string>`
 thread_local! {
     static LOAD_ENTRIES_CALLBACK: RefCell<Option<js_sys::Function>> = const { RefCell::new(None) };
 }
@@ -91,7 +92,10 @@ struct WasmJournalAdapter;
 #[cfg(not(target_arch = "wasm32"))]
 #[async_trait::async_trait]
 impl JournalPort for WasmJournalAdapter {
-    async fn load_entries(&self, _since: &str) -> Result<Vec<FileEntry>, JournalError> {
+    async fn load_entries(
+        &self,
+        _since: &DateTime<Utc>,
+    ) -> Result<Vec<FileEntry>, JournalError> {
         unreachable!("WasmJournalAdapter should never be used on native targets")
     }
 }
@@ -99,19 +103,24 @@ impl JournalPort for WasmJournalAdapter {
 #[cfg(target_arch = "wasm32")]
 #[async_trait::async_trait(?Send)]
 impl JournalPort for WasmJournalAdapter {
-    async fn load_entries(&self, since: &str) -> Result<Vec<FileEntry>, JournalError> {
+    async fn load_entries(&self, since: &DateTime<Utc>) -> Result<Vec<FileEntry>, JournalError> {
         // Check re-entrancy before calling into JS
         let _guard = ReentryGuard::try_enter().map_err(JournalError::Other)?;
 
+        // Convert DateTime<Utc> to milliseconds since epoch (JS uses ms timestamps)
+        let since_ms = since.timestamp_millis() as f64;
+
         // Get the callback outside the async block (RefCell can't cross await)
         let cb = LOAD_ENTRIES_CALLBACK.with(|c| c.borrow().clone());
-        let cb = cb
-            .ok_or_else(|| JournalError::Other(
-                "loadEntries callback not set. Call setLoadEntriesCallback() before initChat().".to_string()
-            ))?;
+        let cb = cb.ok_or_else(|| {
+            JournalError::Other(
+                "loadEntries callback not set. Call setLoadEntriesCallback() before initChat()."
+                    .to_string(),
+            )
+        })?;
 
         let this = JsValue::null();
-        let arg = JsValue::from(since);
+        let arg = JsValue::from(since_ms);
 
         // Call the JS function — it returns a Promise (which we get as JsValue)
         let promise_val = cb
@@ -127,9 +136,12 @@ impl JournalPort for WasmJournalAdapter {
 
         let json_str: String = json_val
             .as_string()
-            .ok_or_else(|| JournalError::Other(
-                "loadEntries callback must return a string (JSON array of FileEntry)".to_string()
-            ))?;
+            .ok_or_else(|| {
+                JournalError::Other(
+                    "loadEntries callback must return a string (JSON array of FileEntry)"
+                        .to_string(),
+                )
+            })?;
 
         let entries: Vec<FileEntry> =
             serde_json::from_str(&json_str).map_err(|e| JournalError::Other(e.to_string()))?;
@@ -142,8 +154,8 @@ impl JournalPort for WasmJournalAdapter {
 
 /// Register a JS callback that loads file entries.
 ///
-/// The callback receives an ISO 8601 `since` timestamp and must **return a
-/// promise** that resolves to a JSON string — an array of
+/// The callback receives a **millisecond** timestamp (Unix epoch) and must
+/// **return a promise** that resolves to a JSON string — an array of
 /// `{path, content, lastModified}` objects.
 ///
 /// **⚠️ Re-entrancy:** The callback must **not** call back into any WASM

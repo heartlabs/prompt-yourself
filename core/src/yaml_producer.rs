@@ -1,3 +1,5 @@
+use chrono::{DateTime, Utc};
+
 /// Represents a single file entry in the YAML document.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct FileEntry {
@@ -5,9 +7,9 @@ pub struct FileEntry {
     pub path: String,
     /// File content. `None` indicates a binary or unreadable file.
     pub content: Option<String>,
-    /// ISO 8601 timestamp of the last modification time, or empty string if unknown.
-    #[serde(default)]
-    pub last_modified: String,
+    /// Last modification timestamp, or `None` if unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_modified: Option<DateTime<Utc>>,
 }
 
 /// Produce a YAML document from a list of file entries.
@@ -38,9 +40,10 @@ pub fn produce_yaml(files: &[FileEntry]) -> String {
         result.push('\n');
 
         // last_modified line
-        if !file.last_modified.is_empty() {
+        if let Some(ts) = &file.last_modified {
             result.push_str(&spaces(indent));
-            result.push_str(&format!("last_modified: {}\n", file.last_modified));
+            // Use `Z` suffix instead of `+00:00` for a cleaner YAML output.
+            result.push_str(&format!("last_modified: {}\n", ts.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)));
         }
 
         match &file.content {
@@ -95,6 +98,7 @@ fn spaces(count: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
 
     #[test]
     fn test_empty_files() {
@@ -107,7 +111,7 @@ mod tests {
         let files = vec![FileEntry {
             path: "hello.md".to_string(),
             content: Some("Hello\nWorld".to_string()),
-            last_modified: String::new(),
+            last_modified: None,
         }];
         let result = produce_yaml(&files);
         assert_eq!(
@@ -121,7 +125,7 @@ mod tests {
         let files = vec![FileEntry {
             path: "image.png".to_string(),
             content: None,
-            last_modified: String::new(),
+            last_modified: None,
         }];
         let result = produce_yaml(&files);
         assert_eq!(result, "- path: image.png\n  content: null\n");
@@ -132,7 +136,7 @@ mod tests {
         let files = vec![FileEntry {
             path: "empty.txt".to_string(),
             content: Some(String::new()),
-            last_modified: String::new(),
+            last_modified: None,
         }];
         let result = produce_yaml(&files);
         assert_eq!(result, "- path: empty.txt\n  content: |\n    \"\"\n");
@@ -144,12 +148,12 @@ mod tests {
             FileEntry {
                 path: "a.md".to_string(),
                 content: Some("line1".to_string()),
-                last_modified: String::new(),
+                last_modified: None,
             },
             FileEntry {
                 path: "b.png".to_string(),
                 content: None,
-                last_modified: String::new(),
+                last_modified: None,
             },
         ];
         let result = produce_yaml(&files);
@@ -176,9 +180,10 @@ mod tests {
         let files = vec![FileEntry {
             path: "note.md".to_string(),
             content: Some("Hello".to_string()),
-            last_modified: "2026-05-16T10:00:00Z".to_string(),
+            last_modified: Some(Utc.with_ymd_and_hms(2026, 5, 16, 10, 0, 0).unwrap()),
         }];
         let result = produce_yaml(&files);
+        // chrono's to_rfc3339() uses +00:00 instead of Z
         assert!(result.contains("last_modified: 2026-05-16T10:00:00Z"));
         assert!(result.contains("- path: note.md"));
         assert!(result.contains("content: |"));

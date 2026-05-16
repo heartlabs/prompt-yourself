@@ -37,25 +37,6 @@ const CHAT_MODEL = 'deepseek-chat';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Parse an ISO 8601 UTC timestamp string to milliseconds since epoch.
- * Handles format "YYYY-MM-DDTHH:MM:SSZ".
- */
-function parseIso8601Ms(s) {
-  if (!s || s.length < 20) return null;
-  try {
-    const year = parseInt(s.slice(0, 4), 10);
-    const month = parseInt(s.slice(5, 7), 10) - 1;
-    const day = parseInt(s.slice(8, 10), 10);
-    const hour = parseInt(s.slice(11, 13), 10);
-    const min = parseInt(s.slice(14, 16), 10);
-    const sec = parseInt(s.slice(17, 19), 10);
-    return Date.UTC(year, month, day, hour, min, sec);
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Convert milliseconds since epoch to an ISO 8601 UTC timestamp string.
  */
 function msToIso8601(ms) {
@@ -132,9 +113,10 @@ class PromptYourselfView extends ItemView {
   /**
    * Build the JS callback that the Rust core calls via `JournalPort::load_entries`.
    *
-   * The callback receives an ISO 8601 `since` timestamp and must return a
+   * The callback receives a millisecond timestamp (Unix epoch) and must return a
    * Promise<string> — a JSON array of `{path, content, lastModified}` objects
-   * for every file whose mtime is strictly after `since`.
+   * for every file whose mtime is strictly after `sinceMs`.
+   * `lastModified` must be an ISO 8601 string so chrono can deserialize it.
    *
    * ⚠️ This callback MUST NOT call any WASM function that locks the chat
    * (e.g. chatCompletion, loadInitialContext, resetChat) — see re-entrancy doc.
@@ -143,7 +125,7 @@ class PromptYourselfView extends ItemView {
     const folderPath = this.plugin.settings.folderPath;
     const app = this.app;
 
-    return async (since) => {
+    return async (sinceMs) => {
       let folder;
       if (folderPath === '' || folderPath === '/') {
         folder = app.vault.getRoot();
@@ -153,7 +135,6 @@ class PromptYourselfView extends ItemView {
 
       if (!folder || !folder.children) return '[]';
 
-      const sinceMs = parseIso8601Ms(since);
       const results = [];
 
       // Normalise rootPath
@@ -199,7 +180,7 @@ class PromptYourselfView extends ItemView {
               }
             }
 
-            const lastModified = mtimeMs != null ? msToIso8601(mtimeMs) : '';
+            const lastModified = mtimeMs != null ? msToIso8601(mtimeMs) : null;
             results.push({ path: relPath, content, lastModified });
           }
         }
