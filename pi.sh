@@ -7,16 +7,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # --offline  disables all network access inside the container
 
 FLAGS=()
-#PASSTHROUGH_ARGS=("/root/.local/bin/pi")
-PASSTHROUGH_ARGS=("pi")
+USER_ARGS=()
 
 for arg in "$@"; do
     case "$arg" in
         --offline) FLAGS+=("--offline") ;;
         --force-rebuild) FLAGS+=("--force-rebuild") ;;
-        *)         PASSTHROUGH_ARGS+=("$arg") ;;
+        *)         USER_ARGS+=("$arg") ;;
     esac
 done
+
+# ── Self-update inside container ──────────────────────────────────────────────
+# Run pi update before launching pi proper
+PASSTHROUGH_ARGS=("bash" "-c" 'pi update && exec pi "$@"' "pi" ${USER_ARGS[@]+${USER_ARGS[@]}})
 
 DOCKER_ARGS+=(
     # Pi config
