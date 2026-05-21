@@ -58,6 +58,9 @@ RUN cargo install just basic-http-server wasm-pack \
 # ENV PATH="$HOME/.local/bin:$PATH"
 RUN npm install -g @mariozechner/pi-coding-agent
 
+# ── Pi packages ──────────────────────────────────────────────────────────────
+RUN pi install npm:pi-cyber-ui
+
 # ── Workspace ─────────────────────────────────────────────────────────────────
 WORKDIR /workspace
 

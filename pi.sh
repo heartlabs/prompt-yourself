@@ -8,18 +8,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FLAGS=()
 USER_ARGS=()
+UPDATE=0
 
 for arg in "$@"; do
     case "$arg" in
         --offline) FLAGS+=("--offline") ;;
         --force-rebuild) FLAGS+=("--force-rebuild") ;;
+        --update)  UPDATE=1 ;;
         *)         USER_ARGS+=("$arg") ;;
     esac
 done
 
-# ── Self-update inside container ──────────────────────────────────────────────
-# Run pi update before launching pi proper
-PASSTHROUGH_ARGS=("bash" "-c" 'pi update && exec pi "$@"' "pi" ${USER_ARGS[@]+${USER_ARGS[@]}})
+if [[ "$UPDATE" -eq 1 ]]; then
+    PASSTHROUGH_ARGS=("bash" "-c" 'pi update && exec pi "$@"' "pi" ${USER_ARGS[@]+${USER_ARGS[@]}})
+else
+    PASSTHROUGH_ARGS=("pi" ${USER_ARGS[@]+${USER_ARGS[@]}})
+fi
 
 DOCKER_ARGS+=(
     # Pi config

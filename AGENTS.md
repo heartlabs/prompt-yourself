@@ -20,7 +20,3 @@ Additional folders in the workspace root are:
 * `sandbox`: docker container to run a coding agent in a sandboxed environment. They are started via `pi.sh` or `claude.sh`. Probably this will be also you.
 * `scripts`: various scripts to be used by human or agent for routine tasks like building, ...
 
-## Important Instructions
-* When I ask a question, just answer the question, never start with the implementation. I will never ask you a rhetorical question.
-* If anything is ambiguous, ask for clarification, never make assumtions, never start with the implementation
-* Only start with the implementation if I explicitly tell you so
