@@ -8,9 +8,8 @@ PROJECT_ROOT="$SCRIPT_DIR/.."
 # The sandbox image bakes in the exact wasm-bindgen-cli version from Cargo.lock.
 # The image is tagged with that version so a new image is built automatically
 # when the version changes. Old images accumulate; prune with: docker image prune
-WASM_BINDGEN_VERSION=0.2.120
-#$(grep -A1 'name = "wasm-bindgen"' "$PROJECT_ROOT/Cargo.lock" \
-#    | grep version | head -1 | cut -d'"' -f2)
+WASM_BINDGEN_VERSION=$(grep -A1 '^name = "wasm-bindgen"$' "$PROJECT_ROOT/Cargo.lock" \
+    | grep version | head -1 | cut -d'"' -f2)
 
 IMAGE_TAG="prompt-yourself-sandbox:wbg-${WASM_BINDGEN_VERSION}"
 

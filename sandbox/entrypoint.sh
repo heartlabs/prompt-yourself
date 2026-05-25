@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Re-register the cyber-ui package in settings (lost if settings.json was regenerated)
+# pi install npm:pi-cyber-ui 2>/dev/null || true
+
 # Start a virtual display so Playwright can run Chromium in headed mode.
 # The display is not visible on the host — it lives entirely inside the container.
 # Ignores harmless warnings

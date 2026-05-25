@@ -19,6 +19,6 @@ features = ["chat-completion-types", "chat-completion"]
 # This works alongside async-openai-wasm's own reqwest features (json, stream, multipart)
 # because Cargo merges features from all crates that depend on the same dep.
 [dependencies.reqwest]
-version = "0.12"
+version = "0.13"
 default-features = false
-features = ["rustls-tls"]
+features = ["rustls"]
