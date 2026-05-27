@@ -20,4 +20,13 @@ export DISPLAY=:99
 # x11vnc -display :99 -forever -shared -nopw -rfbport 5900 &
 # websockify 6080 localhost:5900 &
 
+# ── Replace host macOS binaries with Linux-native versions ───────────────────
+# ~/.pi/agent/bin/ is mounted from the macOS host and contains Mach-O binaries
+# (rg, fd) that can't execute on Linux. Overwrite with the ones baked into the
+# Docker image so pi's grep/find tools work without downloading at startup.
+if [ -d /opt/pi-linux-bin ]; then
+    mkdir -p /root/.pi/agent/bin
+    cp /opt/pi-linux-bin/* /root/.pi/agent/bin/
+fi
+
 exec "$@"

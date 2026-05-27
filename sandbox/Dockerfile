@@ -56,7 +56,18 @@ RUN cargo install just basic-http-server wasm-pack \
 # RUN curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/pi_agent_rust/main/install.sh?$(date +%s)" \
 #     | bash -s -- --yes --easy-mode
 # ENV PATH="$HOME/.local/bin:$PATH"
-RUN npm install -g @mariozechner/pi-coding-agent
+RUN npm install -g @mariozechner/pi-coding-agent && pi update
+
+# ── Linux-native ripgrep + fd ─────────────────────────────────────────────────
+# Pi bundles macOS binaries in ~/.pi/agent/bin/ which is mounted from the host.
+# Pre-bake Linux-native versions here; entrypoint.sh copies them over at startup.
+RUN mkdir -p /opt/pi-linux-bin && \
+    curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz" | \
+    tar xz -C /tmp --strip-components=1 && \
+    mv /tmp/rg /opt/pi-linux-bin/rg && chmod +x /opt/pi-linux-bin/rg && \
+    curl -fsSL "https://github.com/sharkdp/fd/releases/download/v10.2.0/fd-v10.2.0-x86_64-unknown-linux-gnu.tar.gz" | \
+    tar xz -C /tmp --strip-components=1 && \
+    mv /tmp/fd /opt/pi-linux-bin/fd && chmod +x /opt/pi-linux-bin/fd
 
 # ── Pi packages ──────────────────────────────────────────────────────────────
 RUN pi install npm:pi-cyber-ui
