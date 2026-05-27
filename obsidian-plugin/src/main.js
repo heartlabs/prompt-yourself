@@ -21,7 +21,7 @@
  */
 
 import { Plugin, ItemView, PluginSettingTab, Setting, MarkdownRenderer } from 'obsidian';
-import { initSync, setApiKey, setSystemPrompt, setLoadEntriesCallback, initChat, loadInitialContext, chatCompletion } from './core_wasm.js';
+import { initSync, setApiKey, setSystemPrompt, setLoadEntriesCallback, initChat, loadInitialContext, chatCompletion, getGameState } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const VIEW_TYPE = 'prompt-yourself-view';
+const QUEST_VIEW_TYPE = 'prompt-yourself-quest-view';
 const CHAT_MODEL = 'deepseek-chat';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -50,7 +51,91 @@ function msToIso8601(ms) {
   return `${y}-${m}-${day}T${h}:${min}:${s}Z`;
 }
 
-// ─── View (side panel) ───────────────────────────────────────────────────────
+// ─── Quest view ─────────────────────────────────────────────────────────────
+
+class PromptYourselfQuestView extends ItemView {
+  constructor(leaf) {
+    super(leaf);
+  }
+
+  getViewType() {
+    return QUEST_VIEW_TYPE;
+  }
+
+  getDisplayText() {
+    return 'Quests';
+  }
+
+  getIcon() {
+    return 'trophy';
+  }
+
+  async onOpen() {
+    this.render();
+  }
+
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('prompt-yourself-quests');
+
+    let state;
+    try {
+      const json = getGameState();
+      state = JSON.parse(json);
+    } catch (e) {
+      contentEl.createEl('p', { text: '⚠️ ' + e.message });
+      return;
+    }
+
+    // Header
+    contentEl.createEl('h2', { text: '🏆 Quests' });
+
+    // Open quests
+    const open = state.openQuests || [];
+    if (open.length > 0) {
+      contentEl.createEl('h3', { text: 'Open (' + open.length + ')' });
+      const openList = contentEl.createEl('ul');
+      for (const q of open) {
+        const li = openList.createEl('li');
+        li.createEl('strong', { text: q.title });
+        li.appendText(' — ' + q.description + ' (' + q.points + ' pts)');
+      }
+    } else {
+      contentEl.createEl('p', { text: 'No open quests.', cls: 'quests-empty' });
+    }
+
+    // Completed quests
+    const completed = state.completedQuests || [];
+    if (completed.length > 0) {
+      contentEl.createEl('h3', { text: 'Completed (' + completed.length + ')' });
+      const completedList = contentEl.createEl('ul');
+      for (const q of completed) {
+        const li = completedList.createEl('li', { cls: 'quests-completed' });
+        li.createEl('strong', { text: q.title });
+        li.appendText(' — ' + q.description + ' (' + q.points + ' pts)');
+      }
+    }
+
+    // Total points
+    const total = state.totalPoints || 0;
+    contentEl.createEl('hr');
+    contentEl.createEl('p', {
+      text: 'Total: ' + total + ' points',
+      cls: 'quests-total',
+    });
+
+    // Refresh button
+    const refreshBtn = contentEl.createEl('button', { text: '🔄 Refresh' });
+    refreshBtn.addEventListener('click', () => this.render());
+  }
+
+  async onClose() {
+    // no-op
+  }
+}
+
+// ─── Chat view (side panel) ─────────────────────────────────────────────────
 
 class PromptYourselfView extends ItemView {
   constructor(leaf, plugin) {
@@ -78,6 +163,16 @@ class PromptYourselfView extends ItemView {
     // Selected folder label
     this.folderLabelEl = container.createEl('div', { cls: 'file-label' });
     this.updateFolderLabel();
+
+    // Quests button (opens a split pane)
+    this.questsBtnEl = container.createEl('button', {
+      cls: 'quests-btn',
+      text: '🏆 Quests',
+    });
+    this.questsBtnEl.addEventListener('click', async () => {
+      const leaf = this.app.workspace.getLeaf(true);
+      await leaf.setViewState({ type: QUEST_VIEW_TYPE, active: true });
+    });
 
     // Chat area
     this.chatAreaEl = container.createEl('div', { cls: 'chat-area' });
@@ -275,7 +370,7 @@ class PromptYourselfView extends ItemView {
       cls: 'message ' + role,
     });
 
-    if (role === 'assistant' || role === 'user') {
+    if (role === 'assistant' || role === 'user' || role === 'tool') {
       MarkdownRenderer.render(this.app, content, msgEl, '/', this);
     } else {
       msgEl.setText(content);
@@ -391,6 +486,7 @@ class PromptYourselfPlugin extends Plugin {
     await this.loadSystemPrompt();
 
     this.registerView(VIEW_TYPE, (leaf) => new PromptYourselfView(leaf, this));
+    this.registerView(QUEST_VIEW_TYPE, (leaf) => new PromptYourselfQuestView(leaf));
 
     this.addRibbonIcon('message-square', 'Prompt Yourself', () => {
       this.activateView();

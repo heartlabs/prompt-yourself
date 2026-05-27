@@ -34,6 +34,7 @@ use prompt_yourself_core::{
     yaml_producer::FileEntry,
     OpenAiAdapter,
 };
+use serde_json::json;
 use wasm_bindgen::prelude::*;
 
 // ─── Global state ───────────────────────────────────────────────────────────
@@ -283,5 +284,52 @@ pub fn wasm_produce_yaml(files_json: &str) -> Result<String, JsError> {
     let files: Vec<FileEntry> =
         serde_json::from_str(files_json).map_err(|e| JsError::new(&e.to_string()))?;
     Ok(prompt_yourself_core::yaml_producer::produce_yaml(&files))
+}
+
+// ─── Game state ─────────────────────────────────────────────────────────────
+
+/// Return the current quest game state (open quests, completed quests, total
+/// points) as a JSON string.
+#[wasm_bindgen(js_name = getGameState)]
+pub fn wasm_get_game_state() -> Result<String, JsError> {
+    let chat_mutex = CHAT
+        .get()
+        .ok_or_else(|| JsError::new("Chat not initialised. Call initChat() first."))?;
+
+    let chat = chat_mutex.lock().map_err(|_| JsError::new("Chat mutex poisoned"))?;
+
+    let open_quests: Vec<serde_json::Value> = chat
+        .open_quests()
+        .into_iter()
+        .map(|q| {
+            json!({
+                "title": q.title,
+                "description": q.description,
+                "points": q.points,
+            })
+        })
+        .collect();
+
+    let completed_quests: Vec<serde_json::Value> = chat
+        .completed_quests()
+        .into_iter()
+        .map(|q| {
+            json!({
+                "title": q.title,
+                "description": q.description,
+                "points": q.points,
+            })
+        })
+        .collect();
+
+    let total_points = chat.game_points();
+
+    let state = json!({
+        "openQuests": open_quests,
+        "completedQuests": completed_quests,
+        "totalPoints": total_points,
+    });
+
+    Ok(serde_json::to_string(&state)?)
 }
 
