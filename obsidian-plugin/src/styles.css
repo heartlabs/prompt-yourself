@@ -145,6 +145,15 @@
   padding: 4px 8px;
 }
 
+.prompt-yourself-container .message.tool {
+  align-self: center;
+  font-size: 12px;
+  color: var(--text-accent);
+  background: var(--background-secondary-alt);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
 .prompt-yourself-container .input-row {
   display: flex;
   gap: 8px;

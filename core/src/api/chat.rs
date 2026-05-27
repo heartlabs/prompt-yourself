@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 
+use crate::domain::entities::game::{Game, Quest};
 use crate::domain::ports::journal::JournalPort;
-use crate::domain::ports::openai::{ChatError, ChatMessage, OpenAiPort, Role};
+use crate::domain::ports::openai::{ChatError, ChatMessage, ChatResponse, OpenAiPort};
+use crate::domain::tools;
 use crate::yaml_producer::FileEntry;
 
 pub const SYSTEM_PROMPT: &str = include_str!("../../resources/system-prompt.md");
@@ -30,6 +32,8 @@ pub struct Chat {
     /// Timestamp of the most recent check. Used as `since` parameter for the
     /// next `load_entries` call. Updated after every `user_message`.
     last_check_time: DateTime<Utc>,
+
+    game: Game,
 }
 
 impl Chat {
@@ -51,6 +55,7 @@ impl Chat {
             openai_port,
             journal,
             last_check_time: DateTime::UNIX_EPOCH,
+            game: Game::new(),
         }
     }
 
@@ -66,8 +71,7 @@ impl Chat {
             .map_err(|e| ChatError::Other(format!("Failed to load journal: {e}")))?;
 
         let yaml_content = crate::yaml_producer::produce_yaml(&entries);
-        self.document_context = Some(ChatMessage {
-            role: Role::User,
+        self.document_context = Some(ChatMessage::User {
             content: format!("Here is the document to reference:\n\n{yaml_content}"),
         });
 
@@ -77,11 +81,6 @@ impl Chat {
     /// Set the last-check timestamp to the current time.
     fn stamp_now(&mut self) {
         self.last_check_time = Utc::now();
-    }
-
-    /// Reset the conversation history, keeping the system prompt and document context.
-    pub fn reset(&mut self) {
-        self.history.clear();
     }
 
     /// Inject file updates into the conversation history.
@@ -105,19 +104,21 @@ impl Chat {
                 None => format!("Note: File {path} was updated at {timestamp}."),
             };
 
-            self.history.push(ChatMessage {
-                role: Role::User,
-                content: msg,
-            });
+            self.history.push(ChatMessage::User { content: msg });
         }
     }
 
-    /// Send a user message and return the assistant's reply.
+    /// Send a user message and return the new messages produced during this turn
+    /// (assistant replies, tool notifications, etc.), in chronological order.
     ///
     /// Before making the API call, the journal is queried for entries modified
     /// since the last message. Any changes are injected as update notices into
     /// the conversation history so the AI always sees the latest file contents.
-    pub async fn user_message(&mut self, content: String) -> Result<String, ChatError> {
+    ///
+    /// If the model calls tools (e.g. quest tools), the tool calls are executed
+    /// and their results are fed back into the conversation. This loop continues
+    /// until the model produces a text reply, up to 5 iterations.
+    pub async fn user_message(&mut self, content: String) -> Result<Vec<ChatMessage>, ChatError> {
         // ── Check for file updates since the last check ─────────────────
         match self.journal.load_entries(&self.last_check_time).await {
             Ok(updates) if !updates.is_empty() => {
@@ -128,37 +129,72 @@ impl Chat {
                 eprintln!("Warning: failed to check for file updates: {e}");
             }
         }
-        // Stamp the current time *after* loading updates but *before* the
-        // API call, so the next check catches anything modified during this
-        // conversation turn.
         self.stamp_now();
 
-        self.history.push(ChatMessage {
-            role: Role::User,
-            content,
-        });
+        self.history.push(ChatMessage::User { content });
 
-        // Build the full messages array: system prompt + document context + history
-        let mut messages = vec![ChatMessage {
-            role: Role::System,
-            content: self.system_prompt.clone(),
-        }];
-        if let Some(doc_msg) = &self.document_context {
-            messages.push(doc_msg.clone());
+        let mut turn_messages: Vec<ChatMessage> = Vec::new();
+        let max_iterations: u32 = 5;
+        for _ in 0..max_iterations {
+            // Build the full messages array: system prompt + document context + history
+            let mut messages = vec![ChatMessage::System {
+                content: self.system_prompt.clone(),
+            }];
+            if let Some(doc_msg) = &self.document_context {
+                messages.push(doc_msg.clone());
+            }
+            messages.extend(self.history.clone());
+
+            let response = self
+                .openai_port
+                .chat_completion_with_tools(
+                    messages,
+                    MAX_TOKENS,
+                    tools::tool_definitions(),
+                )
+                .await?;
+
+            match response {
+                ChatResponse::Text(reply) => {
+                    let msg = ChatMessage::Assistant {
+                        content: Some(reply.clone()),
+                        tool_calls: None,
+                    };
+                    self.history.push(msg.clone());
+                    turn_messages.push(msg);
+                    return Ok(turn_messages);
+                }
+                ChatResponse::ToolCalls {
+                    content,
+                    tool_calls,
+                } => {
+                    // Push assistant message that includes both text and tool calls
+                    let msg = ChatMessage::Assistant {
+                        content,
+                        tool_calls: Some(tool_calls.clone()),
+                    };
+                    self.history.push(msg.clone());
+                    turn_messages.push(msg);
+
+                    // Execute each tool call and push result messages
+                    for call in &tool_calls {
+                        let outcome = tools::execute(&mut self.game, call);
+                        let tool_msg = ChatMessage::Tool {
+                            content: outcome.message,
+                            tool_call_id: outcome.tool_call_id,
+                        };
+                        self.history.push(tool_msg.clone());
+                        turn_messages.push(tool_msg);
+                    }
+
+                    // Continue the loop so the model can respond to tool results
+                }
+            }
         }
-        messages.extend(self.history.clone());
 
-        let reply = self
-            .openai_port
-            .chat_completion(messages, MAX_TOKENS)
-            .await?;
-
-        self.history.push(ChatMessage {
-            role: Role::Assistant,
-            content: reply.clone(),
-        });
-
-        Ok(reply)
+        Err(ChatError::Other(
+            "Tool call loop exceeded maximum iterations".to_string(),
+        ))
     }
 
     /// Return a reference to the full conversation (not including the document context).
@@ -174,5 +210,17 @@ impl Chat {
     /// Return a reference to the last check time.
     pub fn last_check_time(&self) -> &DateTime<Utc> {
         &self.last_check_time
+    }
+
+    pub fn open_quests(&self) -> Vec<Quest> {
+        self.game.list_open_quests()
+    }
+
+    pub fn completed_quests(&self) -> Vec<Quest> {
+        self.game.list_completed_quests()
+    }
+
+    pub fn game_points(&self) -> u32 {
+        self.game.list_completed_quests().iter().map(|quest| quest.points).sum()
     }
 }

@@ -20,30 +20,77 @@ use std::error::Error as _;
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 pub trait OpenAiPort: Send {
-    /// Send a list of messages and return the assistant's reply text.
-    async fn chat_completion(
+    /// Send a list of messages with tool definitions and return either text
+    /// or tool calls.
+    async fn chat_completion_with_tools(
         &self,
         messages: Vec<ChatMessage>,
         max_tokens: u32,
-    ) -> Result<String, ChatError>;
+        tools: Vec<ToolDefinition>,
+    ) -> Result<ChatResponse, ChatError>;
 }
 
 // ─── Domain types ───────────────────────────────────────────────────────────
 
-/// The role of a message participant.
+/// A single message in the chat conversation.
+///
+/// Each variant corresponds to a role in the OpenAI chat completion API.
+/// The `#[serde(tag = "role")]` places the role name under the `"role"` field,
+/// matching the API's expected format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Role {
-    System,
-    User,
-    Assistant,
+#[serde(tag = "role", rename_all = "lowercase")]
+pub enum ChatMessage {
+    /// System-level instructions for the model.
+    System {
+        content: String,
+    },
+    /// A message from the user.
+    User {
+        content: String,
+    },
+    /// A response from the model, optionally with tool calls.
+    Assistant {
+        content: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tool_calls: Option<Vec<ToolCall>>,
+    },
+    /// The result of a tool call.
+    Tool {
+        content: String,
+        tool_call_id: String,
+    },
 }
 
-/// A single message in the chat conversation.
+// ─── Tool calling types ─────────────────────────────────────────────────────
+
+/// Definition of a tool that the model may call (sent to the API).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatMessage {
-    pub role: Role,
-    pub content: String,
+pub struct ToolDefinition {
+    pub name: String,
+    pub description: String,
+    /// JSON Schema describing the parameters.
+    pub parameters: serde_json::Value,
+}
+
+/// A tool call requested by the model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    /// JSON string with the arguments.
+    pub arguments: String,
+}
+
+/// Response from a chat completion request.
+#[derive(Debug, Clone)]
+pub enum ChatResponse {
+    /// The model generated a text response (no tools called).
+    Text(String),
+    /// The model called one or more tools. May also include text content.
+    ToolCalls {
+        content: Option<String>,
+        tool_calls: Vec<ToolCall>,
+    },
 }
 
 // ─── Error type ─────────────────────────────────────────────────────────────

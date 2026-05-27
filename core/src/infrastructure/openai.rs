@@ -6,15 +6,18 @@
 use async_openai_wasm::{
     config::OpenAIConfig,
     types::chat::{
+        ChatCompletionMessageToolCall, ChatCompletionMessageToolCalls,
         ChatCompletionRequestAssistantMessage, ChatCompletionRequestAssistantMessageContent,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
-        ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
-        ChatCompletionRequestUserMessageContent, CreateChatCompletionRequestArgs,
+        ChatCompletionRequestSystemMessageContent, ChatCompletionRequestToolMessage,
+        ChatCompletionRequestToolMessageContent, ChatCompletionRequestUserMessage,
+        ChatCompletionRequestUserMessageContent, ChatCompletionTool, ChatCompletionTools,
+        CreateChatCompletionRequestArgs, FunctionCall, FunctionObject,
     },
     Client,
 };
 
-use crate::domain::ports::openai::{ChatError, ChatMessage, OpenAiPort, Role};
+use crate::domain::ports::openai::{ChatError, ChatMessage, ChatResponse, OpenAiPort, ToolCall, ToolDefinition};
 
 // ─── Adapter ────────────────────────────────────────────────────────────────
 
@@ -38,33 +41,59 @@ impl OpenAiAdapter {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl OpenAiPort for OpenAiAdapter {
-    async fn chat_completion(
+    async fn chat_completion_with_tools(
         &self,
         messages: Vec<ChatMessage>,
         max_tokens: u32,
-    ) -> Result<String, ChatError> {
+        tools: Vec<ToolDefinition>,
+    ) -> Result<ChatResponse, ChatError> {
         let config = OpenAIConfig::new()
             .with_api_key(&self.api_key)
             .with_api_base(&self.api_base_url);
 
         let client = Client::with_config(config);
         let openai_messages = to_openai_messages(messages);
+        let openai_tools = to_openai_tools(tools);
 
-        let request = CreateChatCompletionRequestArgs::default()
-            .model(&self.model)
-            .messages(openai_messages)
-            .max_completion_tokens(max_tokens)
-            .build()?;
+        let mut request_builder = CreateChatCompletionRequestArgs::default();
+        request_builder.model(&self.model);
+        request_builder.messages(openai_messages);
+        request_builder.max_completion_tokens(max_tokens);
+
+        if !openai_tools.is_empty() {
+            request_builder.tools(openai_tools);
+        }
+
+        let request = request_builder.build()?;
 
         let response = client.chat().create(request).await?;
 
-        let content = response
-            .choices
-            .first()
-            .and_then(|c| c.message.content.clone())
-            .unwrap_or_default();
+        let choice = response.choices.first().ok_or_else(|| {
+            ChatError::Other("No choices returned from OpenAI API".to_string())
+        })?;
 
-        Ok(content)
+        let message = &choice.message;
+        let content = message.content.clone();
+
+        if let Some(tool_calls) = &message.tool_calls {
+            let calls: Vec<ToolCall> = tool_calls
+                .iter()
+                .filter_map(|tc| match tc {
+                    ChatCompletionMessageToolCalls::Function(f) => Some(ToolCall {
+                        id: f.id.clone(),
+                        name: f.function.name.clone(),
+                        arguments: f.function.arguments.clone(),
+                    }),
+                    _ => None,
+                })
+                .collect();
+
+            if !calls.is_empty() {
+                return Ok(ChatResponse::ToolCalls { content, tool_calls: calls });
+            }
+        }
+
+        Ok(ChatResponse::Text(content.unwrap_or_default()))
     }
 }
 
@@ -74,26 +103,72 @@ impl OpenAiPort for OpenAiAdapter {
 fn to_openai_messages(messages: Vec<ChatMessage>) -> Vec<ChatCompletionRequestMessage> {
     messages
         .into_iter()
-        .map(|m| match m.role {
-            Role::System => {
+        .map(|m| match m {
+            ChatMessage::System { content } => {
                 ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
-                    content: ChatCompletionRequestSystemMessageContent::Text(m.content),
+                    content: ChatCompletionRequestSystemMessageContent::Text(content),
                     name: None,
                 })
             }
-            Role::User => ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
-                content: ChatCompletionRequestUserMessageContent::Text(m.content),
-                name: None,
-            }),
-            Role::Assistant => {
-                ChatCompletionRequestMessage::Assistant(ChatCompletionRequestAssistantMessage {
-                    content: Some(ChatCompletionRequestAssistantMessageContent::Text(
-                        m.content,
-                    )),
+            ChatMessage::User { content } => {
+                ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
+                    content: ChatCompletionRequestUserMessageContent::Text(content),
                     name: None,
+                })
+            }
+            ChatMessage::Assistant {
+                content,
+                tool_calls,
+            } => {
+                let tool_calls = tool_calls.map(|calls| {
+                    calls
+                        .into_iter()
+                        .map(|call| {
+                            ChatCompletionMessageToolCalls::Function(
+                                ChatCompletionMessageToolCall {
+                                    id: call.id,
+                                    function: FunctionCall {
+                                        name: call.name,
+                                        arguments: call.arguments,
+                                    },
+                                },
+                            )
+                        })
+                        .collect()
+                });
+                ChatCompletionRequestMessage::Assistant(ChatCompletionRequestAssistantMessage {
+                    content: content.map(ChatCompletionRequestAssistantMessageContent::Text),
+                    name: None,
+                    tool_calls,
                     ..Default::default()
                 })
             }
+            ChatMessage::Tool {
+                content,
+                tool_call_id,
+            } => {
+                ChatCompletionRequestMessage::Tool(ChatCompletionRequestToolMessage {
+                    content: ChatCompletionRequestToolMessageContent::Text(content),
+                    tool_call_id,
+                })
+            }
+        })
+        .collect()
+}
+
+/// Convert our domain [`ToolDefinition`] into async-openai's tool definition enum.
+fn to_openai_tools(tools: Vec<ToolDefinition>) -> Vec<ChatCompletionTools> {
+    tools
+        .into_iter()
+        .map(|t| {
+            ChatCompletionTools::Function(ChatCompletionTool {
+                function: FunctionObject {
+                    name: t.name,
+                    description: Some(t.description),
+                    parameters: Some(t.parameters),
+                    strict: None,
+                },
+            })
         })
         .collect()
 }

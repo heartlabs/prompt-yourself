@@ -21,7 +21,7 @@
  */
 
 import { Plugin, ItemView, PluginSettingTab, Setting, MarkdownRenderer } from 'obsidian';
-import { initSync, setApiKey, setSystemPrompt, setLoadEntriesCallback, initChat, loadInitialContext, chatCompletion, resetChat } from './core_wasm.js';
+import { initSync, setApiKey, setSystemPrompt, setLoadEntriesCallback, initChat, loadInitialContext, chatCompletion } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ class PromptYourselfView extends ItemView {
    * `lastModified` must be an ISO 8601 string so chrono can deserialize it.
    *
    * ⚠️ This callback MUST NOT call any WASM function that locks the chat
-   * (e.g. chatCompletion, loadInitialContext, resetChat) — see re-entrancy doc.
+   * (e.g. chatCompletion, loadInitialContext) — see re-entrancy doc.
    */
   buildLoadEntriesCallback() {
     const folderPath = this.plugin.settings.folderPath;
@@ -219,8 +219,6 @@ class PromptYourselfView extends ItemView {
         initChat(CHAT_MODEL);
         // Load every file (since epoch) — the callback handles the vault scan.
         const fileCount = await loadInitialContext();
-        // Start with a clean conversation slate
-        resetChat();
 
         this.addMessage('system', 'Loaded folder "' + (folderPath || '/') + '" (' + fileCount + ' files). Ask away!');
       } catch (e) {
@@ -254,9 +252,17 @@ class PromptYourselfView extends ItemView {
       // chatCompletion calls user_message internally, which:
       //   1. Calls loadEntries(since_last_check) via the JS callback
       //   2. Injects "Note: File ... updated" messages for any changes
-      //   3. Sends the full conversation to the API
-      const reply = await chatCompletion(text);
-      this.addMessage('assistant', reply);
+      //   3. Runs the tool-call loop (assistant replies + tool executions)
+      //   4. Returns JSON array of all new messages (assistant + tool)
+      const json = await chatCompletion(text);
+      const messages = JSON.parse(json);
+      for (const msg of messages) {
+        if (msg.role === 'assistant' && msg.content) {
+          this.addMessage('assistant', msg.content);
+        } else if (msg.role === 'tool') {
+          this.addMessage('tool', msg.content);
+        }
+      }
     } catch (err) {
       this.addMessage('system', '❌ Error: ' + err.message);
     } finally {

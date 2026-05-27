@@ -13,12 +13,5 @@ chrono = { version = "0.4", features = ["serde"] }
 [dependencies.async-openai-wasm]
 version = "0.31"
 default-features = false
-features = ["chat-completion-types", "chat-completion"]
+features = ["chat-completion-types", "chat-completion", "rustls"]
 
-# Required to give reqwest (used by async-openai-wasm) TLS support on native targets.
-# This works alongside async-openai-wasm's own reqwest features (json, stream, multipart)
-# because Cargo merges features from all crates that depend on the same dep.
-[dependencies.reqwest]
-version = "0.13"
-default-features = false
-features = ["rustls"]

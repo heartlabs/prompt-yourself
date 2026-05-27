@@ -1,6 +1,7 @@
 use std::io::{self, BufRead, Write};
 
 use clap::Parser;
+use prompt_yourself_core::domain::ports::openai::ChatMessage;
 use prompt_yourself_core::OpenAiAdapter;
 
 // ─── CLI args ───────────────────────────────────────────────────────────────
@@ -67,8 +68,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         match chat.user_message(input).await {
-            Ok(reply) => {
-                println!("\n{reply}\n");
+            Ok(messages) => {
+                for msg in &messages {
+                    match msg {
+                        ChatMessage::Assistant {
+                            content: Some(text),
+                            ..
+                        } => {
+                            println!("\n{text}\n");
+                        }
+                        ChatMessage::Tool { content, .. } => {
+                            println!("  ⚡ {content}\n");
+                        }
+                        _ => {}
+                    }
+                }
             }
             Err(e) => {
                 eprintln!("\nError: {e}\n");

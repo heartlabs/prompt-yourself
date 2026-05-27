@@ -154,7 +154,7 @@ impl JournalPort for WasmJournalAdapter {
 ///
 /// **⚠️ Re-entrancy:** The callback must **not** call back into any WASM
 /// function that acquires the chat lock (e.g. `chatCompletion`,
-/// `loadInitialContext`, `resetChat`, `setApiKey`), or a
+/// `loadInitialContext`, `setApiKey`), or a
 /// `"Re-entry detected"` error will be returned.
 #[wasm_bindgen(js_name = setLoadEntriesCallback)]
 pub fn wasm_set_load_entries_callback(cb: js_sys::Function) {
@@ -250,7 +250,7 @@ pub async fn wasm_load_initial_context() -> Result<usize, JsError> {
 /// are detected and injected as update messages without any JS intervention.
 ///
 /// @param {string} userMessage - the user's message to append
-/// @returns {Promise<string>}
+/// @returns {Promise<string>} JSON array of ChatMessage objects from this turn
 #[wasm_bindgen(js_name = chatCompletion)]
 pub async fn wasm_chat_completion(user_message: &str) -> Result<String, JsError> {
     let chat_mutex = CHAT
@@ -259,12 +259,15 @@ pub async fn wasm_chat_completion(user_message: &str) -> Result<String, JsError>
 
     let mut chat = chat_mutex.lock().expect("Chat mutex poisoned");
 
-    let reply = chat
+    let messages = chat
         .user_message(user_message.to_string())
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-    Ok(reply)
+    let json = serde_json::to_string(&messages)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+
+    Ok(json)
 }
 
 // ─── Produce YAML ───────────────────────────────────────────────────────────
@@ -282,14 +285,3 @@ pub fn wasm_produce_yaml(files_json: &str) -> Result<String, JsError> {
     Ok(prompt_yourself_core::yaml_producer::produce_yaml(&files))
 }
 
-/// Reset the conversation history so the next `chatCompletion` starts fresh.
-///
-/// Keeps the same API key, base URL, model, system prompt and journal adapter.
-#[wasm_bindgen(js_name = resetChat)]
-pub fn wasm_reset_chat() {
-    if let Some(chat_mutex) = CHAT.get() {
-        if let Ok(mut chat) = chat_mutex.lock() {
-            chat.reset();
-        }
-    }
-}
