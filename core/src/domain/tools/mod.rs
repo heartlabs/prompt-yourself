@@ -10,9 +10,13 @@ use crate::domain::entities::game::{Game, Quest};
 use crate::domain::ports::openai::{ToolCall, ToolDefinition};
 
 /// The outcome of executing a single tool call.
+///
+/// - `user_message`: concise, friendly version shown to the user
+/// - `llm_message`:  detailed, structured version fed back to the LLM
 pub struct ToolOutcome {
     pub tool_call_id: String,
-    pub message: String,
+    pub user_message: String,
+    pub llm_message: String,
 }
 
 /// Returns the tool definitions for all available tools.
@@ -81,24 +85,28 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
 /// Execute a tool call against the game state.
 ///
 /// Parses the call arguments, delegates to the appropriate handler, and
-/// returns a human-readable outcome message.
+/// returns a [`ToolOutcome`] with separate messages for the user and the LLM.
 pub fn execute(game: &mut Game, call: &ToolCall) -> ToolOutcome {
-    let message = match call.name.as_str() {
+    let (user_message, llm_message) = match call.name.as_str() {
         "register_quest" => execute_register_quest(game, call),
         "complete_quest" => execute_complete_quest(game, call),
         "list_open_quests" => execute_list_open_quests(game, call),
-        other => format!("⚠️ Unknown tool: {other}"),
+        other => (
+            format!("⚠️ Unknown tool: {other}"),
+            format!("error: unknown tool '{other}'"),
+        ),
     };
 
     ToolOutcome {
         tool_call_id: call.id.clone(),
-        message,
+        user_message,
+        llm_message,
     }
 }
 
 // ─── Handler implementations ────────────────────────────────────────────────
 
-fn execute_register_quest(game: &mut Game, call: &ToolCall) -> String {
+fn execute_register_quest(game: &mut Game, call: &ToolCall) -> (String, String) {
     #[derive(Deserialize)]
     struct RegisterQuestArgs {
         title: String,
@@ -109,7 +117,10 @@ fn execute_register_quest(game: &mut Game, call: &ToolCall) -> String {
     let args: RegisterQuestArgs = match serde_json::from_str(&call.arguments) {
         Ok(a) => a,
         Err(e) => {
-            return format!("⚠️ Could not parse quest arguments: {e}");
+            return (
+                format!("⚠️ Could not parse quest arguments"),
+                format!("error: failed to parse register_quest arguments: {e}"),
+            );
         }
     };
 
@@ -120,17 +131,21 @@ fn execute_register_quest(game: &mut Game, call: &ToolCall) -> String {
     };
 
     match game.register_quest(quest) {
-        Ok(()) => {
+        Ok(()) => (
+            format!("✅ Quest registered: **{}** ({} pts)", args.title, args.points),
             format!(
-                "✅ Quest registered: **{}** — {} ({} pts)",
-                args.title, args.description, args.points
-            )
-        }
-        Err(e) => format!("⚠️ {e}"),
+                "Quest '{}' registered with {} points. Description: {}",
+                args.title, args.points, args.description
+            ),
+        ),
+        Err(e) => (
+            format!("⚠️ {e}"),
+            format!("error: {e}"),
+        ),
     }
 }
 
-fn execute_complete_quest(game: &mut Game, call: &ToolCall) -> String {
+fn execute_complete_quest(game: &mut Game, call: &ToolCall) -> (String, String) {
     #[derive(Deserialize)]
     struct CompleteQuestArgs {
         title: String,
@@ -139,33 +154,55 @@ fn execute_complete_quest(game: &mut Game, call: &ToolCall) -> String {
     let args: CompleteQuestArgs = match serde_json::from_str(&call.arguments) {
         Ok(a) => a,
         Err(e) => {
-            return format!("⚠️ Could not parse quest arguments: {e}");
+            return (
+                format!("⚠️ Could not parse quest arguments"),
+                format!("error: failed to parse complete_quest arguments: {e}"),
+            );
         }
     };
 
     match game.complete_quest(&args.title) {
-        Ok(()) => format!("✅ Quest completed: **{}**", args.title),
-        Err(e) => format!("⚠️ {e}"),
+        Ok(()) => (
+            format!("✅ Quest completed: **{}**", args.title),
+            format!("Quest '{}' completed successfully", args.title),
+        ),
+        Err(e) => (
+            format!("⚠️ {e}"),
+            format!("error: {e}"),
+        ),
     }
 }
 
-fn execute_list_open_quests(game: &mut Game, call: &ToolCall) -> String {
+fn execute_list_open_quests(game: &mut Game, call: &ToolCall) -> (String, String) {
     let _ = call; // no arguments to parse
     let quests = game.list_open_quests();
 
     if quests.is_empty() {
-        return "📋 No open quests right now.".to_string();
+        return (
+            "📋 No open quests.".to_string(),
+            "No open quests".to_string(),
+        );
     }
 
-    let mut lines: Vec<String> = quests
+    let total_pts: u32 = quests.iter().map(|q| q.points).sum();
+
+    let user_msg = format!(
+        "📋 {} open quests ({} pts)",
+        quests.len(),
+        total_pts,
+    );
+
+    let entries: Vec<String> = quests
         .iter()
         .map(|q| {
-            format!("  • **{}** — {} ({} pts)", q.title, q.description, q.points)
+            format!(
+                "  - title: \"{}\", description: \"{}\", points: {}",
+                q.title, q.description, q.points
+            )
         })
         .collect();
 
-    let total_pts: u32 = quests.iter().map(|q| q.points).sum();
-    lines.push(format!("📊 Total: {} quests, {} points available", quests.len(), total_pts));
+    let llm_msg = format!("Open quests:\n{}", entries.join("\n"));
 
-    format!("📋 Open quests:\n{}", lines.join("\n"))
+    (user_msg, llm_msg)
 }

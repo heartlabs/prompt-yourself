@@ -176,15 +176,21 @@ impl Chat {
                     self.history.push(msg.clone());
                     turn_messages.push(msg);
 
-                    // Execute each tool call and push result messages
+                    // Execute each tool call
                     for call in &tool_calls {
                         let outcome = tools::execute(&mut self.game, call);
-                        let tool_msg = ChatMessage::Tool {
-                            content: outcome.message,
+
+                        // Detailed message for the LLM (internal history only)
+                        self.history.push(ChatMessage::Tool {
+                            content: outcome.llm_message,
+                            tool_call_id: outcome.tool_call_id.clone(),
+                        });
+
+                        // Concise message for the user (returned to expert)
+                        turn_messages.push(ChatMessage::Tool {
+                            content: outcome.user_message,
                             tool_call_id: outcome.tool_call_id,
-                        };
-                        self.history.push(tool_msg.clone());
-                        turn_messages.push(tool_msg);
+                        });
                     }
 
                     // Continue the loop so the model can respond to tool results
