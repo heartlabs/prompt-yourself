@@ -1,71 +1,143 @@
+/* Adventurer's Chronicle Theme — Prompt Yourself */
+/* Warm parchment chat panel · dark wood quest board */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Kalam:wght@400;700&display=swap');
+
+/* ─── Chat Panel ─────────────────────────────────────────────────────────── */
+
 .prompt-yourself-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 12px;
-  gap: 8px;
+  padding: 10px;
+  gap: 7px;
+  background:
+    radial-gradient(ellipse 110% 55% at 50% 35%, rgba(220, 140, 40, 0.07) 0%, transparent 65%),
+    linear-gradient(160deg, #1e1408 0%, #140e06 100%);
 }
 
 .prompt-yourself-container .file-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 4px;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
+  font-size: 10px;
+  color: rgba(200, 160, 80, 0.5);
+  letter-spacing: 0.1em;
+  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.prompt-yourself-container .quests-btn {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border: 1px solid rgba(200, 160, 80, 0.28);
+  border-radius: 2px;
+  background: linear-gradient(135deg, rgba(42, 26, 10, 0.9), rgba(30, 18, 6, 0.9));
+  color: rgba(200, 160, 80, 0.65);
+  cursor: pointer;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.prompt-yourself-container .quests-btn:hover {
+  border-color: rgba(200, 160, 80, 0.55);
+  color: rgba(220, 180, 90, 1);
+  background: linear-gradient(135deg, rgba(58, 36, 14, 0.95), rgba(42, 26, 10, 0.95));
+}
+
+/* Parchment chat area with ruled lines */
 .prompt-yourself-container .chat-area {
   flex: 1;
   overflow-y: auto;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  padding: 8px;
-  background: var(--background-primary);
+  border: 1px solid rgba(200, 160, 80, 0.22);
+  border-radius: 3px;
+  padding: 10px;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 23px,
+      rgba(100, 80, 40, 0.06) 23px,
+      rgba(100, 80, 40, 0.06) 24px
+    ),
+    linear-gradient(160deg, #f2e8d0 0%, #ece0c0 45%, #e8d8b0 100%);
+  box-shadow:
+    inset 0 0 24px rgba(0, 0, 0, 0.07),
+    0 2px 8px rgba(0, 0, 0, 0.32);
 }
 
+/* Compass rose watermark */
+.prompt-yourself-container .chat-area::before {
+  content: '';
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 68px;
+  height: 68px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' stroke='%238b6030' stroke-width='1.2' fill='none'/%3E%3Ccircle cx='50' cy='50' r='34' stroke='%238b6030' stroke-width='0.6' fill='none'/%3E%3Cpath d='M50 8L54 46L50 48L46 46Z' fill='%238b6030'/%3E%3Cpath d='M50 92L46 54L50 52L54 54Z' fill='%238b6030' opacity='.65'/%3E%3Cpath d='M92 50L54 54L52 50L54 46Z' fill='%238b6030' opacity='.65'/%3E%3Cpath d='M8 50L46 46L48 50L46 54Z' fill='%238b6030' opacity='.65'/%3E%3Ctext x='50' y='17' text-anchor='middle' font-size='11' fill='%238b6030' font-family='serif'%3EN%3C/text%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  opacity: 0.08;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.prompt-yourself-container .chat-area::-webkit-scrollbar {
+  width: 4px;
+}
+.prompt-yourself-container .chat-area::-webkit-scrollbar-track {
+  background: rgba(200, 160, 80, 0.08);
+}
+.prompt-yourself-container .chat-area::-webkit-scrollbar-thumb {
+  background: rgba(200, 160, 80, 0.28);
+  border-radius: 2px;
+}
+
+/* ─── Messages ───────────────────────────────────────────────────────────── */
+
 .prompt-yourself-container .message {
-  padding: 6px 10px;
-  border-radius: 8px;
-  line-height: 1.5;
+  padding: 7px 10px;
+  border-radius: 2px;
+  line-height: 1.6;
   font-size: 13px;
-  max-width: 90%;
+  max-width: 92%;
   word-wrap: break-word;
   overflow-wrap: break-word;
   user-select: text;
   -webkit-user-select: text;
+  position: relative;
+  z-index: 1;
+  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
 }
 
-/* Markdown-rendered messages */
-.prompt-yourself-container .message > *:first-child {
-  margin-top: 0;
-}
+.prompt-yourself-container .message > *:first-child { margin-top: 0; }
+.prompt-yourself-container .message > *:last-child  { margin-bottom: 0; }
 
-.prompt-yourself-container .message > *:last-child {
-  margin-bottom: 0;
-}
-
-.prompt-yourself-container .message p {
-  margin: 1em 0;
-}
+.prompt-yourself-container .message p { margin: 0.8em 0; }
 
 .prompt-yourself-container .message pre {
-  background: var(--background-primary-alt);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
+  background: rgba(200, 160, 80, 0.1);
+  border: 1px solid rgba(200, 160, 80, 0.22);
+  border-radius: 2px;
   padding: 6px 10px;
   overflow-x: auto;
-  margin: 0.2em 0;
+  margin: 0.3em 0;
+  font-family: monospace;
+  font-size: 0.88em;
 }
 
 .prompt-yourself-container .message code {
-  background: var(--background-primary-alt);
-  border-radius: 3px;
+  background: rgba(139, 96, 48, 0.12);
+  border-radius: 2px;
   padding: 1px 4px;
-  font-size: 0.92em;
+  font-size: 0.88em;
+  font-family: monospace;
 }
 
 .prompt-yourself-container .message pre > code {
@@ -76,203 +148,321 @@
 
 .prompt-yourself-container .message ul,
 .prompt-yourself-container .message ol {
-  margin: 1em 0;
-  padding-left: 1.3em;
+  margin: 0.7em 0;
+  padding-left: 1.4em;
 }
 
-.prompt-yourself-container .message li {
-  margin: 1em 0;
-}
+.prompt-yourself-container .message li { margin: 0.4em 0; }
 
 .prompt-yourself-container .message blockquote {
-  border-left: 3px solid var(--interactive-accent);
-  margin: 0.2em 0;
-  padding: 0.1em 0.7em;
-  color: var(--text-muted);
-  background: var(--background-secondary-alt);
-  border-radius: 0 4px 4px 0;
+  border-left: 2px solid rgba(139, 96, 48, 0.48);
+  margin: 0.3em 0;
+  padding: 0.15em 0.7em;
+  color: rgba(42, 26, 8, 0.68);
+  background: rgba(200, 160, 80, 0.06);
+  border-radius: 0 2px 2px 0;
 }
 
 .prompt-yourself-container .message table {
   border-collapse: collapse;
-  margin: 0.2em 0;
-  font-size: 0.92em;
+  margin: 0.3em 0;
+  font-size: 0.9em;
 }
 
 .prompt-yourself-container .message th,
 .prompt-yourself-container .message td {
-  border: 1px solid var(--background-modifier-border);
+  border: 1px solid rgba(139, 96, 48, 0.28);
   padding: 4px 8px;
   text-align: left;
 }
 
 .prompt-yourself-container .message th {
-  background: var(--background-secondary);
+  background: rgba(200, 160, 80, 0.12);
   font-weight: 600;
 }
 
 .prompt-yourself-container .message hr {
   border: none;
-  border-top: 1px solid var(--background-modifier-border);
-  margin: 1em 0;
+  border-top: 1px solid rgba(139, 96, 48, 0.22);
+  margin: 0.8em 0;
 }
 
 .prompt-yourself-container .message img {
   max-width: 100%;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .prompt-yourself-container .message a {
-  color: var(--link-color, var(--interactive-accent));
+  color: #6a3a10;
   text-decoration: underline;
 }
 
+/* User message — right-aligned, warm tint */
 .prompt-yourself-container .message.user {
   align-self: flex-end;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
+  background: linear-gradient(135deg,
+    rgba(139, 90, 43, 0.14),
+    rgba(200, 160, 80, 0.09));
+  color: #2a1a08;
+  border: 1px solid rgba(139, 90, 43, 0.26);
+  border-right: 2px solid rgba(139, 90, 43, 0.42);
 }
 
+/* Assistant message — primary parchment, dark ink */
 .prompt-yourself-container .message.assistant {
   align-self: flex-start;
-  background: var(--background-secondary);
-  color: var(--text-normal);
+  background: rgba(255, 255, 255, 0.3);
+  color: #2a1a08;
+  border: 1px solid rgba(139, 96, 48, 0.18);
+  border-left: 2px solid rgba(139, 96, 48, 0.42);
 }
 
+/* System message */
 .prompt-yourself-container .message.system {
   align-self: center;
-  font-size: 11px;
-  color: var(--text-muted);
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: rgba(42, 26, 8, 0.48);
   background: transparent;
-  padding: 4px 8px;
+  padding: 3px 8px;
+  border: none;
 }
 
+/* Tool message */
 .prompt-yourself-container .message.tool {
   align-self: center;
-  font-size: 12px;
-  color: var(--text-accent);
-  background: var(--background-secondary-alt);
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: rgba(139, 60, 20, 0.72);
+  background: rgba(200, 160, 80, 0.08);
+  border: 1px solid rgba(200, 160, 80, 0.16);
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: 2px;
 }
+
+/* ─── Input Row ──────────────────────────────────────────────────────────── */
 
 .prompt-yourself-container .input-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .prompt-yourself-container .input-row input {
   flex: 1;
-  padding: 8px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  background: var(--background-primary);
-  color: var(--text-normal);
+  padding: 7px 10px;
+  border: 1px solid rgba(200, 160, 80, 0.28);
+  border-radius: 2px;
+  background: linear-gradient(135deg, #f2e8d0, #ece0c0);
+  color: #2a1a08;
+  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
   font-size: 13px;
+}
+
+.prompt-yourself-container .input-row input::placeholder {
+  color: rgba(139, 96, 48, 0.42);
+  font-style: italic;
 }
 
 .prompt-yourself-container .input-row input:focus {
-  border-color: var(--interactive-accent);
+  border-color: rgba(200, 160, 80, 0.6);
   outline: none;
+  box-shadow: 0 0 0 1px rgba(200, 160, 80, 0.18);
 }
 
 .prompt-yourself-container .input-row button {
-  padding: 8px 14px;
-  border: none;
-  border-radius: 6px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
+  padding: 7px 14px;
+  border: 1px solid rgba(200, 160, 80, 0.38);
+  border-radius: 2px;
+  background: linear-gradient(135deg, #3a2010, #2a1608);
+  color: rgba(200, 160, 80, 0.88);
   cursor: pointer;
-  font-size: 13px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  transition: all 0.2s;
 }
 
 .prompt-yourself-container .input-row button:disabled {
-  opacity: 0.5;
+  opacity: 0.38;
   cursor: not-allowed;
 }
 
 .prompt-yourself-container .input-row button:hover:not(:disabled) {
-  filter: brightness(1.1);
+  background: linear-gradient(135deg, #4a2814, #382010);
+  border-color: rgba(200, 160, 80, 0.62);
+  color: rgba(232, 192, 96, 1);
 }
 
 .prompt-yourself-container .error {
-  color: var(--text-error);
-  font-size: 12px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 11px;
+  color: rgba(180, 40, 20, 0.78);
   padding: 4px 8px;
 }
 
-.prompt-yourself-container .quests-btn {
-  align-self: flex-start;
-  padding: 2px 10px;
-  border: none;
-  border-radius: 4px;
-  background: var(--background-secondary-alt);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.prompt-yourself-container .quests-btn:hover {
-  color: var(--text-normal);
-  background: var(--background-modifier-hover);
-}
-
-/* ─── Quest view ───────────────────────────── */
+/* ─── Quest Panel ────────────────────────────────────────────────────────── */
 
 .prompt-yourself-quests {
-  padding: 16px;
+  padding: 14px;
+  min-height: 100%;
+  /* Dark wood background */
+  background:
+    repeating-linear-gradient(
+      6deg,
+      transparent,
+      transparent 11px,
+      rgba(255, 255, 255, 0.012) 11px,
+      rgba(255, 255, 255, 0.012) 12px
+    ),
+    repeating-linear-gradient(
+      -4deg,
+      transparent,
+      transparent 9px,
+      rgba(0, 0, 0, 0.04) 9px,
+      rgba(0, 0, 0, 0.04) 10px
+    ),
+    linear-gradient(160deg, #201408 0%, #1a1008 100%);
 }
 
 .prompt-yourself-quests h2 {
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(200, 160, 80, 0.88);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   margin-top: 0;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(200, 160, 80, 0.2);
+  text-shadow: 0 0 12px rgba(200, 160, 80, 0.28);
 }
 
 .prompt-yourself-quests h3 {
-  margin: 1em 0 0.5em;
-  font-size: 14px;
-  color: var(--text-muted);
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(200, 160, 80, 0.5);
+  margin: 12px 0 10px;
 }
 
 .prompt-yourself-quests ul {
-  padding-left: 1.3em;
-  margin: 0.3em 0;
+  padding-left: 0;
+  margin: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
+/* Quest item — parchment scroll with pushpin */
 .prompt-yourself-quests li {
-  margin: 0.4em 0;
-  font-size: 13px;
-  line-height: 1.5;
+  margin: 0;
+  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.48;
+  color: #2a1a08;
+  background: linear-gradient(135deg, #f0e4c0, #e8d8a8, #f2e6c4);
+  border: 1px solid rgba(200, 160, 80, 0.48);
+  border-radius: 2px;
+  padding: 8px 10px 8px 12px;
+  position: relative;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
+/* Rolled top-edge shadow */
+.prompt-yourself-quests li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.07), transparent);
+  border-radius: 2px 2px 0 0;
+  pointer-events: none;
+}
+
+/* Pushpin */
+.prompt-yourself-quests li::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e03020, #7a0a0a);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 1px 1px rgba(255, 160, 140, 0.18);
+  z-index: 1;
+}
+
+.prompt-yourself-quests li strong {
+  font-weight: 700;
+  color: #1a0e04;
+}
+
+/* Completed items — sepia, grey pin */
 .prompt-yourself-quests .quests-completed {
-  color: var(--text-muted);
+  color: rgba(80, 60, 30, 0.52);
   text-decoration: line-through;
+  background: linear-gradient(135deg, #d8d0a8, #ccc89a);
+  border-color: rgba(139, 110, 60, 0.28);
+  filter: sepia(0.25);
+  opacity: 0.68;
+}
+
+.prompt-yourself-quests .quests-completed::before {
+  background: radial-gradient(circle at 35% 30%, #999, #555);
 }
 
 .prompt-yourself-quests .quests-empty {
-  color: var(--text-faint);
-  font-size: 13px;
+  color: rgba(200, 160, 80, 0.32);
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 0.04em;
 }
 
 .prompt-yourself-quests hr {
-  margin: 1em 0;
+  margin: 12px 0;
   border: none;
-  border-top: 1px solid var(--background-modifier-border);
+  border-top: 1px solid rgba(200, 160, 80, 0.18);
 }
 
 .prompt-yourself-quests .quests-total {
-  font-size: 14px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 12px;
   font-weight: 600;
-  margin: 0.5em 0;
+  letter-spacing: 0.08em;
+  color: rgba(200, 160, 80, 0.82);
+  margin: 6px 0;
+  text-shadow: 0 0 8px rgba(200, 160, 80, 0.22);
 }
 
 .prompt-yourself-quests button {
-  margin-top: 1em;
-  padding: 4px 12px;
-  border: none;
-  border-radius: 4px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
+  margin-top: 10px;
+  padding: 4px 14px;
+  border: 1px solid rgba(200, 160, 80, 0.32);
+  border-radius: 2px;
+  background: linear-gradient(135deg, #2a1810, #1e1208);
+  color: rgba(200, 160, 80, 0.72);
   cursor: pointer;
-  font-size: 12px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  transition: all 0.2s;
+}
+
+.prompt-yourself-quests button:hover {
+  border-color: rgba(200, 160, 80, 0.58);
+  color: rgba(220, 180, 90, 1);
+  background: linear-gradient(135deg, #3a2414, #2a1a0e);
 }

@@ -485,6 +485,13 @@ class PromptYourselfPlugin extends Plugin {
     // Load system prompt from disk
     await this.loadSystemPrompt();
 
+    // Load theme fonts (Cinzel + Kalam for the Adventurer's Chronicle theme)
+    this._themeFont = document.createElement('link');
+    this._themeFont.rel = 'stylesheet';
+    this._themeFont.href =
+      'https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Kalam:wght@400;700&display=swap';
+    document.head.appendChild(this._themeFont);
+
     this.registerView(VIEW_TYPE, (leaf) => new PromptYourselfView(leaf, this));
     this.registerView(QUEST_VIEW_TYPE, (leaf) => new PromptYourselfQuestView(leaf));
 
@@ -499,6 +506,12 @@ class PromptYourselfPlugin extends Plugin {
     });
 
     this.addSettingTab(new PromptYourselfSettingTab(this.app, this));
+  }
+
+  onunload() {
+    if (this._themeFont && this._themeFont.parentNode) {
+      this._themeFont.parentNode.removeChild(this._themeFont);
+    }
   }
 
   async activateView() {
