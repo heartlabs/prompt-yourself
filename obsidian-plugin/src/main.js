@@ -84,7 +84,8 @@ class PromptYourselfQuestView extends ItemView {
       const json = getGameState();
       state = JSON.parse(json);
     } catch (e) {
-      contentEl.createEl('p', { text: '⚠️ ' + e.message });
+      contentEl.createEl('p', { text: '⏳ Loading quests…' });
+      setTimeout(() => this.render(), 500);
       return;
     }
 
@@ -125,9 +126,6 @@ class PromptYourselfQuestView extends ItemView {
       cls: 'quests-total',
     });
 
-    // Refresh button
-    const refreshBtn = contentEl.createEl('button', { text: '🔄 Refresh' });
-    refreshBtn.addEventListener('click', () => this.render());
   }
 
   async onClose() {
@@ -300,6 +298,7 @@ class PromptYourselfView extends ItemView {
 
     // Reset the chat panel UI
     this.chatAreaEl.empty();
+
     this.updateFolderLabel();
 
     // Register the loadEntries callback BEFORE initChat or any WASM calls
@@ -325,6 +324,7 @@ class PromptYourselfView extends ItemView {
   }
 
   async handleSend() {
+    if (this.isLoading) return;
     const text = this.inputEl.value.trim();
     if (!text) return;
 
@@ -362,6 +362,13 @@ class PromptYourselfView extends ItemView {
       this.addMessage('system', '❌ Error: ' + err.message);
     } finally {
       this.setLoading(false);
+      // Refresh any open Quest views so they update automatically
+      const questLeaves = this.app.workspace.getLeavesOfType(QUEST_VIEW_TYPE);
+      for (const leaf of questLeaves) {
+        if (leaf.view && typeof leaf.view.render === 'function') {
+          leaf.view.render();
+        }
+      }
     }
   }
 
@@ -381,9 +388,24 @@ class PromptYourselfView extends ItemView {
   }
 
   setLoading(loading) {
-    this.inputEl.disabled = loading;
+    this.isLoading = loading;
     this.sendBtn.disabled = loading;
     this.sendBtn.setText(loading ? '…' : 'Send');
+
+    if (loading) {
+      // Create the typing indicator fresh, appended after the last message
+      this.typingIndicatorEl = this.chatAreaEl.createEl('div', { cls: 'typing-indicator' });
+      this.typingIndicatorEl.createEl('span');
+      this.typingIndicatorEl.createEl('span');
+      this.typingIndicatorEl.createEl('span');
+      this.chatAreaEl.scrollTo(0, this.chatAreaEl.scrollHeight);
+    } else {
+      // Remove the indicator from the DOM
+      if (this.typingIndicatorEl) {
+        this.typingIndicatorEl.detach();
+        this.typingIndicatorEl = null;
+      }
+    }
   }
 
   async onClose() {
