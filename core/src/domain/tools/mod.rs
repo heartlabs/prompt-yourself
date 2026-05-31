@@ -6,7 +6,7 @@
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::domain::entities::game::{Game, Quest};
+use crate::domain::entities::game::{GameService, Quest};
 use crate::domain::ports::openai::{ToolCall, ToolDefinition};
 
 /// The outcome of executing a single tool call.
@@ -86,7 +86,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
 ///
 /// Parses the call arguments, delegates to the appropriate handler, and
 /// returns a [`ToolOutcome`] with separate messages for the user and the LLM.
-pub fn execute(game: &mut Game, call: &ToolCall) -> ToolOutcome {
+pub fn execute(game: &mut GameService, call: &ToolCall) -> ToolOutcome {
     let (user_message, llm_message) = match call.name.as_str() {
         "register_quest" => execute_register_quest(game, call),
         "complete_quest" => execute_complete_quest(game, call),
@@ -106,7 +106,7 @@ pub fn execute(game: &mut Game, call: &ToolCall) -> ToolOutcome {
 
 // ─── Handler implementations ────────────────────────────────────────────────
 
-fn execute_register_quest(game: &mut Game, call: &ToolCall) -> (String, String) {
+fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (String, String) {
     #[derive(Deserialize)]
     struct RegisterQuestArgs {
         title: String,
@@ -128,6 +128,7 @@ fn execute_register_quest(game: &mut Game, call: &ToolCall) -> (String, String) 
         title: args.title.clone(),
         description: args.description.clone(),
         points: args.points,
+        completed: false,
     };
 
     match game.register_quest(quest) {
@@ -145,7 +146,7 @@ fn execute_register_quest(game: &mut Game, call: &ToolCall) -> (String, String) 
     }
 }
 
-fn execute_complete_quest(game: &mut Game, call: &ToolCall) -> (String, String) {
+fn execute_complete_quest(game: &mut GameService, call: &ToolCall) -> (String, String) {
     #[derive(Deserialize)]
     struct CompleteQuestArgs {
         title: String,
@@ -173,7 +174,7 @@ fn execute_complete_quest(game: &mut Game, call: &ToolCall) -> (String, String) 
     }
 }
 
-fn execute_list_open_quests(game: &mut Game, call: &ToolCall) -> (String, String) {
+fn execute_list_open_quests(game: &mut GameService, call: &ToolCall) -> (String, String) {
     let _ = call; // no arguments to parse
     let quests = game.list_open_quests();
 

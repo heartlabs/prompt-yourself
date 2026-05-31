@@ -3,6 +3,7 @@ use std::io::{self, BufRead, Write};
 use clap::Parser;
 use prompt_yourself_core::domain::ports::openai::ChatMessage;
 use prompt_yourself_core::OpenAiAdapter;
+use prompt_yourself_core::{GameService, InMemoryQuestRepository};
 
 // ─── CLI args ───────────────────────────────────────────────────────────────
 
@@ -37,11 +38,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build adapters and chat
     let openai_adapter = OpenAiAdapter::new(api_key, API_BASE.to_string(), MODEL.to_string());
     let journal_adapter = journal::CliJournalAdapter::new(&args.path);
+    let game_service = GameService::new(Box::new(InMemoryQuestRepository::new()));
 
     let mut chat = prompt_yourself_core::api::chat::Chat::new(
         Box::new(openai_adapter),
         prompt_yourself_core::api::chat::SYSTEM_PROMPT.to_string(),
         Box::new(journal_adapter),
+        game_service,
     );
 
     // Load the initial document context (loads ALL files since epoch)

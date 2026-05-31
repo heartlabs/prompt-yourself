@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use crate::domain::entities::game::{Game, Quest};
+use crate::domain::entities::game::{GameService, Quest};
 use crate::domain::ports::journal::JournalPort;
 use crate::domain::ports::openai::{ChatError, ChatMessage, ChatResponse, OpenAiPort};
 use crate::domain::tools;
@@ -30,7 +30,7 @@ pub struct Chat {
     /// next `load_entries` call. Updated after every `user_message`.
     last_check_time: DateTime<Utc>,
 
-    game: Game,
+    game_service: GameService,
 }
 
 impl Chat {
@@ -40,10 +40,12 @@ impl Chat {
     /// `system_prompt` — the system prompt to use (default: [`SYSTEM_PROMPT`]).
     /// `journal` — a journal adapter; used to load the initial context and to
     ///             detect file changes before every API call.
+    /// `game_service` — the quest game service (e.g. `GameService::new(…)`).
     pub fn new(
         openai_port: Box<dyn OpenAiPort>,
         system_prompt: String,
         journal: Box<dyn JournalPort>,
+        game_service: GameService,
     ) -> Self {
         Self {
             history: Vec::new(),
@@ -52,7 +54,7 @@ impl Chat {
             openai_port,
             journal,
             last_check_time: DateTime::UNIX_EPOCH,
-            game: Game::new(),
+            game_service,
         }
     }
 
@@ -175,7 +177,7 @@ impl Chat {
 
                     // Execute each tool call
                     for call in &tool_calls {
-                        let outcome = tools::execute(&mut self.game, call);
+                        let outcome = tools::execute(&mut self.game_service, call);
 
                         // Detailed message for the LLM (internal history only)
                         self.history.push(ChatMessage::Tool {
@@ -216,14 +218,14 @@ impl Chat {
     }
 
     pub fn open_quests(&self) -> Vec<Quest> {
-        self.game.list_open_quests()
+        self.game_service.list_open_quests()
     }
 
     pub fn completed_quests(&self) -> Vec<Quest> {
-        self.game.list_completed_quests()
+        self.game_service.list_completed_quests()
     }
 
     pub fn game_points(&self) -> u32 {
-        self.game.list_completed_quests().iter().map(|quest| quest.points).sum()
+        self.game_service.list_completed_quests().iter().map(|quest| quest.points).sum()
     }
 }

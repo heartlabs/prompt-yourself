@@ -3,62 +3,41 @@
 /// On API level the user will be informed about new quests and quest completions via the chat messages. 
 /// Additionally there will be a dedicated API to show open and completed quests and collected points.
 
-pub struct Game {
-    open_quests: Vec<Quest>,
-    completed_quests: Vec<Quest>,
+use crate::domain::ports::quest_repository::QuestRepository;
+
+/// Service that manages quests through a [`QuestRepository`] port.
+///
+/// All quest state is delegated to the repository, making the service
+/// independent of the storage mechanism.  The in-memory implementation
+/// ([`crate::infrastructure::in_memory_quest_repo::InMemoryQuestRepository`])
+/// is the default; a vault-backed adapter is planned for Obsidian.
+pub struct GameService {
+    repo: Box<dyn QuestRepository>,
 }
 
-impl Game {
-    pub fn new() -> Self {
-        Self {
-            open_quests: Vec::new(),
-            completed_quests: Vec::new(),
-        }
+impl GameService {
+    /// Create a new game service backed by the given repository.
+    pub fn new(repo: Box<dyn QuestRepository>) -> Self {
+        Self { repo }
     }
 
     pub fn register_quest(
         &mut self,
         quest: Quest
     ) -> Result<(), GameError> {
-        // Check if quest with the same title already exists
-        if self.open_quests.iter().any(|q| q.title == quest.title)
-            || self.completed_quests.iter().any(|q| q.title == quest.title)
-        {
-            return Err(GameError::Other(format!(
-                "Quest with title '{}' already exists",
-                quest.title
-            )));
-        }
-
-        // Add the new quest to the list of open quests
-        self.open_quests.push(quest);
-        Ok(())
+        self.repo.insert(quest)
     }
 
     pub fn complete_quest(&mut self, title: &str) -> Result<(), GameError> {
-        // Find the quest in the list of open quests
-        if let Some(pos) = self.open_quests.iter().position(|q| q.title == title) {
-            let quest = self.open_quests.remove(pos);
-            self.completed_quests.push(quest);
-            Ok(())
-        } else {
-            Err(GameError::Other(format!(
-                "No open quest found with title '{}'",
-                title
-            )))
-        }
+        self.repo.mark_completed(title)
     }
 
     pub fn list_open_quests(&self) -> Vec<Quest> {
-        let mut open_quests = Vec::new();
-        open_quests.extend(self.open_quests.iter().cloned());
-        open_quests
+        self.repo.find_open()
     }
 
     pub fn list_completed_quests(&self) -> Vec<Quest> {
-        let mut completed_quests = Vec::new();
-        completed_quests.extend(self.completed_quests.iter().cloned());
-        completed_quests
+        self.repo.find_completed()
     }
 }
 
@@ -73,4 +52,6 @@ pub struct Quest {
     pub title: String,
     pub description: String,
     pub points: u32,
+    /// Whether the quest has been marked as completed by the chat coach.
+    pub completed: bool,
 }

@@ -32,6 +32,8 @@ use prompt_yourself_core::{
     api::chat::Chat,
     domain::ports::journal::{JournalError, JournalPort},
     yaml_producer::FileEntry,
+    GameService,
+    InMemoryQuestRepository,
     OpenAiAdapter,
 };
 use serde_json::json;
@@ -209,10 +211,13 @@ pub fn wasm_init_chat(model: &str) -> Result<(), JsError> {
 
     let adapter = OpenAiAdapter::new(api_key.clone(), api_base.to_string(), model.to_string());
 
+    let game_service = GameService::new(Box::new(InMemoryQuestRepository::new()));
+
     let chat = Chat::new(
         Box::new(adapter),
         system_prompt.to_owned(),
         Box::new(WasmJournalAdapter),
+        game_service,
     );
 
     let _ = CHAT.set(Mutex::new(chat));
