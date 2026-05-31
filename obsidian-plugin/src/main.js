@@ -21,7 +21,7 @@
  */
 
 import { Plugin } from 'obsidian';
-import { initSync, setApiKey, setSystemPrompt } from './core_wasm.js';
+import { initSync, setApiKey } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 import { VIEW_TYPE, QUEST_VIEW_TYPE } from './lib/constants.js';
 import { PromptYourselfQuestView } from './lib/quest-view.js';
@@ -40,9 +40,6 @@ class PromptYourselfPlugin extends Plugin {
     if (this.settings.apiKey) {
       setApiKey(this.settings.apiKey);
     }
-
-    // Load system prompt from disk
-    await this.loadSystemPrompt();
 
     // Load theme fonts (Cinzel + Kalam for the Adventurer's Chronicle theme)
     this._themeFont = document.createElement('link');
@@ -90,26 +87,6 @@ class PromptYourselfPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
-  }
-
-  async loadSystemPrompt() {
-    const promptPath = this.settings.systemPromptPath;
-    if (!promptPath) {
-      console.log('[Prompt Yourself] No systemPromptPath configured - using compiled-in default');
-      return;
-    }
-    try {
-      const fs = require('fs');
-      if (fs.existsSync(promptPath)) {
-        const content = fs.readFileSync(promptPath, 'utf-8');
-        setSystemPrompt(content);
-        console.log('[Prompt Yourself] Loaded system prompt from', promptPath);
-      } else {
-        console.log('[Prompt Yourself] File not found:', promptPath, '- using compiled-in default');
-      }
-    } catch (err) {
-      console.warn('[Prompt Yourself] Failed to load system prompt:', err.message);
-    }
   }
 }
 

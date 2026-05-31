@@ -5,7 +5,6 @@ import { setApiKey } from '../core_wasm.js';
 export const DEFAULT_SETTINGS = {
   apiKey: '',
   folderPath: '',
-  systemPromptPath: '/Users/neidhartorlich/dev/prompt-yourself/core/resources/system-prompt.md',
 };
 
 export class PromptYourselfSettingTab extends PluginSettingTab {

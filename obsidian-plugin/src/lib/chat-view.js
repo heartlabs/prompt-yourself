@@ -1,6 +1,6 @@
 import { ItemView, MarkdownRenderer } from 'obsidian';
-import { VIEW_TYPE, QUEST_VIEW_TYPE, CHAT_MODEL, TEXT_EXTENSIONS } from './constants.js';
-import { msToIso8601 } from './helpers.js';
+import { VIEW_TYPE, QUEST_VIEW_TYPE, CHAT_MODEL } from './constants.js';
+import { buildVaultLoadCallback } from './journal-adapter.js';
 import { setLoadEntriesCallback, initChat, loadInitialContext, chatCompletion } from '../core_wasm.js';
 
 export class PromptYourselfView extends ItemView {
@@ -71,95 +71,6 @@ export class PromptYourselfView extends ItemView {
     }
   }
 
-  /**
-   * Build the JS callback that the Rust core calls via `JournalPort::load_entries`.
-   *
-   * The callback receives a millisecond timestamp (Unix epoch) and must return a
-   * Promise<string> — a JSON array of `{path, content, lastModified}` objects
-   * for every file whose mtime is strictly after `sinceMs`.
-   * `lastModified` must be an ISO 8601 string so chrono can deserialize it.
-   *
-   * ⚠️ This callback MUST NOT call any WASM function that locks the chat
-   * (e.g. chatCompletion, loadInitialContext) — see re-entrancy doc.
-   */
-  buildLoadEntriesCallback() {
-    const folderPath = this.plugin.settings.folderPath;
-    const app = this.app;
-
-    return async (sinceMs) => {
-      let folder;
-      if (folderPath === '' || folderPath === '/') {
-        folder = app.vault.getRoot();
-      } else {
-        folder = app.vault.getAbstractFileByPath(folderPath);
-      }
-
-      if (!folder || !folder.children) return '[]';
-
-      const results = [];
-
-      // Normalise rootPath
-      const prefix = folderPath ? folderPath.replace(/^\/+|\/+$/g, '') : '';
-
-      const walk = async (children) => {
-        for (const child of children) {
-          if (child.name.startsWith('.')) continue;
-          if (child.name === 'node_modules') continue;
-
-          if (child.children) {
-            await walk(child.children);
-          } else {
-            // Relative path
-            const childAbs = child.path.replace(/^\//, '');
-            let relPath;
-            if (!prefix) {
-              relPath = childAbs;
-            } else if (childAbs === prefix) {
-              relPath = '';
-            } else if (childAbs.startsWith(prefix + '/')) {
-              relPath = childAbs.slice(prefix.length + 1);
-            } else {
-              relPath = childAbs;
-            }
-
-            // mtime filter
-            const mtimeMs = child.stat && child.stat.mtime;
-            if (sinceMs !== null && mtimeMs !== null && mtimeMs <= sinceMs) {
-              continue;
-            }
-
-            // Content
-            const dotIdx = child.name.lastIndexOf('.');
-            const ext = dotIdx !== -1 ? child.name.slice(dotIdx).toLowerCase() : '';
-            let content = null;
-            if (TEXT_EXTENSIONS.has(ext)) {
-              try {
-                content = await app.vault.read(child);
-                content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-              } catch (_) {
-                content = null;
-              }
-            }
-
-            const lastModified = mtimeMs != null ? msToIso8601(mtimeMs) : null;
-            results.push({ path: relPath, content, lastModified });
-          }
-        }
-      };
-
-      await walk(folder.children);
-
-      if (results.length > 0) {
-        console.log(
-          `[prompt-yourself] loadEntries(sinceMs=${sinceMs}) returned ${results.length} file(s):`,
-          results.map(r => `${r.path} (${r.lastModified ?? '?'})`).join(', ')
-        );
-      }
-
-      return JSON.stringify(results);
-    };
-  }
-
   async loadFolder() {
     const folderPath = this.plugin.settings.folderPath;
     if (folderPath === undefined) return;
@@ -170,7 +81,7 @@ export class PromptYourselfView extends ItemView {
     this.updateFolderLabel();
 
     // Register the loadEntries callback BEFORE initChat or any WASM calls
-    const callback = this.buildLoadEntriesCallback();
+    const callback = buildVaultLoadCallback(folderPath, this.app.vault);
     setLoadEntriesCallback(callback);
 
     const apiKey = this.plugin.settings.apiKey;

@@ -22,9 +22,6 @@ const MAX_TOKENS: u32 = 500;
 /// can delegate to a JS callback.
 pub struct Chat {
     history: Vec<ChatMessage>,
-    /// The document context (the YAML journal) is stored separately from `history`
-    /// so it survives `reset()` calls. It is injected as the first user message
-    /// after the system prompt in every API call.
     document_context: Option<ChatMessage>,
     system_prompt: String,
     openai_port: Box<dyn OpenAiPort>,
