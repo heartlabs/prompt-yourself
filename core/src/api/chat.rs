@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use crate::domain::entities::game::{GameService, Quest};
 use crate::domain::ports::journal::JournalPort;
 use crate::domain::ports::openai::{ChatError, ChatMessage, ChatResponse, OpenAiPort};
+use crate::domain::ports::quest_repository::QuestRepository;
 use crate::domain::tools;
 use crate::yaml_producer::FileEntry;
 
@@ -37,24 +38,22 @@ impl Chat {
     /// Create a new chat session.
     ///
     /// `openai_port` — a fully configured driven-port adapter (e.g. `OpenAiAdapter`).
-    /// `system_prompt` — the system prompt to use (default: [`SYSTEM_PROMPT`]).
     /// `journal` — a journal adapter; used to load the initial context and to
     ///             detect file changes before every API call.
-    /// `game_service` — the quest game service (e.g. `GameService::new(…)`).
+    /// `quest_repository` — the quest storage backend (in-memory or vault-backed).
     pub fn new(
         openai_port: Box<dyn OpenAiPort>,
-        system_prompt: String,
         journal: Box<dyn JournalPort>,
-        game_service: GameService,
+        quest_repository: Box<dyn QuestRepository>,
     ) -> Self {
         Self {
             history: Vec::new(),
             document_context: None,
-            system_prompt,
+            system_prompt: SYSTEM_PROMPT.to_string(),
             openai_port,
             journal,
             last_check_time: DateTime::UNIX_EPOCH,
-            game_service,
+            game_service: GameService::new(quest_repository),
         }
     }
 

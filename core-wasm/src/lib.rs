@@ -32,7 +32,6 @@ use prompt_yourself_core::{
     api::chat::Chat,
     domain::ports::journal::{JournalError, JournalPort},
     yaml_producer::FileEntry,
-    GameService,
     InMemoryQuestRepository,
     OpenAiAdapter,
 };
@@ -43,7 +42,6 @@ use wasm_bindgen::prelude::*;
 
 static API_KEY: OnceLock<String> = OnceLock::new();
 static API_BASE: OnceLock<String> = OnceLock::new();
-static SYSTEM_PROMPT: OnceLock<String> = OnceLock::new();
 static CHAT: OnceLock<Mutex<Chat>> = OnceLock::new();
 
 // JS callback registered by the Obsidian plugin.
@@ -176,18 +174,14 @@ pub fn wasm_set_api_base(base: &str) {
     let _ = API_BASE.set(base.to_string());
 }
 
-/// Set the system prompt (overrides the compiled-in default).
-#[wasm_bindgen(js_name = setSystemPrompt)]
-pub fn wasm_set_system_prompt(prompt: &str) {
-    let _ = SYSTEM_PROMPT.set(prompt.to_string());
-}
+
 
 // ─── Chat initialisation ────────────────────────────────────────────────────
 
 /// Initialise (or reset) the global Chat instance with the given model.
 ///
 /// Must be called after `setApiKey` (and optionally `setApiBase` /
-/// `setSystemPrompt` / `setLoadEntriesCallback`). Calling this again
+/// `setLoadEntriesCallback`). Calling this again
 /// discards the previous conversation history.
 ///
 /// The journal adapter uses the JS callback registered via
@@ -204,20 +198,12 @@ pub fn wasm_init_chat(model: &str) -> Result<(), JsError> {
         .map(|s| s.as_str())
         .unwrap_or("https://api.deepseek.com");
 
-    let system_prompt = SYSTEM_PROMPT
-        .get()
-        .map(|s| s.as_str())
-        .unwrap_or(prompt_yourself_core::api::chat::SYSTEM_PROMPT);
-
     let adapter = OpenAiAdapter::new(api_key.clone(), api_base.to_string(), model.to_string());
-
-    let game_service = GameService::new(Box::new(InMemoryQuestRepository::new()));
 
     let chat = Chat::new(
         Box::new(adapter),
-        system_prompt.to_owned(),
         Box::new(WasmJournalAdapter),
-        game_service,
+        Box::new(InMemoryQuestRepository::new()),
     );
 
     let _ = CHAT.set(Mutex::new(chat));
