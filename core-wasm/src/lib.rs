@@ -20,6 +20,9 @@
 use std::cell::RefCell;
 use std::sync::{Mutex, OnceLock};
 
+mod quest_repository;
+pub use quest_repository::wasm_set_quest_repository_callbacks as setQuestRepositoryCallbacks;
+
 // Set a panic hook that logs to console.error so we can see Rust panic
 // messages instead of just "RuntimeError: unreachable".
 #[wasm_bindgen(start)]
@@ -32,10 +35,8 @@ use prompt_yourself_core::{
     api::chat::Chat,
     domain::ports::journal::{JournalError, JournalPort},
     yaml_producer::FileEntry,
-    InMemoryQuestRepository,
     OpenAiAdapter,
 };
-use serde_json::json;
 use wasm_bindgen::prelude::*;
 
 // ─── Global state ───────────────────────────────────────────────────────────
@@ -203,7 +204,7 @@ pub fn wasm_init_chat(model: &str) -> Result<(), JsError> {
     let chat = Chat::new(
         Box::new(adapter),
         Box::new(WasmJournalAdapter),
-        Box::new(InMemoryQuestRepository::new()),
+        Box::new(quest_repository::WasmQuestRepository),
     );
 
     let _ = CHAT.set(Mutex::new(chat));
@@ -242,17 +243,24 @@ pub async fn wasm_load_initial_context() -> Result<usize, JsError> {
 /// are detected and injected as update messages without any JS intervention.
 ///
 /// @param {string} userMessage - the user's message to append
+/// @param {string} userMessage - the user's message to append
+/// @param {number} dayMs - milliseconds-since-epoch timestamp representing
+///        the start of the calendar day to use for quest queries.
 /// @returns {Promise<string>} JSON array of ChatMessage objects from this turn
 #[wasm_bindgen(js_name = chatCompletion)]
-pub async fn wasm_chat_completion(user_message: &str) -> Result<String, JsError> {
+pub async fn wasm_chat_completion(user_message: &str, day_ms: f64) -> Result<String, JsError> {
     let chat_mutex = CHAT
         .get()
         .ok_or_else(|| JsError::new("Chat not initialised. Call initChat() first."))?;
 
     let mut chat = chat_mutex.lock().expect("Chat mutex poisoned");
 
+    let day = DateTime::from_timestamp_millis(day_ms as i64)
+        .ok_or_else(|| JsError::new("Invalid day_ms timestamp"))?
+        .date_naive();
+
     let messages = chat
-        .user_message(user_message.to_string())
+        .user_message(user_message.to_string(), day)
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
@@ -281,46 +289,11 @@ pub fn wasm_produce_yaml(files_json: &str) -> Result<String, JsError> {
 
 /// Return the current quest game state (open quests, completed quests, total
 /// points) as a JSON string.
+///
+/// Reads from the repository cache without locking the CHAT mutex,
+/// so it can be called at any time without risk of deadlock.
 #[wasm_bindgen(js_name = getGameState)]
-pub fn wasm_get_game_state() -> Result<String, JsError> {
-    let chat_mutex = CHAT
-        .get()
-        .ok_or_else(|| JsError::new("Chat not initialised. Call initChat() first."))?;
-
-    let chat = chat_mutex.lock().map_err(|_| JsError::new("Chat mutex poisoned"))?;
-
-    let open_quests: Vec<serde_json::Value> = chat
-        .open_quests()
-        .into_iter()
-        .map(|q| {
-            json!({
-                "title": q.title,
-                "description": q.description,
-                "points": q.points,
-            })
-        })
-        .collect();
-
-    let completed_quests: Vec<serde_json::Value> = chat
-        .completed_quests()
-        .into_iter()
-        .map(|q| {
-            json!({
-                "title": q.title,
-                "description": q.description,
-                "points": q.points,
-            })
-        })
-        .collect();
-
-    let total_points = chat.game_points();
-
-    let state = json!({
-        "openQuests": open_quests,
-        "completedQuests": completed_quests,
-        "totalPoints": total_points,
-    });
-
-    Ok(serde_json::to_string(&state)?)
+pub async fn wasm_get_game_state() -> Result<String, JsError> {
+    Ok(quest_repository::get_quest_state_from_cache().await)
 }
 

@@ -3,14 +3,14 @@
 /// On API level the user will be informed about new quests and quest completions via the chat messages. 
 /// Additionally there will be a dedicated API to show open and completed quests and collected points.
 
+use chrono::{DateTime, NaiveDate, Utc};
+
 use crate::domain::ports::quest_repository::QuestRepository;
 
 /// Service that manages quests through a [`QuestRepository`] port.
 ///
 /// All quest state is delegated to the repository, making the service
-/// independent of the storage mechanism.  The in-memory implementation
-/// ([`crate::infrastructure::in_memory_quest_repo::InMemoryQuestRepository`])
-/// is the default; a vault-backed adapter is planned for Obsidian.
+/// independent of the storage mechanism.
 pub struct GameService {
     repo: Box<dyn QuestRepository>,
 }
@@ -21,23 +21,28 @@ impl GameService {
         Self { repo }
     }
 
-    pub fn register_quest(
+    pub async fn register_quest(
         &mut self,
         quest: Quest
     ) -> Result<(), GameError> {
-        self.repo.insert(quest)
+        self.repo.insert(quest).await
     }
 
-    pub fn complete_quest(&mut self, title: &str) -> Result<(), GameError> {
-        self.repo.mark_completed(title)
+    pub async fn complete_quest(
+        &mut self,
+        title: &str,
+        completed_at: DateTime<Utc>,
+    ) -> Result<(), GameError> {
+        self.repo.mark_completed(title, completed_at).await
     }
 
-    pub fn list_open_quests(&self) -> Vec<Quest> {
-        self.repo.find_open()
+    pub async fn list_open_quests(&self) -> Vec<Quest> {
+        self.repo.find_open().await
     }
 
-    pub fn list_completed_quests(&self) -> Vec<Quest> {
-        self.repo.find_completed()
+    /// Return quests completed on the given calendar day.
+    pub async fn list_completed_quests(&self, day: NaiveDate) -> Vec<Quest> {
+        self.repo.find_completed_at(day).await
     }
 }
 
@@ -47,11 +52,11 @@ pub enum GameError {
     Other(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Quest {
     pub title: String,
     pub description: String,
     pub points: u32,
-    /// Whether the quest has been marked as completed by the chat coach.
-    pub completed: bool,
+    /// `None` while the quest is still open; `Some(timestamp)` when completed.
+    pub completed_at: Option<DateTime<Utc>>,
 }

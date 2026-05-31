@@ -1,7 +1,7 @@
 import { ItemView, MarkdownRenderer } from 'obsidian';
 import { VIEW_TYPE, QUEST_VIEW_TYPE, CHAT_MODEL } from './constants.js';
 import { buildVaultLoadCallback } from './journal-adapter.js';
-import { setLoadEntriesCallback, initChat, loadInitialContext, chatCompletion } from '../core_wasm.js';
+import { setLoadEntriesCallback, setQuestRepositoryCallbacks, initChat, loadInitialContext, chatCompletion } from '../core_wasm.js';
 
 export class PromptYourselfView extends ItemView {
   constructor(leaf, plugin) {
@@ -84,6 +84,15 @@ export class PromptYourselfView extends ItemView {
     const callback = buildVaultLoadCallback(folderPath, this.app.vault);
     setLoadEntriesCallback(callback);
 
+    // Register the quest repository callbacks BEFORE initChat
+    const questRepo = this.plugin.questRepository;
+    if (questRepo) {
+      setQuestRepositoryCallbacks({
+        loadQuests: () => questRepo.loadQuests(),
+        saveQuests: (json) => questRepo.saveQuests(json),
+      });
+    }
+
     const apiKey = this.plugin.settings.apiKey;
     if (apiKey && apiKey !== 'your-api-key-here') {
       try {
@@ -128,7 +137,7 @@ export class PromptYourselfView extends ItemView {
       //   2. Injects "Note: File ... updated" messages for any changes
       //   3. Runs the tool-call loop (assistant replies + tool executions)
       //   4. Returns JSON array of all new messages (assistant + tool)
-      const json = await chatCompletion(text);
+      const json = await chatCompletion(text, Date.now());
       const messages = JSON.parse(json);
       for (const msg of messages) {
         if (msg.role === 'assistant' && msg.content) {
@@ -145,7 +154,7 @@ export class PromptYourselfView extends ItemView {
       const questLeaves = this.app.workspace.getLeavesOfType(QUEST_VIEW_TYPE);
       for (const leaf of questLeaves) {
         if (leaf.view && typeof leaf.view.render === 'function') {
-          leaf.view.render();
+          await leaf.view.render();
         }
       }
     }

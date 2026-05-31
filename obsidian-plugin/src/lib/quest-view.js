@@ -20,17 +20,17 @@ export class PromptYourselfQuestView extends ItemView {
   }
 
   async onOpen() {
-    this.render();
+    await this.render();
   }
 
-  render() {
+  async render() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('prompt-yourself-quests');
 
     let state;
     try {
-      const json = getGameState();
+      const json = await getGameState();
       state = JSON.parse(json);
     } catch (e) {
       contentEl.createEl('p', { text: '⏳ Loading quests…' });

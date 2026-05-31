@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 
 use crate::domain::entities::game::{GameService, Quest};
 use crate::domain::ports::journal::JournalPort;
@@ -116,7 +116,13 @@ impl Chat {
     /// If the model calls tools (e.g. quest tools), the tool calls are executed
     /// and their results are fed back into the conversation. This loop continues
     /// until the model produces a text reply, up to 5 iterations.
-    pub async fn user_message(&mut self, content: String) -> Result<Vec<ChatMessage>, ChatError> {
+    ///
+    /// `day` is the calendar day used for completed-quest queries.
+    pub async fn user_message(
+        &mut self,
+        content: String,
+        day: NaiveDate,
+    ) -> Result<Vec<ChatMessage>, ChatError> {
         // ── Check for file updates since the last check ─────────────────
         match self.journal.load_entries(&self.last_check_time).await {
             Ok(updates) if !updates.is_empty() => {
@@ -176,7 +182,11 @@ impl Chat {
 
                     // Execute each tool call
                     for call in &tool_calls {
-                        let outcome = tools::execute(&mut self.game_service, call);
+                        let outcome = tools::execute(
+                            &mut self.game_service,
+                            call,
+                            day,
+                        ).await;
 
                         // Detailed message for the LLM (internal history only)
                         self.history.push(ChatMessage::Tool {
@@ -216,15 +226,20 @@ impl Chat {
         &self.last_check_time
     }
 
-    pub fn open_quests(&self) -> Vec<Quest> {
-        self.game_service.list_open_quests()
+    pub async fn open_quests(&self) -> Vec<Quest> {
+        self.game_service.list_open_quests().await
     }
 
-    pub fn completed_quests(&self) -> Vec<Quest> {
-        self.game_service.list_completed_quests()
+    pub async fn completed_quests(&self, day: NaiveDate) -> Vec<Quest> {
+        self.game_service.list_completed_quests(day).await
     }
 
-    pub fn game_points(&self) -> u32 {
-        self.game_service.list_completed_quests().iter().map(|quest| quest.points).sum()
+    pub async fn game_points(&self, day: NaiveDate) -> u32 {
+        self.game_service
+            .list_completed_quests(day)
+            .await
+            .iter()
+            .map(|quest| quest.points)
+            .sum()
     }
 }

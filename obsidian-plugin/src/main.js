@@ -27,6 +27,7 @@ import { VIEW_TYPE, QUEST_VIEW_TYPE } from './lib/constants.js';
 import { PromptYourselfQuestView } from './lib/quest-view.js';
 import { PromptYourselfView } from './lib/chat-view.js';
 import { PromptYourselfSettingTab, DEFAULT_SETTINGS } from './lib/settings.js';
+import { ObsidianQuestRepository } from './lib/quest-repository.js';
 
 // ─── Plugin entry point ──────────────────────────────────────────────────────
 
@@ -36,6 +37,9 @@ class PromptYourselfPlugin extends Plugin {
 
     // Initialise WASM
     initSync({ module: wasmBytes });
+
+    // Create the quest repository (persists quests via plugin data store)
+    this.questRepository = new ObsidianQuestRepository(this);
 
     if (this.settings.apiKey) {
       setApiKey(this.settings.apiKey);

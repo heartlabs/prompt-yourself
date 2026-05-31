@@ -3,6 +3,7 @@
 //! Defines the available tools (currently quest-related) and the [`execute`]
 //! function that dispatches tool calls against the domain entities.
 
+use chrono::{NaiveDate, Utc};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -84,13 +85,20 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
 
 /// Execute a tool call against the game state.
 ///
+/// `day` is the calendar day used when listing completed quests.
+/// Completion timestamps use `Utc::now()` (the exact moment), not `day`.
+///
 /// Parses the call arguments, delegates to the appropriate handler, and
 /// returns a [`ToolOutcome`] with separate messages for the user and the LLM.
-pub fn execute(game: &mut GameService, call: &ToolCall) -> ToolOutcome {
+pub async fn execute(
+    game: &mut GameService,
+    call: &ToolCall,
+    day: NaiveDate,
+) -> ToolOutcome {
     let (user_message, llm_message) = match call.name.as_str() {
-        "register_quest" => execute_register_quest(game, call),
-        "complete_quest" => execute_complete_quest(game, call),
-        "list_open_quests" => execute_list_open_quests(game, call),
+        "register_quest" => execute_register_quest(game, call).await,
+        "complete_quest" => execute_complete_quest(game, call).await,
+        "list_open_quests" => execute_list_open_quests(game, call, day).await,
         other => (
             format!("⚠️ Unknown tool: {other}"),
             format!("error: unknown tool '{other}'"),
@@ -106,7 +114,7 @@ pub fn execute(game: &mut GameService, call: &ToolCall) -> ToolOutcome {
 
 // ─── Handler implementations ────────────────────────────────────────────────
 
-fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (String, String) {
+async fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (String, String) {
     #[derive(Deserialize)]
     struct RegisterQuestArgs {
         title: String,
@@ -128,10 +136,10 @@ fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (String, S
         title: args.title.clone(),
         description: args.description.clone(),
         points: args.points,
-        completed: false,
+        completed_at: None,
     };
 
-    match game.register_quest(quest) {
+    match game.register_quest(quest).await {
         Ok(()) => (
             format!("✅ Quest registered: **{}** ({} pts)", args.title, args.points),
             format!(
@@ -146,7 +154,10 @@ fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (String, S
     }
 }
 
-fn execute_complete_quest(game: &mut GameService, call: &ToolCall) -> (String, String) {
+async fn execute_complete_quest(
+    game: &mut GameService,
+    call: &ToolCall,
+) -> (String, String) {
     #[derive(Deserialize)]
     struct CompleteQuestArgs {
         title: String,
@@ -162,7 +173,7 @@ fn execute_complete_quest(game: &mut GameService, call: &ToolCall) -> (String, S
         }
     };
 
-    match game.complete_quest(&args.title) {
+    match game.complete_quest(&args.title, Utc::now()).await {
         Ok(()) => (
             format!("✅ Quest completed: **{}**", args.title),
             format!("Quest '{}' completed successfully", args.title),
@@ -174,36 +185,58 @@ fn execute_complete_quest(game: &mut GameService, call: &ToolCall) -> (String, S
     }
 }
 
-fn execute_list_open_quests(game: &mut GameService, call: &ToolCall) -> (String, String) {
+async fn execute_list_open_quests(
+    game: &mut GameService,
+    call: &ToolCall,
+    day: NaiveDate,
+) -> (String, String) {
     let _ = call; // no arguments to parse
-    let quests = game.list_open_quests();
+    let open_quests = game.list_open_quests().await;
+    let completed_today = game.list_completed_quests(day).await;
 
-    if quests.is_empty() {
+    if open_quests.is_empty() && completed_today.is_empty() {
         return (
-            "📋 No open quests.".to_string(),
-            "No open quests".to_string(),
+            "📋 No quests.".to_string(),
+            "No quests".to_string(),
         );
     }
 
-    let total_pts: u32 = quests.iter().map(|q| q.points).sum();
+    let mut lines = Vec::new();
 
-    let user_msg = format!(
-        "📋 {} open quests ({} pts)",
-        quests.len(),
-        total_pts,
-    );
-
-    let entries: Vec<String> = quests
-        .iter()
-        .map(|q| {
-            format!(
+    if !open_quests.is_empty() {
+        lines.push(format!("📋 {} open quest(s):", open_quests.len()));
+        for q in &open_quests {
+            lines.push(format!(
                 "  - title: \"{}\", description: \"{}\", points: {}",
                 q.title, q.description, q.points
-            )
-        })
-        .collect();
+            ));
+        }
+    }
 
-    let llm_msg = format!("Open quests:\n{}", entries.join("\n"));
+    if !completed_today.is_empty() {
+        let pts_today: u32 = completed_today.iter().map(|q| q.points).sum();
+        lines.push(format!(
+            "✅ {} completed today ({} pts)",
+            completed_today.len(),
+            pts_today,
+        ));
+        for q in &completed_today {
+            lines.push(format!(
+                "  - title: \"{}\", points: {}",
+                q.title, q.points
+            ));
+        }
+    }
+
+    let llm_msg = lines.join("\n");
+
+    let open_count = open_quests.len();
+    let completed_count = completed_today.len();
+    let pts_today: u32 = completed_today.iter().map(|q| q.points).sum();
+    let user_msg = format!(
+        "📋 {} open, {} completed ({} pts)",
+        open_count, completed_count, pts_today,
+    );
 
     (user_msg, llm_msg)
 }

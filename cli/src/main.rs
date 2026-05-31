@@ -1,5 +1,6 @@
 use std::io::{self, BufRead, Write};
 
+use chrono::Utc;
 use clap::Parser;
 use prompt_yourself_core::domain::ports::openai::ChatMessage;
 use prompt_yourself_core::OpenAiAdapter;
@@ -68,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        match chat.user_message(input).await {
+        match chat.user_message(input, Utc::now().date_naive()).await {
             Ok(messages) => {
                 for msg in &messages {
                     match msg {
