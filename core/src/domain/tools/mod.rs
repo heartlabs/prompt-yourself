@@ -354,7 +354,7 @@ async fn execute_list_timeline(
     }
 
     let llm_msg = lines.join("\n");
-    ("📜 {} timeline entries today".into(), llm_msg)
+    (format!("📜 {} timeline entries today", entries.len()), llm_msg)
 }
 
 async fn execute_list_open_quests(

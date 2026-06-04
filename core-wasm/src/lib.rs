@@ -20,11 +20,14 @@
 use std::cell::RefCell;
 use std::sync::{Mutex, OnceLock};
 
+mod reentry_guard;
 mod quest_repository;
+mod timeline_repository;
+
 pub use quest_repository::wasm_set_quest_repository_callbacks as setQuestRepositoryCallbacks;
-pub use quest_repository::wasm_set_timeline_repository_callbacks as setTimelineRepositoryCallbacks;
 pub use quest_repository::wasm_clear_game_data as clearGameData;
-pub use quest_repository::wasm_get_timeline_for_date as getTimelineForDate;
+pub use timeline_repository::wasm_set_timeline_repository_callbacks as setTimelineRepositoryCallbacks;
+pub use timeline_repository::wasm_get_timeline_for_date as getTimelineForDate;
 
 // Set a panic hook that logs to console.error so we can see Rust panic
 // messages instead of just "RuntimeError: unreachable".
@@ -208,7 +211,7 @@ pub fn wasm_init_chat(model: &str) -> Result<(), JsError> {
         Box::new(adapter),
         Box::new(WasmJournalAdapter),
         Box::new(quest_repository::WasmQuestRepository),
-        Box::new(quest_repository::WasmTimelineRepository),
+        Box::new(timeline_repository::WasmTimelineRepository),
     );
 
     let _ = CHAT.set(Mutex::new(chat));
