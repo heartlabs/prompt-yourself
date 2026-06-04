@@ -114,12 +114,55 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "list_open_quests".to_string(),
-            description: "List all currently open (incomplete) quests with their \
-                          descriptions and point values."
+            description: "List all currently active quests (both Open and Pinned) \
+                          along with today's timeline entries. Each quest shows its \
+                          status — 'Open' means it closes on completion, 'Pinned' \
+                          means it stays open and can be completed multiple times. \
+                          Timeline entries include their UUID (entry ID) so you can \
+                          use update_timeline on them."
                 .to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {},
+                "additionalProperties": false
+            }),
+        },
+        ToolDefinition {
+            name: "list_timeline".to_string(),
+            description: "List today\'s timeline entries with full details including \
+                          UUIDs, quest titles, timestamps, and point values. Use this \
+                          when you need entry IDs for the update_timeline tool."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+        },
+        ToolDefinition {
+            name: "update_timeline".to_string(),
+            description: "Update a timeline entry. You can remove an entry, or \
+                          reassign it to a different quest. Find the entry ID \
+                          using the list_timeline tool."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["remove", "reassign"],
+                        "description": "remove — delete the entry; reassign — change which quest it references"
+                    },
+                    "entryId": {
+                        "type": "string",
+                        "description": "UUID of the timeline entry to update (use list_timeline to find IDs)"
+                    },
+                    "newQuestTitle": {
+                        "type": "string",
+                        "description": "Only for reassign: the quest title to link this entry to instead"
+                    }
+                },
+                "required": ["action", "entryId"],
                 "additionalProperties": false
             }),
         },
@@ -142,7 +185,9 @@ pub async fn execute(
         "register_quest" => execute_register_quest(game, call).await,
         "complete_quest" => execute_complete_quest(game, call).await,
         "update_quest" => execute_update_quest(game, call).await,
+        "update_timeline" => execute_update_timeline(game, call).await,
         "list_open_quests" => execute_list_open_quests(game, call, day).await,
+        "list_timeline" => execute_list_timeline(game, call, day).await,
         other => (
             format!("⚠️ Unknown tool: {other}"),
             format!("error: unknown tool '{other}'"),
@@ -322,6 +367,117 @@ async fn execute_update_quest(
     }
 }
 
+async fn execute_update_timeline(
+    game: &mut GameService,
+    call: &ToolCall,
+) -> (String, String) {
+    #[derive(Deserialize)]
+    struct UpdateTimelineArgs {
+        action: String,
+        #[serde(rename = "entryId")]
+        entry_id: String,
+        #[serde(rename = "newQuestTitle")]
+        new_quest_title: Option<String>,
+    }
+
+    let args: UpdateTimelineArgs = match serde_json::from_str(&call.arguments) {
+        Ok(a) => a,
+        Err(e) => {
+            return (
+                format!("⚠️ Could not parse timeline arguments"),
+                format!("error: failed to parse update_timeline arguments: {e}"),
+            );
+        }
+    };
+
+    let id: uuid::Uuid = match args.entry_id.parse() {
+        Ok(id) => id,
+        Err(e) => {
+            return (
+                format!("⚠️ Invalid entry ID: {e}"),
+                format!("error: invalid timeline entry UUID '{}': {e}", args.entry_id),
+            );
+        }
+    };
+
+    match args.action.as_str() {
+        "remove" => match game.remove_timeline_entry(id).await {
+            Ok(()) => (
+                format!("✅ Timeline entry removed"),
+                format!("Timeline entry '{}' removed", args.entry_id),
+            ),
+            Err(e) => (
+                format!("⚠️ {e}"),
+                format!("error: {e}"),
+            ),
+        },
+        "reassign" => {
+            let new_title = match &args.new_quest_title {
+                Some(t) => t.clone(),
+                None => return (
+                    format!("⚠️ newQuestTitle is required for reassign action"),
+                    format!("error: newQuestTitle missing for reassign"),
+                ),
+            };
+            match game.reassign_timeline_entry(id, &new_title).await {
+                Ok(()) => (
+                    format!("✅ Timeline entry reassigned to **\"{}\"**", new_title),
+                    format!("Timeline entry '{}' reassigned to quest '{}'", args.entry_id, new_title),
+                ),
+                Err(e) => (
+                    format!("⚠️ {e}"),
+                    format!("error: {e}"),
+                ),
+            }
+        }
+        other => (
+            format!("⚠️ Unknown action: {other}"),
+            format!("error: unknown update_timeline action '{other}'"),
+        ),
+    }
+}
+
+async fn execute_list_timeline(
+    game: &mut GameService,
+    _call: &ToolCall,
+    day: NaiveDate,
+) -> (String, String) {
+    let entries = game.timeline_entries(day).await;
+
+    if entries.is_empty() {
+        return (
+            "📜 No timeline entries for today.".to_string(),
+            "No timeline entries for today.".to_string(),
+        );
+    }
+
+    let mut lines = vec![format!("📜 {} timeline entries:", entries.len())];
+
+    for entry in &entries {
+        if let Ok(Some(quest)) = game.find_quest(&entry.quest_title).await {
+            lines.push(format!(
+                "  - id: {}, quest: \"{}\", time: {}, points: {}, description: \"{}\"",
+                entry.id,
+                entry.quest_title,
+                entry.occurred_on.format("%H:%M:%S"),
+                quest.points,
+                quest.description,
+            ));
+        } else {
+            lines.push(format!(
+                "  - id: {}, quest: \"{}\", time: {} (quest not found)",
+                entry.id,
+                entry.quest_title,
+                entry.occurred_on.format("%H:%M:%S"),
+            ));
+        }
+    }
+
+    let llm_msg = lines.join("\n");
+    let user_msg = format!("📜 {} timeline entries today", entries.len());
+    (user_msg, llm_msg)
+}
+
 async fn execute_list_open_quests(
     game: &mut GameService,
     call: &ToolCall,
@@ -341,11 +497,16 @@ async fn execute_list_open_quests(
     let mut lines = Vec::new();
 
     if !open_quests.is_empty() {
-        lines.push(format!("📋 {} open quest(s):", open_quests.len()));
+        lines.push(format!("📋 {} active quest(s):", open_quests.len()));
         for q in &open_quests {
+            let status_label = match q.status {
+                QuestStatus::Pinned => "Pinned",
+                QuestStatus::Open => "Open",
+                _ => "",
+            };
             lines.push(format!(
-                "  - title: \"{}\", description: \"{}\", points: {}",
-                q.title, q.description, q.points
+                "  - title: \"{}\", description: \"{}\", points: {}, status: {}",
+                q.title, q.description, q.points, status_label
             ));
         }
     }
@@ -360,8 +521,8 @@ async fn execute_list_open_quests(
         for entry in &timeline {
             if let Ok(Some(quest)) = game.find_quest(&entry.quest_title).await {
                 lines.push(format!(
-                    "  - title: \"{}\", points: {}",
-                    quest.title, quest.points
+                    "  - id: {}, title: \"{}\", points: {}",
+                    entry.id, quest.title, quest.points
                 ));
             }
         }
@@ -373,7 +534,7 @@ async fn execute_list_open_quests(
     let completed_count = timeline.len();
     let pts_today: u32 = game.total_points(day).await;
     let user_msg = format!(
-        "📋 {} open, {} completed ({} pts)",
+        "📋 {} active, {} completed ({} pts)",
         open_count, completed_count, pts_today,
     );
 

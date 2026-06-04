@@ -133,6 +133,22 @@ pub fn wasm_set_timeline_repository_callbacks(callbacks: &js_sys::Object) -> Res
     Ok(())
 }
 
+/// Clear all in-memory quest and timeline data, and reset the loaded flags
+/// so the next call will reload from JS storage (which should be empty after
+/// the JS side clears the plugin data store).
+#[wasm_bindgen(js_name = clearGameData)]
+pub fn wasm_clear_game_data() {
+    QUEST_CACHE.with(|cache| {
+        *cache.borrow_mut() = Vec::new();
+    });
+    QUEST_CACHE_LOADED.with(|l| *l.borrow_mut() = false);
+
+    TIMELINE_CACHE.with(|cache| {
+        *cache.borrow_mut() = Vec::new();
+    });
+    TIMELINE_CACHE_LOADED.with(|l| *l.borrow_mut() = false);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  WasmQuestRepository
 // ═══════════════════════════════════════════════════════════════════════════
@@ -310,6 +326,38 @@ impl TimelineRepository for WasmTimelineRepository {
             results
         })
     }
+
+    async fn remove(&mut self, id: uuid::Uuid) -> Result<(), GameError> {
+        let _guard = ReentryGuard::try_enter()?;
+        ensure_timeline_cache_loaded().await?;
+
+        TIMELINE_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            let pos = cache.iter().position(|e| e.id == id).ok_or_else(|| {
+                GameError::Other(format!("No timeline entry with id '{}'", id))
+            })?;
+            cache.remove(pos);
+            Ok(())
+        })?;
+
+        persist_timeline_cache().await
+    }
+
+    async fn reassign(&mut self, id: uuid::Uuid, new_quest_title: &str) -> Result<(), GameError> {
+        let _guard = ReentryGuard::try_enter()?;
+        ensure_timeline_cache_loaded().await?;
+
+        TIMELINE_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            let entry = cache.iter_mut().find(|e| e.id == id).ok_or_else(|| {
+                GameError::Other(format!("No timeline entry with id '{}'", id))
+            })?;
+            entry.quest_title = new_quest_title.to_string();
+            Ok(())
+        })?;
+
+        persist_timeline_cache().await
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -319,6 +367,12 @@ impl TimelineRepository for WasmTimelineRepository {
         unreachable!("WasmTimelineRepository should never be used on native targets")
     }
     async fn find_by_date(&self, _day: NaiveDate) -> Vec<TimelineEntry> {
+        unreachable!("WasmTimelineRepository should never be used on native targets")
+    }
+    async fn remove(&mut self, _id: uuid::Uuid) -> Result<(), GameError> {
+        unreachable!("WasmTimelineRepository should never be used on native targets")
+    }
+    async fn reassign(&mut self, _id: uuid::Uuid, _new_quest_title: &str) -> Result<(), GameError> {
         unreachable!("WasmTimelineRepository should never be used on native targets")
     }
 }
@@ -378,6 +432,7 @@ pub async fn get_quest_state_from_cache() -> String {
                     let points = quest_info.map(|q| q.points).unwrap_or(0);
                     let description = quest_info.map(|q| q.description.as_str()).unwrap_or("");
                     json!({
+                        "id": entry.id.to_string(),
                         "questTitle": entry.quest_title,
                         "occurredOn": entry.occurred_on.to_rfc3339(),
                         "points": points,

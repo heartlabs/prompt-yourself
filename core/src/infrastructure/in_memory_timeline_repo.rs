@@ -4,6 +4,7 @@
 //! (CLI) or not yet wired up (WASM / Obsidian).
 
 use chrono::NaiveDate;
+use uuid::Uuid;
 
 use crate::domain::entities::game::{GameError, TimelineEntry};
 use crate::domain::ports::timeline_repository::TimelineRepository;
@@ -39,5 +40,21 @@ impl TimelineRepository for InMemoryTimelineRepository {
         // Chronological order (oldest first)
         results.sort_by_key(|e| e.occurred_on);
         results
+    }
+
+    async fn remove(&mut self, id: Uuid) -> Result<(), GameError> {
+        let pos = self.entries.iter().position(|e| e.id == id).ok_or_else(|| {
+            GameError::Other(format!("No timeline entry with id '{}'", id))
+        })?;
+        self.entries.remove(pos);
+        Ok(())
+    }
+
+    async fn reassign(&mut self, id: Uuid, new_quest_title: &str) -> Result<(), GameError> {
+        let entry = self.entries.iter_mut().find(|e| e.id == id).ok_or_else(|| {
+            GameError::Other(format!("No timeline entry with id '{}'", id))
+        })?;
+        entry.quest_title = new_quest_title.to_string();
+        Ok(())
     }
 }

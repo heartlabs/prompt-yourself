@@ -5,6 +5,7 @@
 //! today" — it does not own point values (those live on the referenced quest).
 
 use chrono::NaiveDate;
+use uuid::Uuid;
 
 use crate::domain::entities::game::{GameError, TimelineEntry};
 
@@ -19,4 +20,10 @@ pub trait TimelineRepository: Send {
 
     /// All timeline entries for the given calendar day.
     async fn find_by_date(&self, day: NaiveDate) -> Vec<TimelineEntry>;
+
+    /// Remove a timeline entry by its UUID.
+    async fn remove(&mut self, id: Uuid) -> Result<(), GameError>;
+
+    /// Change which quest a timeline entry references.
+    async fn reassign(&mut self, id: Uuid, new_quest_title: &str) -> Result<(), GameError>;
 }

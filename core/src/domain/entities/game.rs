@@ -4,6 +4,7 @@
 /// Additionally there will be a dedicated API to show open and completed quests and collected points.
 
 use chrono::{DateTime, NaiveDate, Utc};
+use uuid::Uuid;
 
 use crate::domain::ports::quest_repository::QuestRepository;
 use crate::domain::ports::timeline_repository::TimelineRepository;
@@ -59,6 +60,7 @@ impl GameService {
         }
 
         let entry = TimelineEntry {
+            id: Uuid::new_v4(),
             quest_title: title.to_string(),
             occurred_on: Utc::now(),
         };
@@ -97,6 +99,16 @@ impl GameService {
         self.quest_repo.update(current_title, quest).await
     }
 
+    /// Remove a timeline entry by its UUID.
+    pub async fn remove_timeline_entry(&mut self, id: Uuid) -> Result<(), GameError> {
+        self.timeline_repo.remove(id).await
+    }
+
+    /// Reassign a timeline entry to a different quest.
+    pub async fn reassign_timeline_entry(&mut self, id: Uuid, new_quest_title: &str) -> Result<(), GameError> {
+        self.timeline_repo.reassign(id, new_quest_title).await
+    }
+
     /// Look up a quest by title for tool handlers.
     pub async fn find_quest(&self, title: &str) -> Result<Option<Quest>, GameError> {
         self.quest_repo.find_by_title(title).await
@@ -119,6 +131,7 @@ pub struct Quest {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TimelineEntry {
+    pub id: Uuid,
     pub quest_title: String,
     pub occurred_on: DateTime<Utc>,
 }

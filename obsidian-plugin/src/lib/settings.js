@@ -1,6 +1,6 @@
 import { PluginSettingTab, Setting } from 'obsidian';
 import { VIEW_TYPE } from './constants.js';
-import { setApiKey, setTestMode } from '../core_wasm.js';
+import { setApiKey, setTestMode, clearGameData } from '../core_wasm.js';
 
 export const DEFAULT_SETTINGS = {
   apiKey: '',
@@ -95,6 +95,40 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
               setTestMode(value);
             } catch (e) {
               console.error('Failed to toggle test mode:', e);
+            }
+          })
+      );
+
+    containerEl.createEl('h3', { text: 'Data' });
+
+    new Setting(containerEl)
+      .setName('Reset Game Data')
+      .setDesc(
+        'Clear all quests and timeline entries. Settings are preserved. ' +
+        'Use this if you run into schema errors after an update.'
+      )
+      .addButton((button) =>
+        button
+          .setButtonText('Reset')
+          .onClick(async () => {
+            // Clear persisted data
+            const data = await this.plugin.loadData();
+            data.quests = [];
+            data.timeline = [];
+            await this.plugin.saveData(data);
+
+            // Clear WASM in-memory caches so next getGameState() reloads fresh
+            clearGameData();
+
+            // Refresh both the quest view and the chat view if open
+            for (const viewType of ['prompt-yourself-view', 'prompt-yourself-quest-view']) {
+              const leaves = this.app.workspace.getLeavesOfType(viewType);
+              for (const leaf of leaves) {
+                const view = leaf.view;
+                if (view && view.render) {
+                  await view.render();
+                }
+              }
             }
           })
       );
