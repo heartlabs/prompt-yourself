@@ -102,6 +102,60 @@ pub fn wasm_clear_game_data() {
     TIMELINE_CACHE_LOADED.with(|l| *l.borrow_mut() = false);
 }
 
+/// Return timeline entries for a specific date as JSON.
+#[wasm_bindgen(js_name = getTimelineForDate)]
+pub async fn wasm_get_timeline_for_date(year: i32, month: u8, day: u8) -> Result<String, JsError> {
+    #[cfg(target_arch = "wasm32")]
+    async fn impl_(year: i32, month: u8, day: u8) -> Result<String, JsError> {
+        use chrono::NaiveDate;
+
+        ensure_quest_cache_loaded().await.map_err(|e| JsError::new(&e.to_string()))?;
+        ensure_timeline_cache_loaded().await.map_err(|e| JsError::new(&e.to_string()))?;
+
+        let date = match NaiveDate::from_ymd_opt(year, month as u32, day as u32) {
+            Some(d) => d,
+            None => return Err(JsError::new(&format!("Invalid date: {}-{:02}-{:02}", year, month, day))),
+        };
+
+        let result = QUEST_CACHE.with(|qc| {
+            let quests = qc.borrow();
+
+            TIMELINE_CACHE.with(|tc| {
+                let borrowed = tc.borrow();
+                let mut entries: Vec<&TimelineEntry> = borrowed.iter().filter(|e| e.occurred_on.date_naive() == date).collect();
+                entries.sort_by_key(|e| e.occurred_on);
+
+                let timeline: Vec<serde_json::Value> = entries.iter().map(|entry| {
+                    let quest_info = quests.iter().find(|q| q.id == entry.quest_id);
+                    let points = quest_info.map(|q| q.points).unwrap_or(0);
+                    let description = quest_info.map(|q| q.description.as_str()).unwrap_or("");
+                    json!({
+                        "id": entry.id.to_string(),
+                        "questId": entry.quest_id.to_string(),
+                        "questTitle": quest_info.map(|q| q.title.as_str()).unwrap_or(""),
+                        "occurredOn": entry.occurred_on.to_rfc3339(),
+                        "points": points,
+                        "description": description,
+                    })
+                }).collect();
+
+                let total_points: u32 = timeline.iter().filter_map(|e| e.get("points")?.as_u64()).sum::<u64>() as u32;
+
+                json!({ "timeline": timeline, "totalPoints": total_points })
+            })
+        });
+
+        Ok(serde_json::to_string(&result).map_err(|e| JsError::new(&e.to_string()))?)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn impl_(_year: i32, _month: u8, _day: u8) -> Result<String, JsError> {
+        Err(JsError::new("getTimelineForDate is only available on WASM"))
+    }
+
+    impl_(year, month, day).await
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  WasmQuestRepository
 // ═══════════════════════════════════════════════════════════════════════════

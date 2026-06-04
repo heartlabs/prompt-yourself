@@ -21,7 +21,7 @@
  */
 
 import { Plugin } from 'obsidian';
-import { initSync, setApiKey } from './core_wasm.js';
+import { initSync, setApiKey, getTimelineForDate } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 import { VIEW_TYPE, QUEST_VIEW_TYPE } from './lib/constants.js';
 import { PromptYourselfQuestView } from './lib/quest-view.js';
@@ -29,6 +29,7 @@ import { PromptYourselfView } from './lib/chat-view.js';
 import { PromptYourselfSettingTab, DEFAULT_SETTINGS } from './lib/settings.js';
 import { ObsidianQuestRepository } from './lib/quest-repository.js';
 import { ObsidianTimelineRepository } from './lib/timeline-repository.js';
+import { TimelineBlockComponent } from './lib/timeline-block.js';
 
 // ─── Plugin entry point ──────────────────────────────────────────────────────
 
@@ -67,7 +68,29 @@ class PromptYourselfPlugin extends Plugin {
       callback: () => this.activateView(),
     });
 
+    this.registerTimelineBlockProcessor();
+
     this.addSettingTab(new PromptYourselfSettingTab(this.app, this));
+  }
+
+  registerTimelineBlockProcessor() {
+    this.registerMarkdownCodeBlockProcessor('day-timeline', async (source, el, ctx) => {
+      // Parse date from YAML source:  date: 2026-06-04
+      const dateMatch = source.match(/date:\s*(\d{4})-(\d{2})-(\d{2})/);
+      if (!dateMatch) {
+        el.createEl('p', { text: 'day-timeline: missing or invalid date', cls: 'quests-empty' });
+        return;
+      }
+
+      const year = parseInt(dateMatch[1], 10);
+      const month = parseInt(dateMatch[2], 10);
+      const day = parseInt(dateMatch[3], 10);
+
+      // Create a child that auto-refreshes.
+      // ctx.addChild calls child.onload() which triggers the initial render.
+      const child = new TimelineBlockComponent(el, year, month, day);
+      ctx.addChild(child);
+    });
   }
 
   onunload() {

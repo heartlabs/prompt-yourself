@@ -24,6 +24,7 @@ mod quest_repository;
 pub use quest_repository::wasm_set_quest_repository_callbacks as setQuestRepositoryCallbacks;
 pub use quest_repository::wasm_set_timeline_repository_callbacks as setTimelineRepositoryCallbacks;
 pub use quest_repository::wasm_clear_game_data as clearGameData;
+pub use quest_repository::wasm_get_timeline_for_date as getTimelineForDate;
 
 // Set a panic hook that logs to console.error so we can see Rust panic
 // messages instead of just "RuntimeError: unreachable".
