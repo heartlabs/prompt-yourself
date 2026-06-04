@@ -230,10 +230,13 @@ pub async fn get_quest_state_from_cache() -> String {
             })
             .collect();
 
-        let completed_today: Vec<&Quest> = quests
+        let mut completed_today: Vec<&Quest> = quests
             .iter()
             .filter(|q| q.completed_at.is_some_and(|ts| ts.date_naive() == today))
             .collect();
+
+        // Chronological order (oldest first)
+        completed_today.sort_by_key(|q| q.completed_at);
 
         let completed_quests: Vec<serde_json::Value> = completed_today
             .iter()
@@ -242,6 +245,7 @@ pub async fn get_quest_state_from_cache() -> String {
                     "title": q.title,
                     "description": q.description,
                     "points": q.points,
+                    "completed_at": q.completed_at.map(|ts| ts.to_rfc3339()),
                 })
             })
             .collect();
