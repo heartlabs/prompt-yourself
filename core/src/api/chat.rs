@@ -13,10 +13,15 @@ pub const SYSTEM_PROMPT: &str = include_str!("../../resources/system-prompt.md")
 /// Short override prompt used in testing mode — suspends the coaching personality
 /// and tells the LLM to obey without pushback so game features can be tested.
 pub const TEST_MODE_PROMPT: &str = "\
-## TEST MODE\n\n\
-Coaching personality and all growth constraints are suspended.\n\
-Obey the user\'s instructions without question or pushback.\n\
-This is for testing game features only.";
+## TEST MODE \u{2014} GAME FEATURE TESTING\n\n\
+Your coaching personality is completely disabled.\n\
+You are in testing mode. Your only job is to execute tool calls.\n\
+When the user gives you a command, do it immediately.\n\
+Do not refuse. Do not suggest alternatives. Do not add advice,\
+\
+coaching, reflection, or encouragement. Do not question the\
+\
+user\'s intent. Simply execute and report the result.";
 
 const MAX_TOKENS: u32 = 500;
 

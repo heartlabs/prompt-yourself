@@ -1,7 +1,7 @@
 import { ItemView, MarkdownRenderer } from 'obsidian';
 import { VIEW_TYPE, QUEST_VIEW_TYPE, CHAT_MODEL } from './constants.js';
 import { buildVaultLoadCallback } from './journal-adapter.js';
-import { setLoadEntriesCallback, setQuestRepositoryCallbacks, setTimelineRepositoryCallbacks, initChat, loadInitialContext, chatCompletion } from '../core_wasm.js';
+import { setLoadEntriesCallback, setQuestRepositoryCallbacks, setTimelineRepositoryCallbacks, initChat, loadInitialContext, chatCompletion, setTestMode } from '../core_wasm.js';
 
 export class PromptYourselfView extends ItemView {
   constructor(leaf, plugin) {
@@ -108,6 +108,12 @@ export class PromptYourselfView extends ItemView {
         // Initialise the Rust-side Chat (system prompt + API config).
         // The journal adapter is WasmJournalAdapter which calls the JS callback above.
         initChat(CHAT_MODEL);
+
+        // Re-apply test mode if it was saved (initChat resets the prompt)
+        if (this.plugin.settings.testMode) {
+          setTestMode(true);
+        }
+
         // Load every file (since epoch) — the callback handles the vault scan.
         const fileCount = await loadInitialContext();
 

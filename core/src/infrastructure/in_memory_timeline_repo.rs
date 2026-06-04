@@ -1,8 +1,3 @@
-//! In-memory timeline repository backed by a `Vec`.
-//!
-//! Implements [`TimelineRepository`] for use when persistence is not required
-//! (CLI) or not yet wired up (WASM / Obsidian).
-
 use chrono::NaiveDate;
 use uuid::Uuid;
 
@@ -37,7 +32,6 @@ impl TimelineRepository for InMemoryTimelineRepository {
             .filter(|e| e.occurred_on.date_naive() == day)
             .cloned()
             .collect();
-        // Chronological order (oldest first)
         results.sort_by_key(|e| e.occurred_on);
         results
     }
@@ -50,11 +44,11 @@ impl TimelineRepository for InMemoryTimelineRepository {
         Ok(())
     }
 
-    async fn reassign(&mut self, id: Uuid, new_quest_title: &str) -> Result<(), GameError> {
-        let entry = self.entries.iter_mut().find(|e| e.id == id).ok_or_else(|| {
-            GameError::Other(format!("No timeline entry with id '{}'", id))
+    async fn reassign(&mut self, entry_id: Uuid, quest_id: Uuid) -> Result<(), GameError> {
+        let entry = self.entries.iter_mut().find(|e| e.id == entry_id).ok_or_else(|| {
+            GameError::Other(format!("No timeline entry with id '{}'", entry_id))
         })?;
-        entry.quest_title = new_quest_title.to_string();
+        entry.quest_id = quest_id;
         Ok(())
     }
 }

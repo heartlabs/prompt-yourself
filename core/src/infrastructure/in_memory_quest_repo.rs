@@ -1,22 +1,23 @@
-//! In-memory quest repository backed by a `HashMap`.
-//!
-//! Implements [`QuestRepository`] for use when persistence is not required
-//! (CLI) or not yet wired up (WASM / Obsidian).
-
 use std::collections::HashMap;
+
+use uuid::Uuid;
 
 use crate::domain::entities::game::{GameError, Quest, QuestStatus};
 use crate::domain::ports::quest_repository::QuestRepository;
 
 /// In-memory adapter for [`QuestRepository`].
+/// Primary map is `HashMap<Uuid, Quest>`. A secondary index maps title → id
+/// for title uniqueness checks.
 pub struct InMemoryQuestRepository {
-    quests: HashMap<String, Quest>,
+    quests: HashMap<Uuid, Quest>,
+    title_index: HashMap<String, Uuid>,
 }
 
 impl InMemoryQuestRepository {
     pub fn new() -> Self {
         Self {
             quests: HashMap::new(),
+            title_index: HashMap::new(),
         }
     }
 }
@@ -25,25 +26,27 @@ impl InMemoryQuestRepository {
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl QuestRepository for InMemoryQuestRepository {
     async fn insert(&mut self, quest: Quest) -> Result<(), GameError> {
-        if self.quests.contains_key(&quest.title) {
+        if self.title_index.contains_key(&quest.title) {
             return Err(GameError::Other(format!(
                 "Quest with title '{}' already exists",
                 quest.title
             )));
         }
-        self.quests.insert(quest.title.clone(), quest);
+        let id = quest.id;
+        self.title_index.insert(quest.title.clone(), id);
+        self.quests.insert(id, quest);
         Ok(())
     }
 
-    async fn mark_completed(&mut self, title: &str) -> Result<(), GameError> {
-        let quest = self.quests.get_mut(title).ok_or_else(|| {
-            GameError::Other(format!("No quest found with title '{}'", title))
+    async fn mark_completed(&mut self, id: Uuid) -> Result<(), GameError> {
+        let quest = self.quests.get_mut(&id).ok_or_else(|| {
+            GameError::Other(format!("No quest found with id '{}'", id))
         })?;
 
         if quest.status == QuestStatus::Completed {
             return Err(GameError::Other(format!(
                 "Quest '{}' is already completed",
-                title
+                quest.title
             )));
         }
 
@@ -67,34 +70,36 @@ impl QuestRepository for InMemoryQuestRepository {
             .collect()
     }
 
-    async fn find_by_title(&self, title: &str) -> Result<Option<Quest>, GameError> {
-        Ok(self.quests.get(title).cloned())
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<Quest>, GameError> {
+        Ok(self.quests.get(&id).cloned())
     }
 
-    async fn exists(&self, title: &str) -> bool {
-        self.quests.contains_key(title)
+    async fn title_exists(&self, title: &str) -> bool {
+        self.title_index.contains_key(title)
     }
 
-    async fn update(&mut self, current_title: &str, quest: Quest) -> Result<(), GameError> {
-        // Check the quest exists
-        if !self.quests.contains_key(current_title) {
+    async fn update(&mut self, id: Uuid, quest: Quest) -> Result<(), GameError> {
+        if !self.quests.contains_key(&id) {
             return Err(GameError::Other(format!(
-                "No quest found with title '{}'",
-                current_title
+                "No quest found with id '{}'",
+                id
             )));
         }
 
         // If the title is changing, make sure the new title doesn't clash
-        if current_title != quest.title && self.quests.contains_key(&quest.title) {
+        let current = &self.quests[&id];
+        if current.title != quest.title && self.title_index.contains_key(&quest.title) {
             return Err(GameError::Other(format!(
                 "A quest with title '{}' already exists",
                 quest.title
             )));
         }
 
-        // Remove the old entry (keyed by current_title) and insert under the new title
-        self.quests.remove(current_title);
-        self.quests.insert(quest.title.clone(), quest);
+        // Update the title index
+        self.title_index.remove(&current.title);
+        self.title_index.insert(quest.title.clone(), id);
+
+        self.quests.insert(id, quest);
         Ok(())
     }
 }

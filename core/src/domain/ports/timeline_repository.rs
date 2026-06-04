@@ -1,17 +1,9 @@
-//! Driven port for timeline entry persistence.
-//!
-//! Each time a quest is completed (one-shot or pinned), a [`TimelineEntry`]
-//! is recorded here. The timeline is the source of truth for "what happened
-//! today" — it does not own point values (those live on the referenced quest).
-
 use chrono::NaiveDate;
 use uuid::Uuid;
 
 use crate::domain::entities::game::{GameError, TimelineEntry};
 
 /// Driven port for CRUD operations on timeline entries.
-///
-/// Conditional `Send` so that WASM (`?Send`) and native targets both compile.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 pub trait TimelineRepository: Send {
@@ -24,6 +16,6 @@ pub trait TimelineRepository: Send {
     /// Remove a timeline entry by its UUID.
     async fn remove(&mut self, id: Uuid) -> Result<(), GameError>;
 
-    /// Change which quest a timeline entry references.
-    async fn reassign(&mut self, id: Uuid, new_quest_title: &str) -> Result<(), GameError>;
+    /// Change which quest a timeline entry references (by quest UUID).
+    async fn reassign(&mut self, entry_id: Uuid, quest_id: Uuid) -> Result<(), GameError>;
 }

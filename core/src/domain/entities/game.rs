@@ -1,8 +1,3 @@
-/// The "game" consists of "quests" that the Chat Coach can assign to the user. 
-/// It's also the chat coach's job to decide when a quest is complete and to keep track which quests are available.
-/// On API level the user will be informed about new quests and quest completions via the chat messages. 
-/// Additionally there will be a dedicated API to show open and completed quests and collected points.
-
 use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
@@ -16,8 +11,6 @@ pub enum QuestStatus {
     Pinned,
 }
 
-/// Service that manages quests through a [`QuestRepository`] port
-/// and records completions in a [`TimelineRepository`] port.
 pub struct GameService {
     quest_repo: Box<dyn QuestRepository>,
     timeline_repo: Box<dyn TimelineRepository>,
@@ -31,37 +24,37 @@ impl GameService {
         Self { quest_repo, timeline_repo }
     }
 
-    pub async fn register_quest(&mut self, quest: Quest) -> Result<(), GameError> {
+    /// Insert a new quest. If no id is set, a new UUID is generated.
+    pub async fn register_quest(&mut self, mut quest: Quest) -> Result<(), GameError> {
+        quest.id = Uuid::new_v4();
         self.quest_repo.insert(quest).await
     }
 
-    /// Complete a quest. For one-shot quests the status becomes `Completed`;
-    /// for pinned quests the status stays `Pinned`. Either way, a
-    /// [`TimelineEntry`] is recorded.
-    pub async fn complete_quest(&mut self, title: &str) -> Result<(), GameError> {
-        let quest = self.quest_repo.find_by_title(title).await?
+    /// Complete a quest identified by UUID.
+    pub async fn complete_quest(&mut self, quest_id: Uuid) -> Result<(), GameError> {
+        let quest = self.quest_repo.find_by_id(quest_id).await?
             .ok_or_else(|| GameError::Other(format!(
-                "No quest found with title '{}'", title
+                "No quest found with id '{}'", quest_id
             )))?;
 
         match quest.status {
             QuestStatus::Completed => {
                 return Err(GameError::Other(format!(
                     "Quest '{}' is already completed",
-                    title
+                    quest.title
                 )));
             }
             QuestStatus::Pinned => {
                 // stays pinned — just record the timeline entry
             }
             QuestStatus::Open => {
-                self.quest_repo.mark_completed(title).await?;
+                self.quest_repo.mark_completed(quest_id).await?;
             }
         }
 
         let entry = TimelineEntry {
             id: Uuid::new_v4(),
-            quest_title: title.to_string(),
+            quest_id,
             occurred_on: Utc::now(),
         };
         self.timeline_repo.record(entry).await
@@ -75,43 +68,35 @@ impl GameService {
         self.quest_repo.find_pinned().await
     }
 
-    /// Return timeline entries for the given calendar day.
     pub async fn timeline_entries(&self, day: NaiveDate) -> Vec<TimelineEntry> {
         self.timeline_repo.find_by_date(day).await
     }
 
-    /// Return total points earned on the given calendar day by looking up
-    /// each timeline entry's quest points.
     pub async fn total_points(&self, day: NaiveDate) -> u32 {
         let entries = self.timeline_repo.find_by_date(day).await;
         let mut total = 0u32;
         for entry in &entries {
-            if let Ok(Some(quest)) = self.quest_repo.find_by_title(&entry.quest_title).await {
+            if let Ok(Some(quest)) = self.quest_repo.find_by_id(entry.quest_id).await {
                 total += quest.points;
             }
         }
         total
     }
 
-    /// Update a quest (title, description, points, status — everything).
-    /// The quest is identified by its current title before any rename is applied.
-    pub async fn update_quest(&mut self, current_title: &str, quest: Quest) -> Result<(), GameError> {
-        self.quest_repo.update(current_title, quest).await
+    pub async fn update_quest(&mut self, quest_id: Uuid, quest: Quest) -> Result<(), GameError> {
+        self.quest_repo.update(quest_id, quest).await
     }
 
-    /// Remove a timeline entry by its UUID.
     pub async fn remove_timeline_entry(&mut self, id: Uuid) -> Result<(), GameError> {
         self.timeline_repo.remove(id).await
     }
 
-    /// Reassign a timeline entry to a different quest.
-    pub async fn reassign_timeline_entry(&mut self, id: Uuid, new_quest_title: &str) -> Result<(), GameError> {
-        self.timeline_repo.reassign(id, new_quest_title).await
+    pub async fn reassign_timeline_entry(&mut self, entry_id: Uuid, quest_id: Uuid) -> Result<(), GameError> {
+        self.timeline_repo.reassign(entry_id, quest_id).await
     }
 
-    /// Look up a quest by title for tool handlers.
-    pub async fn find_quest(&self, title: &str) -> Result<Option<Quest>, GameError> {
-        self.quest_repo.find_by_title(title).await
+    pub async fn find_quest_by_id(&self, id: Uuid) -> Result<Option<Quest>, GameError> {
+        self.quest_repo.find_by_id(id).await
     }
 }
 
@@ -123,6 +108,7 @@ pub enum GameError {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Quest {
+    pub id: Uuid,
     pub title: String,
     pub description: String,
     pub points: u32,
@@ -132,6 +118,6 @@ pub struct Quest {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TimelineEntry {
     pub id: Uuid,
-    pub quest_title: String,
+    pub quest_id: Uuid,
     pub occurred_on: DateTime<Utc>,
 }
