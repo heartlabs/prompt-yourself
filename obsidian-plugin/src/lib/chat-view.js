@@ -1,7 +1,7 @@
 import { ItemView, MarkdownRenderer } from 'obsidian';
 import { VIEW_TYPE, QUEST_VIEW_TYPE, CHAT_MODEL } from './constants.js';
 import { buildVaultLoadCallback } from './journal-adapter.js';
-import { setLoadEntriesCallback, setQuestRepositoryCallbacks, initChat, loadInitialContext, chatCompletion } from '../core_wasm.js';
+import { setLoadEntriesCallback, setQuestRepositoryCallbacks, setTimelineRepositoryCallbacks, initChat, loadInitialContext, chatCompletion } from '../core_wasm.js';
 
 export class PromptYourselfView extends ItemView {
   constructor(leaf, plugin) {
@@ -90,6 +90,15 @@ export class PromptYourselfView extends ItemView {
       setQuestRepositoryCallbacks({
         loadQuests: () => questRepo.loadQuests(),
         saveQuests: (json) => questRepo.saveQuests(json),
+      });
+    }
+
+    // Register the timeline repository callbacks BEFORE initChat
+    const timelineRepo = this.plugin.timelineRepository;
+    if (timelineRepo) {
+      setTimelineRepositoryCallbacks({
+        loadTimeline: () => timelineRepo.loadTimeline(),
+        saveTimeline: (json) => timelineRepo.saveTimeline(json),
       });
     }
 

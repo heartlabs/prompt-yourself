@@ -1,15 +1,11 @@
 //! In-memory quest repository backed by a `HashMap`.
 //!
 //! Implements [`QuestRepository`] for use when persistence is not required
-//! (CLI) or not yet wired up (WASM / Obsidian).  The map is keyed by quest
-//! title.  Each [`Quest`] carries its own `completed_at` timestamp — open
-//! quests have `completed_at: None`.
+//! (CLI) or not yet wired up (WASM / Obsidian).
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, NaiveDate, Utc};
-
-use crate::domain::entities::game::{GameError, Quest};
+use crate::domain::entities::game::{GameError, Quest, QuestStatus};
 use crate::domain::ports::quest_repository::QuestRepository;
 
 /// In-memory adapter for [`QuestRepository`].
@@ -39,40 +35,40 @@ impl QuestRepository for InMemoryQuestRepository {
         Ok(())
     }
 
-    async fn mark_completed(
-        &mut self,
-        title: &str,
-        completed_at: DateTime<Utc>,
-    ) -> Result<(), GameError> {
+    async fn mark_completed(&mut self, title: &str) -> Result<(), GameError> {
         let quest = self.quests.get_mut(title).ok_or_else(|| {
             GameError::Other(format!("No quest found with title '{}'", title))
         })?;
 
-        if quest.completed_at.is_some() {
+        if quest.status == QuestStatus::Completed {
             return Err(GameError::Other(format!(
                 "Quest '{}' is already completed",
                 title
             )));
         }
 
-        quest.completed_at = Some(completed_at);
+        quest.status = QuestStatus::Completed;
         Ok(())
     }
 
     async fn find_open(&self) -> Vec<Quest> {
         self.quests
             .values()
-            .filter(|q| q.completed_at.is_none())
+            .filter(|q| q.status == QuestStatus::Open || q.status == QuestStatus::Pinned)
             .cloned()
             .collect()
     }
 
-    async fn find_completed_at(&self, day: NaiveDate) -> Vec<Quest> {
+    async fn find_pinned(&self) -> Vec<Quest> {
         self.quests
             .values()
-            .filter(|q| q.completed_at.is_some_and(|ts| ts.date_naive() == day))
+            .filter(|q| q.status == QuestStatus::Pinned)
             .cloned()
             .collect()
+    }
+
+    async fn find_by_title(&self, title: &str) -> Result<Option<Quest>, GameError> {
+        Ok(self.quests.get(title).cloned())
     }
 
     async fn exists(&self, title: &str) -> bool {

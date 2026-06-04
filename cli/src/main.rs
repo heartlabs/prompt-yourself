@@ -3,8 +3,11 @@ use std::io::{self, BufRead, Write};
 use chrono::Utc;
 use clap::Parser;
 use prompt_yourself_core::domain::ports::openai::ChatMessage;
-use prompt_yourself_core::OpenAiAdapter;
-use prompt_yourself_core::InMemoryQuestRepository;
+use prompt_yourself_core::{
+    InMemoryQuestRepository,
+    InMemoryTimelineRepository,
+    OpenAiAdapter,
+};
 
 // ─── CLI args ───────────────────────────────────────────────────────────────
 
@@ -44,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(openai_adapter),
         Box::new(journal_adapter),
         Box::new(InMemoryQuestRepository::new()),
+        Box::new(InMemoryTimelineRepository::new()),
     );
 
     // Load the initial document context (loads ALL files since epoch)

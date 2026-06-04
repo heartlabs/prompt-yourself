@@ -3,11 +3,11 @@
 //! Defines the available tools (currently quest-related) and the [`execute`]
 //! function that dispatches tool calls against the domain entities.
 
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::domain::entities::game::{GameService, Quest};
+use crate::domain::entities::game::{GameService, Quest, QuestStatus};
 use crate::domain::ports::openai::{ToolCall, ToolDefinition};
 
 /// The outcome of executing a single tool call.
@@ -136,7 +136,7 @@ async fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (Str
         title: args.title.clone(),
         description: args.description.clone(),
         points: args.points,
-        completed_at: None,
+        status: QuestStatus::Open,
     };
 
     match game.register_quest(quest).await {
@@ -173,7 +173,7 @@ async fn execute_complete_quest(
         }
     };
 
-    match game.complete_quest(&args.title, Utc::now()).await {
+    match game.complete_quest(&args.title).await {
         Ok(()) => (
             format!("✅ Quest completed: **{}**", args.title),
             format!("Quest '{}' completed successfully", args.title),
@@ -192,9 +192,9 @@ async fn execute_list_open_quests(
 ) -> (String, String) {
     let _ = call; // no arguments to parse
     let open_quests = game.list_open_quests().await;
-    let completed_today = game.list_completed_quests(day).await;
+    let timeline = game.timeline_entries(day).await;
 
-    if open_quests.is_empty() && completed_today.is_empty() {
+    if open_quests.is_empty() && timeline.is_empty() {
         return (
             "📋 No quests.".to_string(),
             "No quests".to_string(),
@@ -213,26 +213,28 @@ async fn execute_list_open_quests(
         }
     }
 
-    if !completed_today.is_empty() {
-        let pts_today: u32 = completed_today.iter().map(|q| q.points).sum();
+    if !timeline.is_empty() {
+        let pts_today: u32 = game.total_points(day).await;
         lines.push(format!(
             "✅ {} completed today ({} pts)",
-            completed_today.len(),
+            timeline.len(),
             pts_today,
         ));
-        for q in &completed_today {
-            lines.push(format!(
-                "  - title: \"{}\", points: {}",
-                q.title, q.points
-            ));
+        for entry in &timeline {
+            if let Ok(Some(quest)) = game.find_quest(&entry.quest_title).await {
+                lines.push(format!(
+                    "  - title: \"{}\", points: {}",
+                    quest.title, quest.points
+                ));
+            }
         }
     }
 
     let llm_msg = lines.join("\n");
 
     let open_count = open_quests.len();
-    let completed_count = completed_today.len();
-    let pts_today: u32 = completed_today.iter().map(|q| q.points).sum();
+    let completed_count = timeline.len();
+    let pts_today: u32 = game.total_points(day).await;
     let user_msg = format!(
         "📋 {} open, {} completed ({} pts)",
         open_count, completed_count, pts_today,

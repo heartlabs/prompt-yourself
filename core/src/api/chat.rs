@@ -1,9 +1,10 @@
 use chrono::{DateTime, NaiveDate, Utc};
 
-use crate::domain::entities::game::{GameService, Quest};
+use crate::domain::entities::game::{GameService, Quest, TimelineEntry};
 use crate::domain::ports::journal::JournalPort;
 use crate::domain::ports::openai::{ChatError, ChatMessage, ChatResponse, OpenAiPort};
 use crate::domain::ports::quest_repository::QuestRepository;
+use crate::domain::ports::timeline_repository::TimelineRepository;
 use crate::domain::tools;
 use crate::yaml_producer::FileEntry;
 
@@ -41,10 +42,12 @@ impl Chat {
     /// `journal` — a journal adapter; used to load the initial context and to
     ///             detect file changes before every API call.
     /// `quest_repository` — the quest storage backend (in-memory or vault-backed).
+    /// `timeline_repository` — records quest completions for the timeline.
     pub fn new(
         openai_port: Box<dyn OpenAiPort>,
         journal: Box<dyn JournalPort>,
         quest_repository: Box<dyn QuestRepository>,
+        timeline_repository: Box<dyn TimelineRepository>,
     ) -> Self {
         Self {
             history: Vec::new(),
@@ -53,7 +56,7 @@ impl Chat {
             openai_port,
             journal,
             last_check_time: DateTime::UNIX_EPOCH,
-            game_service: GameService::new(quest_repository),
+            game_service: GameService::new(quest_repository, timeline_repository),
         }
     }
 
@@ -230,16 +233,15 @@ impl Chat {
         self.game_service.list_open_quests().await
     }
 
-    pub async fn completed_quests(&self, day: NaiveDate) -> Vec<Quest> {
-        self.game_service.list_completed_quests(day).await
+    pub async fn pinned_quests(&self) -> Vec<Quest> {
+        self.game_service.list_pinned_quests().await
+    }
+
+    pub async fn timeline_entries(&self, day: NaiveDate) -> Vec<TimelineEntry> {
+        self.game_service.timeline_entries(day).await
     }
 
     pub async fn game_points(&self, day: NaiveDate) -> u32 {
-        self.game_service
-            .list_completed_quests(day)
-            .await
-            .iter()
-            .map(|quest| quest.points)
-            .sum()
+        self.game_service.total_points(day).await
     }
 }

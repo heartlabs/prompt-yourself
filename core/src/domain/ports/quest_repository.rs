@@ -5,8 +5,6 @@
 //! ([`crate::infrastructure::in_memory_quest_repo::InMemoryQuestRepository`])
 //! or, on WASM, by [`WasmQuestRepository`] which persists via JS callbacks.
 
-use chrono::{DateTime, NaiveDate, Utc};
-
 use crate::domain::entities::game::{GameError, Quest};
 
 /// Driven port for CRUD operations on quests.
@@ -19,19 +17,18 @@ pub trait QuestRepository: Send {
     /// Insert a new quest. The quest must have a unique title.
     async fn insert(&mut self, quest: Quest) -> Result<(), GameError>;
 
-    /// Mark a quest as completed at the given timestamp.
-    async fn mark_completed(
-        &mut self,
-        title: &str,
-        completed_at: DateTime<Utc>,
-    ) -> Result<(), GameError>;
+    /// Mark an open quest as completed (sets status to `Completed`).
+    async fn mark_completed(&mut self, title: &str) -> Result<(), GameError>;
 
-    /// Return all quests that are not yet completed.
+    /// Return all quests that are still open (status is `Open` or `Pinned`).
     async fn find_open(&self) -> Vec<Quest>;
 
-    /// Return quests completed on the given calendar day.
-    async fn find_completed_at(&self, day: NaiveDate) -> Vec<Quest>;
+    /// Return all quests with status `Pinned`.
+    async fn find_pinned(&self) -> Vec<Quest>;
 
-    /// Check whether a quest with the given title exists (completed or not).
+    /// Look up a single quest by title.
+    async fn find_by_title(&self, title: &str) -> Result<Option<Quest>, GameError>;
+
+    /// Check whether a quest with the given title exists.
     async fn exists(&self, title: &str) -> bool;
 }

@@ -22,6 +22,7 @@ use std::sync::{Mutex, OnceLock};
 
 mod quest_repository;
 pub use quest_repository::wasm_set_quest_repository_callbacks as setQuestRepositoryCallbacks;
+pub use quest_repository::wasm_set_timeline_repository_callbacks as setTimelineRepositoryCallbacks;
 
 // Set a panic hook that logs to console.error so we can see Rust panic
 // messages instead of just "RuntimeError: unreachable".
@@ -205,6 +206,7 @@ pub fn wasm_init_chat(model: &str) -> Result<(), JsError> {
         Box::new(adapter),
         Box::new(WasmJournalAdapter),
         Box::new(quest_repository::WasmQuestRepository),
+        Box::new(quest_repository::WasmTimelineRepository),
     );
 
     let _ = CHAT.set(Mutex::new(chat));

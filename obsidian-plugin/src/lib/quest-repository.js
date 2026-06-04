@@ -1,8 +1,7 @@
 /**
  * Obsidian quest repository – persists quests via the plugin data store.
  *
- * Quest state is saved under the `quests` key in the plugin's data file
- * (the same mechanism used for settings).
+ * Quest state is saved under the `quests` key in the plugin's data file.
  *
  * The Rust `WasmQuestRepository` calls these methods across the WASM boundary
  * via the callbacks registered with `setQuestRepositoryCallbacks`.
@@ -22,16 +21,13 @@ export class ObsidianQuestRepository {
    */
   async loadQuests() {
     const data = await this.plugin.loadData();
-    let quests = data.quests || [];
-    // Discard corrupt entries (e.g. old format with `completed` boolean)
-    quests = quests.filter(q =>
+    const quests = data.quests || [];
+    // Filter out corrupt entries (must have title + status)
+    const valid = quests.filter(q =>
       typeof q.title === 'string' &&
-      ('completed_at' in q ?
-        (q.completed_at === null || typeof q.completed_at === 'string') :
-        false
-      )
+      ['Open', 'Completed', 'Pinned'].includes(q.status)
     );
-    return JSON.stringify(quests);
+    return JSON.stringify(valid);
   }
 
   /**
