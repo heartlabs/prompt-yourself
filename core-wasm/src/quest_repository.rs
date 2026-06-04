@@ -220,6 +220,33 @@ impl QuestRepository for WasmQuestRepository {
         ensure_quest_cache_loaded().await.ok();
         QUEST_CACHE.with(|cache| cache.borrow().iter().any(|q| q.title == title))
     }
+
+    async fn update(&mut self, current_title: &str, quest: Quest) -> Result<(), GameError> {
+        let _guard = ReentryGuard::try_enter()?;
+        ensure_quest_cache_loaded().await?;
+
+        QUEST_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+
+            // Check the quest exists
+            let pos = cache.iter().position(|q| q.title == current_title).ok_or_else(|| {
+                GameError::Other(format!("No quest found with title '{}'", current_title))
+            })?;
+
+            // If renaming, check the new title doesn't clash
+            if current_title != quest.title && cache.iter().any(|q| q.title == quest.title) {
+                return Err(GameError::Other(format!(
+                    "A quest with title '{}' already exists",
+                    quest.title
+                )));
+            }
+
+            cache[pos] = quest;
+            Ok(())
+        })?;
+
+        persist_quest_cache().await
+    }
 }
 
 // ─── Native stub ────────────────────────────────────────────────────────────
@@ -243,6 +270,9 @@ impl QuestRepository for WasmQuestRepository {
         unreachable!("WasmQuestRepository should never be used on native targets")
     }
     async fn exists(&self, _title: &str) -> bool {
+        unreachable!("WasmQuestRepository should never be used on native targets")
+    }
+    async fn update(&mut self, _current_title: &str, _quest: Quest) -> Result<(), GameError> {
         unreachable!("WasmQuestRepository should never be used on native targets")
     }
 }

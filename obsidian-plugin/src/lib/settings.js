@@ -1,10 +1,11 @@
 import { PluginSettingTab, Setting } from 'obsidian';
 import { VIEW_TYPE } from './constants.js';
-import { setApiKey } from '../core_wasm.js';
+import { setApiKey, setTestMode } from '../core_wasm.js';
 
 export const DEFAULT_SETTINGS = {
   apiKey: '',
   folderPath: '',
+  testMode: false,
 };
 
 export class PromptYourselfSettingTab extends PluginSettingTab {
@@ -74,5 +75,28 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
           }
         });
       });
+
+    containerEl.createEl('h3', { text: 'Testing' });
+
+    new Setting(containerEl)
+      .setName('Testing Mode')
+      .setDesc(
+        'When enabled, the coaching personality is suspended and the AI will ' +
+        'obey your commands without pushback. Use this to test game features ' +
+        '(quests, timeline, etc.). Revert to normal mode afterwards.'
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.testMode)
+          .onChange(async (value) => {
+            this.plugin.settings.testMode = value;
+            await this.plugin.saveSettings();
+            try {
+              setTestMode(value);
+            } catch (e) {
+              console.error('Failed to toggle test mode:', e);
+            }
+          })
+      );
   }
 }

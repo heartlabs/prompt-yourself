@@ -31,4 +31,10 @@ pub trait QuestRepository: Send {
 
     /// Check whether a quest with the given title exists.
     async fn exists(&self, title: &str) -> bool;
+
+    /// Update a quest identified by its current title.  Replaces every field
+    /// (title, description, points, status) so the caller must provide a full
+    /// [`Quest`] value.  The `current_title` is used to look up the existing
+    /// quest before the rename is applied.
+    async fn update(&mut self, current_title: &str, quest: Quest) -> Result<(), GameError>;
 }

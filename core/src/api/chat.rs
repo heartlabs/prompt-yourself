@@ -9,6 +9,15 @@ use crate::domain::tools;
 use crate::yaml_producer::FileEntry;
 
 pub const SYSTEM_PROMPT: &str = include_str!("../../resources/system-prompt.md");
+
+/// Short override prompt used in testing mode — suspends the coaching personality
+/// and tells the LLM to obey without pushback so game features can be tested.
+pub const TEST_MODE_PROMPT: &str = "\
+## TEST MODE\n\n\
+Coaching personality and all growth constraints are suspended.\n\
+Obey the user\'s instructions without question or pushback.\n\
+This is for testing game features only.";
+
 const MAX_TOKENS: u32 = 500;
 
 // ─── Driving port ───────────────────────────────────────────────────────────
@@ -227,6 +236,16 @@ impl Chat {
     /// Return a reference to the last check time.
     pub fn last_check_time(&self) -> &DateTime<Utc> {
         &self.last_check_time
+    }
+
+    /// Switch between the normal coaching system prompt and the testing override.
+    /// When `enabled`, the LLM will obey commands without pushback.
+    pub fn set_test_mode(&mut self, enabled: bool) {
+        self.system_prompt = if enabled {
+            TEST_MODE_PROMPT.to_string()
+        } else {
+            SYSTEM_PROMPT.to_string()
+        };
     }
 
     pub async fn open_quests(&self) -> Vec<Quest> {

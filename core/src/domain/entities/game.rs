@@ -91,6 +91,12 @@ impl GameService {
         total
     }
 
+    /// Update a quest (title, description, points, status — everything).
+    /// The quest is identified by its current title before any rename is applied.
+    pub async fn update_quest(&mut self, current_title: &str, quest: Quest) -> Result<(), GameError> {
+        self.quest_repo.update(current_title, quest).await
+    }
+
     /// Look up a quest by title for tool handlers.
     pub async fn find_quest(&self, title: &str) -> Result<Option<Quest>, GameError> {
         self.quest_repo.find_by_title(title).await

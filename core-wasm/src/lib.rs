@@ -272,6 +272,22 @@ pub async fn wasm_chat_completion(user_message: &str, day_ms: f64) -> Result<Str
     Ok(json)
 }
 
+// ─── Test mode ──────────────────────────────────────────────────────────────
+
+/// Toggle test mode on the global Chat instance.
+/// When enabled, the system prompt is replaced with a short override that tells
+/// the LLM to obey without coaching pushback.
+#[wasm_bindgen(js_name = setTestMode)]
+pub fn wasm_set_test_mode(enabled: bool) -> Result<(), JsError> {
+    let chat_mutex = CHAT
+        .get()
+        .ok_or_else(|| JsError::new("Chat not initialised. Call initChat() first."))?;
+
+    let mut chat = chat_mutex.lock().expect("Chat mutex poisoned");
+    chat.set_test_mode(enabled);
+    Ok(())
+}
+
 // ─── Produce YAML ───────────────────────────────────────────────────────────
 
 /// Produce a YAML document from a list of file entries.

@@ -45,9 +45,52 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
                     "points": {
                         "type": "integer",
                         "description": "How many points this quest is worth (higher = harder)"
+                    },
+                    "pinned": {
+                        "type": "boolean",
+                        "description": "If true, the quest stays open after completion and can be awarded multiple times (e.g. daily check-in)"
                     }
                 },
                 "required": ["title", "description", "points"],
+                "additionalProperties": false
+            }),
+        },
+        ToolDefinition {
+            name: "update_quest".to_string(),
+            description: "Update an existing quest. Provide the current title to identify \
+                          which quest to change, then any fields you want to modify \
+                          (title, description, points, pinned). Quest status can be \
+                          changed freely — set pinned=true to make it a repeatable \
+                          quest, or pinned=false to make it a one-shot quest."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "currentTitle": {
+                        "type": "string",
+                        "description": "The current title of the quest to update"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "New title for the quest (omit to keep current)"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "New description (omit to keep current)"
+                    },
+                    "points": {
+                        "type": "integer",
+                        "description": "New point value (omit to keep current)"
+                    },
+                    "pinned": {
+                        "type": "boolean",
+                        "description": "Set true to make this quest pinned (repeatable), \
+                                        or false to make it a regular open quest. \
+                                        You can even update a completed quest \
+                                        to reopen or pin it."
+                    }
+                },
+                "required": ["currentTitle"],
                 "additionalProperties": false
             }),
         },
@@ -98,6 +141,7 @@ pub async fn execute(
     let (user_message, llm_message) = match call.name.as_str() {
         "register_quest" => execute_register_quest(game, call).await,
         "complete_quest" => execute_complete_quest(game, call).await,
+        "update_quest" => execute_update_quest(game, call).await,
         "list_open_quests" => execute_list_open_quests(game, call, day).await,
         other => (
             format!("⚠️ Unknown tool: {other}"),
@@ -120,6 +164,8 @@ async fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (Str
         title: String,
         description: String,
         points: u32,
+        #[serde(default)]
+        pinned: bool,
     }
 
     let args: RegisterQuestArgs = match serde_json::from_str(&call.arguments) {
@@ -132,11 +178,17 @@ async fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (Str
         }
     };
 
+    let status = if args.pinned {
+        QuestStatus::Pinned
+    } else {
+        QuestStatus::Open
+    };
+
     let quest = Quest {
         title: args.title.clone(),
         description: args.description.clone(),
         points: args.points,
-        status: QuestStatus::Open,
+        status,
     };
 
     match game.register_quest(quest).await {
@@ -178,6 +230,91 @@ async fn execute_complete_quest(
             format!("✅ Quest completed: **{}**", args.title),
             format!("Quest '{}' completed successfully", args.title),
         ),
+        Err(e) => (
+            format!("⚠️ {e}"),
+            format!("error: {e}"),
+        ),
+    }
+}
+
+async fn execute_update_quest(
+    game: &mut GameService,
+    call: &ToolCall,
+) -> (String, String) {
+    #[derive(Deserialize)]
+    struct UpdateQuestArgs {
+        #[serde(rename = "currentTitle")]
+        current_title: String,
+        title: Option<String>,
+        description: Option<String>,
+        points: Option<u32>,
+        pinned: Option<bool>,
+    }
+
+    let args: UpdateQuestArgs = match serde_json::from_str(&call.arguments) {
+        Ok(a) => a,
+        Err(e) => {
+            return (
+                format!("⚠️ Could not parse quest arguments"),
+                format!("error: failed to parse update_quest arguments: {e}"),
+            );
+        }
+    };
+
+    // Load the current quest so we can merge partial updates
+    let current = match game.find_quest(&args.current_title).await {
+        Ok(Some(q)) => q,
+        Ok(None) => return (
+            format!("⚠️ No quest found with title '{}'", args.current_title),
+            format!("error: quest '{}' not found", args.current_title),
+        ),
+        Err(e) => return (
+            format!("⚠️ {e}"),
+            format!("error: {e}"),
+        ),
+    };
+
+    let new_title = args.title.unwrap_or_else(|| current.title.clone());
+    let new_description = args.description.unwrap_or_else(|| current.description.clone());
+    let new_points = args.points.unwrap_or(current.points);
+    let new_status = match args.pinned {
+        Some(true) => QuestStatus::Pinned,
+        Some(false) if current.status == QuestStatus::Pinned => QuestStatus::Open,
+        _ => current.status, // keep current
+    };
+
+    let updated = Quest {
+        title: new_title.clone(),
+        description: new_description.clone(),
+        points: new_points,
+        status: new_status,
+    };
+
+    match game.update_quest(&args.current_title, updated).await {
+        Ok(()) => {
+            let mut changes = Vec::new();
+            if new_title != current.title {
+                changes.push(format!("title → \"{}\"", new_title));
+            }
+            if new_description != current.description {
+                changes.push("description updated".to_string());
+            }
+            if new_points != current.points {
+                changes.push(format!("points → {}", new_points));
+            }
+            if new_status != current.status {
+                changes.push(format!("status → {:?}", new_status));
+            }
+            let desc = if changes.is_empty() {
+                "No changes made.".to_string()
+            } else {
+                changes.join(", ")
+            };
+            (
+                format!("✅ Quest updated: **\"{}\"** — {}", new_title, desc),
+                format!("Quest '{}' updated: {}", new_title, desc),
+            )
+        }
         Err(e) => (
             format!("⚠️ {e}"),
             format!("error: {e}"),

@@ -74,4 +74,27 @@ impl QuestRepository for InMemoryQuestRepository {
     async fn exists(&self, title: &str) -> bool {
         self.quests.contains_key(title)
     }
+
+    async fn update(&mut self, current_title: &str, quest: Quest) -> Result<(), GameError> {
+        // Check the quest exists
+        if !self.quests.contains_key(current_title) {
+            return Err(GameError::Other(format!(
+                "No quest found with title '{}'",
+                current_title
+            )));
+        }
+
+        // If the title is changing, make sure the new title doesn't clash
+        if current_title != quest.title && self.quests.contains_key(&quest.title) {
+            return Err(GameError::Other(format!(
+                "A quest with title '{}' already exists",
+                quest.title
+            )));
+        }
+
+        // Remove the old entry (keyed by current_title) and insert under the new title
+        self.quests.remove(current_title);
+        self.quests.insert(quest.title.clone(), quest);
+        Ok(())
+    }
 }
