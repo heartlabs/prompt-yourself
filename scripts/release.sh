@@ -3,13 +3,9 @@
 #
 # Usage:  scripts/release.sh [patch|minor|major]
 #
-# Pre-checks everything before touching files, so you get a clear error
-# message instead of a half-baked version bump and no tag.
-#
-# Examples:
-#   scripts/release.sh patch    # 1.0.3 → 1.0.4
-#   scripts/release.sh minor    # 1.0.3 → 1.1.0
-#   scripts/release.sh major    # 1.0.3 → 2.0.0
+# Pre-checks everything before touching files. Uses npm version only for the
+# file write (--no-git-tag-version) and does the git commit + tag ourselves
+# so we control exactly what happens and can detect failures.
 
 set -euo pipefail
 
@@ -23,7 +19,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BOLD='\033[1m'
-NC='\033[0m' # No Colour
+NC='\033[0m'
 
 pass() { printf "  ${GREEN}✅${NC} %s\n" "$1"; }
 fail() { printf "  ${RED}❌${NC} %s\n" "$1"; }
@@ -47,7 +43,8 @@ echo ""
 echo "${BOLD}Prompt Yourself — Release Prep${NC}"
 echo ""
 
-# ─── Pre-flight checks ───────────────────────────────────────────────────────
+# ─── Pre-flight checks ──────────────────────────────────────────────────────
+# Every check sets ALL_CLEAR=false so they all run before the final bail.
 
 ALL_CLEAR=true
 
@@ -108,18 +105,23 @@ else
   pass "In sync with origin/main"
 fi
 
-# ─── Bail if any check failed ────────────────────────────────────────────────
+# ─── Bail on failures ───────────────────────────────────────────────────────
 
 if [[ "$ALL_CLEAR" != "true" ]]; then
   die
 fi
 
-# ─── Show current version & confirm ──────────────────────────────────────────
+# ─── Show current & next version (non-destructive) ─────────────────────────
 
-CURRENT_VERSION=$(cd "$PLUGIN_DIR" && node -p "require('./package.json').version")
-NEW_VERSION=$(cd "$PLUGIN_DIR" && npm version "$RELEASE_TYPE" --no-git-tag-version 2>/dev/null || echo "$CURRENT_VERSION")
-# Undo the dry-run bump
-cd "$PLUGIN_DIR" && git checkout -- package.json 2>/dev/null || true
+CURRENT_VERSION=$(node -p "require('$PLUGIN_DIR/package.json').version")
+
+# Parse current version and compute the next one — pure arithmetic, no file writes
+IFS='.' read -r MAJ MIN PAT <<< "$CURRENT_VERSION"
+case "$RELEASE_TYPE" in
+  patch) NEW_VERSION="$MAJ.$MIN.$((PAT + 1))" ;;
+  minor) NEW_VERSION="$MAJ.$((MIN + 1)).0" ;;
+  major) NEW_VERSION="$((MAJ + 1)).0.0" ;;
+esac
 
 echo ""
 case "$RELEASE_TYPE" in
@@ -136,25 +138,55 @@ if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
   exit 0
 fi
 
-# ─── Do the release ──────────────────────────────────────────────────────────
+# ─── Do the release ─────────────────────────────────────────────────────────
+# We use npm version just to write the file (no git ops from npm).
+# Then we handle commit + tag ourselves for full control.
 
 echo ""
-info "Bumping version…"
+info "Bumping package.json to $NEW_VERSION…"
 
 cd "$PLUGIN_DIR"
-npm version "$RELEASE_TYPE" -m "chore: bump to %s" --force 2>&1 | tail -1
+npm version "$RELEASE_TYPE" --no-git-tag-version --no-commit-hooks 2>&1
 
-echo ""
-info "Pushing commit and tag to origin…"
+# Verify the file was actually written
+WRITTEN_VERSION=$(node -p "require('./package.json').version")
+if [[ "$WRITTEN_VERSION" != "$NEW_VERSION" ]]; then
+  die "npm version wrote '$WRITTEN_VERSION' but expected '$NEW_VERSION'"
+fi
+pass "package.json: $WRITTEN_VERSION"
+
+# ─── Commit ──────────────────────────────────────────────────────────────────
+
+info "Committing…"
+
 cd "$ROOT_DIR"
+git add obsidian-plugin/package.json obsidian-plugin/package-lock.json
+git commit -m "chore: bump to v$NEW_VERSION"
+
+# ─── Tag ────────────────────────────────────────────────────────────────────
+
+info "Tagging v$NEW_VERSION…"
+git tag -a "v$NEW_VERSION" -m "chore: bump to v$NEW_VERSION"
+
+# Verify the tag exists
+if ! git tag -l | grep -q "^v$NEW_VERSION$"; then
+  die "Tag v$NEW_VERSION was not created"
+fi
+pass "Tag v$NEW_VERSION created"
+
+# ─── Push ────────────────────────────────────────────────────────────────────
+
+info "Pushing commit and tag to origin…"
 git push origin main
-git push origin --tags
+git push origin "v$NEW_VERSION"
+
+# ─── Done ────────────────────────────────────────────────────────────────────
 
 echo ""
-echo "${GREEN}${BOLD}✅ Release $NEW_VERSION published!${NC}"
+echo "${GREEN}${BOLD}✅ Release v$NEW_VERSION published!${NC}"
 echo ""
-echo "  The CI workflow at the link below will build the plugin"
-echo "  and create a GitHub Release with the artifacts:"
+echo "  The CI workflow will now build the plugin and"
+echo "  create a GitHub Release with the artifacts."
 echo ""
 echo "    https://github.com/heartlabs/prompt-yourself/actions"
 echo ""
