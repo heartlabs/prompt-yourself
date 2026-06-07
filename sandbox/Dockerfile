@@ -70,7 +70,12 @@ RUN mkdir -p /opt/pi-linux-bin && \
     mv /tmp/fd /opt/pi-linux-bin/fd && chmod +x /opt/pi-linux-bin/fd
 
 # ── Pi packages ──────────────────────────────────────────────────────────────
-RUN pi install npm:pi-cyber-ui
+RUN pi install npm:pi-cyber-ui \
+    && pi install npm:pi-web-access \
+    && pi install npm:pi-subagents \
+    && pi install npm:@juicesharp/rpiv-todo \
+    && pi install npm:@juicesharp/rpiv-ask-user-question \
+    && pi install npm:pi-kanban
 
 # ── Workspace ─────────────────────────────────────────────────────────────────
 WORKDIR /workspace
