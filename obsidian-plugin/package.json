@@ -5,7 +5,10 @@
   "description": "Build dependencies for the Prompt Yourself Obsidian plugin",
   "scripts": {
     "build": "node build.js",
-    "dev": "node build.js --watch"
+    "dev": "node build.js --watch",
+    "release:patch": "npm version patch -m 'chore: bump to %s' && git push --tags",
+    "release:minor": "npm version minor -m 'chore: bump to %s' && git push --tags",
+    "release:major": "npm version major -m 'chore: bump to %s' && git push --tags"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",

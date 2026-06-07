@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: obsidian-plugin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: obsidian-plugin
+
+      - name: Build plugin
+        run: node build.js
+        working-directory: obsidian-plugin
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            obsidian-plugin/main.js
+            obsidian-plugin/manifest.json
+            obsidian-plugin/styles.css
+            obsidian-plugin/LICENSE
+            obsidian-plugin/versions.json
+          generate_release_notes: true
