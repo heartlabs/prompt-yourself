@@ -1,32 +1,34 @@
 /*
  * Prompt Yourself – Obsidian Plugin
  *
- * Side panel chat that uses the DeepSeek API to answer questions about a vault folder.
+ * Side panel chat that uses an OpenAI-compatible API to answer questions
+ * about a vault folder.
  *
- * Core logic is implemented in Rust and compiled to WASM. The Rust `Chat` calls a JS
- * callback (`setLoadEntriesCallback`) to load file entries — from the core's perspective
- * there is zero difference between CLI and Obsidian.
+ * ── Architecture ─────────────────────────────────────────────────────────────
  *
- * ═══════════════════════════════════════════════════════════════════════════════
- * Re-entrancy warning
- * ═══════════════════════════════════════════════════════════════════════════════
+ * Core logic is implemented in Rust and compiled to WASM. The Rust `Chat`
+ * calls a JS callback (`setLoadEntriesCallback`) to load file entries.
  *
- * The `loadEntries` callback (registered with `setLoadEntriesCallback`) is called
- * from Rust every time a new user message is sent. The callback MUST NOT call any
- * WASM function that acquires the chat lock (e.g. `chatCompletion`,
- * `loadInitialContext`, `resetChat`), or a "Re-entry detected" error will be thrown.
+ * Secrets (API keys) are stored in the OS keychain via Obsidian's
+ * SecretStorage API (v1.11.4+). Settings are organized into profiles,
+ * each with its own folder path, test mode, and API credentials.
  *
- * The callback is a pure data-fetching function — it reads the vault, filters by
- * mtime, and returns a JSON string. No WASM calls.
+ * ── Re-entrancy warning ──────────────────────────────────────────────────────
+ *
+ * The `loadEntries` callback MUST NOT call any WASM function that acquires
+ * the chat lock (e.g. `chatCompletion`, `loadInitialContext`, `resetChat`),
+ * or a "Re-entry detected" error will be thrown.
  */
 
-import { Plugin } from 'obsidian';
+import { Plugin, Notice } from 'obsidian';
 import { initSync, setApiKey, setApiBase, getTimelineForDate } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 import { VIEW_TYPE, QUEST_VIEW_TYPE } from './lib/constants.js';
 import { PromptYourselfQuestView } from './lib/quest-view.js';
 import { PromptYourselfView } from './lib/chat-view.js';
 import { PromptYourselfSettingTab, DEFAULT_SETTINGS } from './lib/settings.js';
+import { KeychainService } from './lib/keychain.js';
+import { ProfileManager } from './lib/profiles.js';
 import { ObsidianQuestRepository } from './lib/quest-repository.js';
 import { ObsidianTimelineRepository } from './lib/timeline-repository.js';
 import { TimelineBlockComponent } from './lib/timeline-block.js';
@@ -40,18 +42,22 @@ class PromptYourselfPlugin extends Plugin {
     // Initialise WASM
     initSync({ module: wasmBytes });
 
+    // Set up keychain and profiles
+    this.keychain = new KeychainService(this.app, this.settings);
+    this.profiles = new ProfileManager(this, this.keychain);
+
+    // Migrate from flat settings to profile model (one-time)
+    await this.profiles.migrateFromFlat();
+    await this.saveSettings();
+
+    // Load the active profile's credentials into WASM
+    this._applyActiveProfile();
+
     // Create repositories (persist via plugin data store)
     this.questRepository = new ObsidianQuestRepository(this);
     this.timelineRepository = new ObsidianTimelineRepository(this);
 
-    if (this.settings.apiKey) {
-      setApiKey(this.settings.apiKey);
-    }
-    if (this.settings.apiBase) {
-      setApiBase(this.settings.apiBase);
-    }
-
-    // Load theme fonts (Cinzel + Kalam for the Adventurer's Chronicle theme)
+    // Load theme fonts
     this._themeFont = document.createElement('link');
     this._themeFont.rel = 'stylesheet';
     this._themeFont.href =
@@ -76,9 +82,30 @@ class PromptYourselfPlugin extends Plugin {
     this.addSettingTab(new PromptYourselfSettingTab(this.app, this));
   }
 
+  /**
+   * Push the active profile's credentials into WASM.
+   */
+  _applyActiveProfile() {
+    const profile = this.profiles.activeProfile;
+    if (!profile) return;
+
+    const apiKey = this.profiles.getApiKey(profile.id);
+    if (apiKey) setApiKey(apiKey);
+
+    const apiBase = this.profiles.getApiBase(profile.id);
+    if (apiBase) setApiBase(apiBase);
+
+    this._secretsLoaded = true;
+
+    // Notify user
+    if (this.keychain.isAvailable && apiKey && !this._keychainNotified) {
+      this._keychainNotified = true;
+      new Notice(`🔐 Profile "${profile.name}" — key stored in system keychain`);
+    }
+  }
+
   registerTimelineBlockProcessor() {
     this.registerMarkdownCodeBlockProcessor('day-timeline', async (source, el, ctx) => {
-      // Parse date from YAML source:  date: 2026-06-04
       const dateMatch = source.match(/date:\s*(\d{4})-(\d{2})-(\d{2})/);
       if (!dateMatch) {
         el.createEl('p', { text: 'day-timeline: missing or invalid date', cls: 'quests-empty' });
@@ -89,8 +116,6 @@ class PromptYourselfPlugin extends Plugin {
       const month = parseInt(dateMatch[2], 10);
       const day = parseInt(dateMatch[3], 10);
 
-      // Create a child that auto-refreshes.
-      // ctx.addChild calls child.onload() which triggers the initial render.
       const child = new TimelineBlockComponent(el, year, month, day);
       ctx.addChild(child);
     });

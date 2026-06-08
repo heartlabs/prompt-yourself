@@ -21,12 +21,17 @@ export class PromptYourselfView extends ItemView {
     return 'message-square';
   }
 
+  /** Shorthand for the active profile. */
+  get _profile() {
+    return this.plugin.profiles?.activeProfile || null;
+  }
+
   async onOpen() {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass('prompt-yourself-container');
 
-    // Selected folder label
+    // Profile + folder label
     this.folderLabelEl = container.createEl('div', { cls: 'file-label' });
     this.updateFolderLabel();
 
@@ -67,17 +72,25 @@ export class PromptYourselfView extends ItemView {
   }
 
   updateFolderLabel() {
-    const path = this.plugin.settings.folderPath;
+    const profile = this._profile;
+    if (!profile) {
+      this.folderLabelEl.setText('📁 (set up a profile in settings)');
+      return;
+    }
+    const name = profile.name;
+    const path = profile.folderPath;
     if (!path) {
-      this.folderLabelEl.setText('📁 (select a folder in settings)');
+      this.folderLabelEl.setText(`👤 ${name} · 📁 Whole vault`);
     } else {
-      this.folderLabelEl.setText('📁 ' + path);
+      this.folderLabelEl.setText(`👤 ${name} · 📁 ${path}`);
     }
   }
 
   async loadFolder() {
-    const folderPath = this.plugin.settings.folderPath;
-    if (folderPath === undefined) return;
+    const profile = this._profile;
+    if (!profile) return;
+
+    const folderPath = profile.folderPath;
 
     // Reset the chat panel UI
     this.chatAreaEl.empty();
@@ -106,27 +119,26 @@ export class PromptYourselfView extends ItemView {
       });
     }
 
-    const apiKey = this.plugin.settings.apiKey;
-    if (apiKey && apiKey !== 'your-api-key-here') {
+    const apiKey = this.plugin.profiles.getApiKey(profile.id);
+    if (apiKey) {
       try {
         // Initialise the Rust-side Chat (system prompt + API config).
-        // The journal adapter is WasmJournalAdapter which calls the JS callback above.
         initChat(CHAT_MODEL);
 
         // Re-apply test mode if it was saved (initChat resets the prompt)
-        if (this.plugin.settings.testMode) {
+        if (profile.testMode) {
           setTestMode(true);
         }
 
         // Load every file (since epoch) — the callback handles the vault scan.
         const fileCount = await loadInitialContext();
 
-        this.addMessage('system', 'Loaded folder "' + (folderPath || '/') + '" (' + fileCount + ' files). Ask away!');
+        this.addMessage('system', `Loaded profile "${profile.name}" · folder "${folderPath || '/'}" (${fileCount} files). Ask away!`);
       } catch (e) {
         this.addMessage('system', '⚠️ Failed to initialise chat: ' + e.message);
       }
     } else {
-      this.addMessage('system', '⚠️ Please set your DeepSeek API key in Plugin Settings.');
+      this.addMessage('system', '⚠️ Please set an API key for this profile in Plugin Settings.');
     }
   }
 
@@ -135,13 +147,19 @@ export class PromptYourselfView extends ItemView {
     const text = this.inputEl.value.trim();
     if (!text) return;
 
-    const apiKey = this.plugin.settings.apiKey;
-    if (!apiKey || apiKey === 'your-api-key-here') {
-      this.addMessage('system', '⚠️ Please set your DeepSeek API key in Plugin Settings.');
+    const profile = this._profile;
+    if (!profile) {
+      this.addMessage('system', '⚠️ Set up a profile in Plugin Settings first.');
       return;
     }
 
-    if (this.plugin.settings.folderPath === undefined) {
+    const apiKey = this.plugin.profiles.getApiKey(profile.id);
+    if (!apiKey) {
+      this.addMessage('system', '⚠️ Please set an API key for this profile in Plugin Settings.');
+      return;
+    }
+
+    if (profile.folderPath === undefined) {
       this.addMessage('system', '⚠️ Select a folder in Plugin Settings first.');
       return;
     }
@@ -151,11 +169,6 @@ export class PromptYourselfView extends ItemView {
     this.setLoading(true);
 
     try {
-      // chatCompletion calls user_message internally, which:
-      //   1. Calls loadEntries(since_last_check) via the JS callback
-      //   2. Injects "Note: File ... updated" messages for any changes
-      //   3. Runs the tool-call loop (assistant replies + tool executions)
-      //   4. Returns JSON array of all new messages (assistant + tool)
       const json = await chatCompletion(text, Date.now());
       const messages = JSON.parse(json);
       for (const msg of messages) {
