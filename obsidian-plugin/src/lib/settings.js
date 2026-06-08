@@ -1,9 +1,10 @@
 import { PluginSettingTab, Setting } from 'obsidian';
 import { VIEW_TYPE } from './constants.js';
-import { setApiKey, setTestMode, clearGameData } from '../core_wasm.js';
+import { setApiKey, setApiBase, setTestMode, clearGameData } from '../core_wasm.js';
 
 export const DEFAULT_SETTINGS = {
   apiKey: '',
+  apiBase: 'https://api.deepseek.com',
   folderPath: '',
   testMode: false,
 };
@@ -21,8 +22,8 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
     containerEl.createEl('h2', { text: 'Prompt Yourself Settings' });
 
     new Setting(containerEl)
-      .setName('DeepSeek API Key')
-      .setDesc('Your DeepSeek API key. Get one at https://platform.deepseek.com/api_keys')
+      .setName('API Key')
+      .setDesc('Your API key for the AI provider.')
       .addText((text) =>
         text
           .setPlaceholder('sk-...')
@@ -33,6 +34,25 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
             if (this.plugin.settings.apiKey) {
               setApiKey(this.plugin.settings.apiKey);
             }
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Provider URL')
+      .setDesc(
+        'Base URL of an OpenAI-compatible API. ' +
+        'Examples: https://api.deepseek.com, https://api.openai.com/v1, ' +
+        'http://localhost:11434/v1 (Ollama), http://localhost:8000/v1 (vLLM)'
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder('https://api.deepseek.com')
+          .setValue(this.plugin.settings.apiBase)
+          .onChange(async (value) => {
+            const url = value.trim().replace(/\/+$/, '');
+            this.plugin.settings.apiBase = url || 'https://api.deepseek.com';
+            await this.plugin.saveSettings();
+            setApiBase(this.plugin.settings.apiBase);
           })
       );
 

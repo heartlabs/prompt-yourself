@@ -58,7 +58,7 @@ impl OpenAiPort for OpenAiAdapter {
         let mut request_builder = CreateChatCompletionRequestArgs::default();
         request_builder.model(&self.model);
         request_builder.messages(openai_messages);
-        request_builder.max_completion_tokens(max_tokens);
+        request_builder.max_tokens(max_tokens);
 
         if !openai_tools.is_empty() {
             request_builder.tools(openai_tools);

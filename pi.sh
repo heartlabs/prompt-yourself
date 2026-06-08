@@ -28,6 +28,8 @@ fi
 DOCKER_ARGS+=(
     # Pi config
     -v "$HOME/.pi/agent/:/root/.pi/agent/"
+    # Expose kanban board to the host (port 3460)
+    -p 3460:3460
 )
 
 # ── API key ───────────────────────────────────────────────────────────────────

@@ -21,7 +21,7 @@
  */
 
 import { Plugin } from 'obsidian';
-import { initSync, setApiKey, getTimelineForDate } from './core_wasm.js';
+import { initSync, setApiKey, setApiBase, getTimelineForDate } from './core_wasm.js';
 import wasmBytes from './core_wasm_bg.wasm';
 import { VIEW_TYPE, QUEST_VIEW_TYPE } from './lib/constants.js';
 import { PromptYourselfQuestView } from './lib/quest-view.js';
@@ -46,6 +46,9 @@ class PromptYourselfPlugin extends Plugin {
 
     if (this.settings.apiKey) {
       setApiKey(this.settings.apiKey);
+    }
+    if (this.settings.apiBase) {
+      setApiBase(this.settings.apiBase);
     }
 
     // Load theme fonts (Cinzel + Kalam for the Adventurer's Chronicle theme)
