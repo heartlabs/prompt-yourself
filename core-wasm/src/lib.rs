@@ -320,3 +320,24 @@ pub async fn wasm_get_game_state() -> Result<String, JsError> {
     Ok(quest_repository::get_quest_state_from_cache().await)
 }
 
+// ─── Token usage ────────────────────────────────────────────────────────────
+
+/// Return the accumulated token usage for the session as a JSON string.
+///
+/// Returns the [`TokenUsage`] struct serialized to JSON, including:
+/// - total_input_tokens, total_output_tokens, total_cached_tokens, total_tokens
+/// - context_tokens (prompt tokens of the most recent API call)
+/// - last_request_input, last_request_output, last_request_cached
+#[wasm_bindgen(js_name = getTokenUsage)]
+pub fn wasm_get_token_usage() -> Result<String, JsError> {
+    let chat_mutex = CHAT
+        .get()
+        .ok_or_else(|| JsError::new("Chat not initialised. Call initChat() first."))?;
+
+    let chat = chat_mutex.lock().expect("Chat mutex poisoned");
+    let usage = chat.token_usage();
+    let json = serde_json::to_string(usage)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(json)
+}
+

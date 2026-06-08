@@ -1,7 +1,7 @@
 import { ItemView, MarkdownRenderer } from 'obsidian';
 import { VIEW_TYPE, QUEST_VIEW_TYPE, CHAT_MODEL } from './constants.js';
 import { buildVaultLoadCallback } from './journal-adapter.js';
-import { setLoadEntriesCallback, setQuestRepositoryCallbacks, setTimelineRepositoryCallbacks, initChat, loadInitialContext, chatCompletion, setTestMode } from '../core_wasm.js';
+import { setLoadEntriesCallback, setQuestRepositoryCallbacks, setTimelineRepositoryCallbacks, initChat, loadInitialContext, chatCompletion, setTestMode, getTokenUsage } from '../core_wasm.js';
 
 export class PromptYourselfView extends ItemView {
   constructor(leaf, plugin) {
@@ -29,6 +29,10 @@ export class PromptYourselfView extends ItemView {
     // Selected folder label
     this.folderLabelEl = container.createEl('div', { cls: 'file-label' });
     this.updateFolderLabel();
+
+    // Token usage indicator (top-right circle)
+    this.tokenIndicatorEl = container.createEl('div', { cls: 'token-indicator' });
+    this.tokenIndicatorEl.setAttribute('data-tooltip', 'No usage data yet');
 
     // Quests button (opens a split pane)
     this.questsBtnEl = container.createEl('button', {
@@ -161,6 +165,17 @@ export class PromptYourselfView extends ItemView {
           this.addMessage('tool', msg.content);
         }
       }
+
+      // Update token usage indicator after each turn
+      try {
+        const usageJson = getTokenUsage();
+        if (usageJson) {
+          const usage = JSON.parse(usageJson);
+          this.updateTokenIndicator(usage);
+        }
+      } catch (_) {
+        // Silently ignore — token tracking is non-critical
+      }
     } catch (err) {
       this.addMessage('system', '❌ Error: ' + err.message);
     } finally {
@@ -209,6 +224,31 @@ export class PromptYourselfView extends ItemView {
         this.typingIndicatorEl = null;
       }
     }
+  }
+
+  /// Update the token usage indicator with data from the Rust core.
+  updateTokenIndicator(usage) {
+    if (!this.tokenIndicatorEl) return;
+
+    const contextWindow = 1_000_000;
+    const ctx = usage.context_tokens || 0;
+    const pct = Math.min(100, (ctx / contextWindow) * 100);
+
+    this.tokenIndicatorEl.style.setProperty('--fill-pct', pct.toFixed(1));
+
+    // Abbreviate numbers: 1234 → 1.2K, 1_200_000 → 1.2M
+    const abbrev = (n) => {
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+      if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return String(n);
+    };
+
+    this.tokenIndicatorEl.setAttribute('data-tooltip',
+      `${abbrev(ctx)} / 1M (${pct.toFixed(0)}%)\n` +
+      `${abbrev(usage.total_input_tokens)} input\n` +
+      `${abbrev(usage.total_output_tokens)} output\n` +
+      `${abbrev(usage.total_cached_tokens)} cached`
+    );
   }
 
   async onClose() {

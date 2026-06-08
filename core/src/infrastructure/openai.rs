@@ -17,7 +17,7 @@ use async_openai_wasm::{
     Client,
 };
 
-use crate::domain::ports::openai::{ChatError, ChatMessage, ChatResponse, OpenAiPort, ToolCall, ToolDefinition};
+use crate::domain::ports::openai::{ChatError, ChatMessage, ChatResponse, OpenAiPort, ToolCall, ToolDefinition, UsageInfo};
 
 // ─── Adapter ────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ impl OpenAiPort for OpenAiAdapter {
         messages: Vec<ChatMessage>,
         max_tokens: u32,
         tools: Vec<ToolDefinition>,
-    ) -> Result<ChatResponse, ChatError> {
+    ) -> Result<(ChatResponse, UsageInfo), ChatError> {
         let config = OpenAIConfig::new()
             .with_api_key(&self.api_key)
             .with_api_base(&self.api_base_url);
@@ -67,6 +67,8 @@ impl OpenAiPort for OpenAiAdapter {
         let request = request_builder.build()?;
 
         let response = client.chat().create(request).await?;
+
+        let usage = extract_usage(response.usage.as_ref());
 
         let choice = response.choices.first().ok_or_else(|| {
             ChatError::Other("No choices returned from OpenAI API".to_string())
@@ -89,15 +91,34 @@ impl OpenAiPort for OpenAiAdapter {
                 .collect();
 
             if !calls.is_empty() {
-                return Ok(ChatResponse::ToolCalls { content, tool_calls: calls });
+                return Ok((ChatResponse::ToolCalls { content, tool_calls: calls }, usage));
             }
         }
 
-        Ok(ChatResponse::Text(content.unwrap_or_default()))
+        Ok((ChatResponse::Text(content.unwrap_or_default()), usage))
     }
 }
 
 // ─── Internal helpers ───────────────────────────────────────────────────────
+
+/// Extract [`UsageInfo`] from the API response's optional usage field.
+fn extract_usage(usage: Option<&async_openai_wasm::types::chat::CompletionUsage>) -> UsageInfo {
+    usage
+        .map(|u| UsageInfo {
+            prompt_tokens: u.prompt_tokens,
+            completion_tokens: u.completion_tokens,
+            total_tokens: u.total_tokens,
+            cached_tokens: u
+                .prompt_tokens_details
+                .as_ref()
+                .and_then(|d| d.cached_tokens),
+            reasoning_tokens: u
+                .completion_tokens_details
+                .as_ref()
+                .and_then(|d| d.reasoning_tokens),
+        })
+        .unwrap_or_default()
+}
 
 /// Convert our domain [`ChatMessage`] into async-openai's request message enum.
 fn to_openai_messages(messages: Vec<ChatMessage>) -> Vec<ChatCompletionRequestMessage> {

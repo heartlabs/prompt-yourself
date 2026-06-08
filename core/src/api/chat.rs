@@ -8,6 +8,31 @@ use crate::domain::ports::timeline_repository::TimelineRepository;
 use crate::domain::tools;
 use crate::yaml_producer::FileEntry;
 
+/// Accumulated token usage across all API calls in this session.
+///
+/// `context_tokens` is the prompt_tokens of the most recent API call,
+/// which approximates the current context window size (the full history
+/// is resent each turn).
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct TokenUsage {
+    /// Total prompt tokens used across all API calls this session.
+    pub total_input_tokens: u32,
+    /// Total completion tokens generated across all API calls this session.
+    pub total_output_tokens: u32,
+    /// Total cached tokens across all API calls this session.
+    pub total_cached_tokens: u32,
+    /// Total tokens (input + output) consumed this session.
+    pub total_tokens: u32,
+    /// Prompt tokens of the most recent API call (approximates context window size).
+    pub context_tokens: u32,
+    /// Input tokens for the most recent API call.
+    pub last_request_input: u32,
+    /// Output tokens for the most recent API call.
+    pub last_request_output: u32,
+    /// Cached tokens for the most recent API call.
+    pub last_request_cached: u32,
+}
+
 pub const SYSTEM_PROMPT: &str = include_str!("../../resources/system-prompt.md");
 
 /// Short override prompt used in testing mode — suspends the coaching personality
@@ -47,6 +72,9 @@ pub struct Chat {
     last_check_time: DateTime<Utc>,
 
     game_service: GameService,
+
+    /// Accumulated token usage across all API calls this session.
+    token_usage: TokenUsage,
 }
 
 impl Chat {
@@ -71,6 +99,7 @@ impl Chat {
             journal,
             last_check_time: DateTime::UNIX_EPOCH,
             game_service: GameService::new(quest_repository, timeline_repository),
+            token_usage: TokenUsage::default(),
         }
     }
 
@@ -166,7 +195,7 @@ impl Chat {
             }
             messages.extend(self.history.clone());
 
-            let response = self
+            let (response, usage) = self
                 .openai_port
                 .chat_completion_with_tools(
                     messages,
@@ -174,6 +203,16 @@ impl Chat {
                     tools::tool_definitions(),
                 )
                 .await?;
+
+            // Accumulate token usage
+            self.token_usage.context_tokens = usage.prompt_tokens;
+            self.token_usage.total_input_tokens += usage.prompt_tokens;
+            self.token_usage.total_output_tokens += usage.completion_tokens;
+            self.token_usage.total_cached_tokens += usage.cached_tokens.unwrap_or(0);
+            self.token_usage.total_tokens += usage.total_tokens;
+            self.token_usage.last_request_input = usage.prompt_tokens;
+            self.token_usage.last_request_output = usage.completion_tokens;
+            self.token_usage.last_request_cached = usage.cached_tokens.unwrap_or(0);
 
             match response {
                 ChatResponse::Text(reply) => {
@@ -241,6 +280,11 @@ impl Chat {
     /// Return a reference to the last check time.
     pub fn last_check_time(&self) -> &DateTime<Utc> {
         &self.last_check_time
+    }
+
+    /// Return a reference to the accumulated token usage.
+    pub fn token_usage(&self) -> &TokenUsage {
+        &self.token_usage
     }
 
     /// Switch between the normal coaching system prompt and the testing override.

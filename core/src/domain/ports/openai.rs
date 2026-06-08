@@ -6,6 +6,23 @@
 use serde::{Deserialize, Serialize};
 use std::error::Error as _;
 
+// ─── Usage info ─────────────────────────────────────────────────────────────
+
+/// Token usage for a single API call, extracted from the API response.
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct UsageInfo {
+    /// Number of tokens in the prompt.
+    pub prompt_tokens: u32,
+    /// Number of tokens in the generated completion.
+    pub completion_tokens: u32,
+    /// Total tokens used in the request (prompt + completion).
+    pub total_tokens: u32,
+    /// Cached tokens in the prompt, if reported by the API.
+    pub cached_tokens: Option<u32>,
+    /// Reasoning tokens in the completion, if reported by the API.
+    pub reasoning_tokens: Option<u32>,
+}
+
 // ─── Port ───────────────────────────────────────────────────────────────────
 
 /// Driven port for making chat completion requests to an OpenAI-compatible API.
@@ -27,7 +44,7 @@ pub trait OpenAiPort: Send {
         messages: Vec<ChatMessage>,
         max_tokens: u32,
         tools: Vec<ToolDefinition>,
-    ) -> Result<ChatResponse, ChatError>;
+    ) -> Result<(ChatResponse, UsageInfo), ChatError>;
 }
 
 // ─── Domain types ───────────────────────────────────────────────────────────
