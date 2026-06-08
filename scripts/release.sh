@@ -143,7 +143,7 @@ fi
 # Then we handle commit + tag ourselves for full control.
 
 echo ""
-info "Bumping package.json to $NEW_VERSION…"
+info "Bumping package.json to $NEW_VERSION..."
 
 cd "$PLUGIN_DIR"
 npm version "$RELEASE_TYPE" --no-git-tag-version --no-commit-hooks 2>&1
@@ -165,7 +165,7 @@ git commit -m "chore: bump to v$NEW_VERSION"
 
 # ─── Tag ────────────────────────────────────────────────────────────────────
 
-info "Tagging v$NEW_VERSION…"
+info "Tagging v$NEW_VERSION..."
 git tag -a "v$NEW_VERSION" -m "chore: bump to v$NEW_VERSION"
 
 # Verify the tag exists
