@@ -52,7 +52,22 @@ impl OpenAiPort for OpenAiAdapter {
             .with_api_base(&self.api_base_url);
 
         let client = Client::with_config(config);
-        let openai_messages = to_openai_messages(messages);
+        let mut openai_messages = to_openai_messages(messages);
+
+        // ── Inject metadata into the most recent user message ──────────
+        let now = chrono::Utc::now().to_rfc3339();
+        for msg in openai_messages.iter_mut().rev() {
+            if let ChatCompletionRequestMessage::User(user) = msg {
+                if let ChatCompletionRequestUserMessageContent::Text(ref mut text) = user.content {
+                    let meta = format!(
+                        "[metadata]\n  timestamp: {now}\n[/metadata]\n\n"
+                    );
+                    *text = meta + text;
+                }
+                break;
+            }
+        }
+
         let openai_tools = to_openai_tools(tools);
 
         let mut request_builder = CreateChatCompletionRequestArgs::default();
