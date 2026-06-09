@@ -14,20 +14,31 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$ROOT_DIR/obsidian-plugin"
 
 # ─── Terminal colours ────────────────────────────────────────────────────────
+# Use tput for cross-platform ANSI codes (macOS + Linux).
+# Falls back to no colour if tput is unavailable (CI, pipes).
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BOLD='\033[1m'
-NC='\033[0m'
+if command -v tput >/dev/null 2>&1 && tput colors >/dev/null 2>&1; then
+  RED=$(tput setaf 1)
+  GREEN=$(tput setaf 2)
+  YELLOW=$(tput setaf 3)
+  BOLD=$(tput bold)
+  NC=$(tput sgr0)
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  BOLD=''
+  NC=''
+fi
 
-pass() { printf "  ${GREEN}✅${NC} %s\n" "$1"; }
-fail() { printf "  ${RED}❌${NC} %s\n" "$1"; }
-warn() { printf "  ${YELLOW}⚠️${NC} %s\n" "$1"; }
-info() { printf "  ${BOLD}▶${NC} %s\n" "$1"; }
+pass() { printf "  ${GREEN}%s${NC} %s\n" "✅" "$1"; }
+fail() { printf "  ${RED}%s${NC} %s\n" "❌" "$1"; }
+warn() { printf "  ${YELLOW}%s${NC} %s\n" "⚠️" "$1"; }
+info() { printf "  ${BOLD}%s${NC} %s\n" "▶" "$1"; }
 
 die() {
-  printf "\n${RED}${BOLD}Release aborted.${NC}\n" >&2
+  echo ""
+  echo "${RED}${BOLD}Release aborted.${NC}" >&2
   exit 1
 }
 

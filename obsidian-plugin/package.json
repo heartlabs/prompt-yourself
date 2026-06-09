@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build.js",
     "dev": "node build.js --watch",
-    "release": "../scripts/release.sh"
+    "release": "../scripts/release.sh",
+    "release:beta": "../scripts/release.sh --beta"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",
