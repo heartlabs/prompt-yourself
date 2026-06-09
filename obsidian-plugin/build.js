@@ -118,22 +118,20 @@ async function bundle(watch) {
     console.log('✅ Plugin bundled to', path.join(PLUGIN_OUT, 'main.js'));
   }
 
-  // Copy styles.css from src/ to the output directory
+  // Copy styles.css from src/ to output — prepend fonts.css
+  const srcFonts = path.join(PLUGIN_SRC, 'fonts.css');
   const srcCss = path.join(PLUGIN_SRC, 'styles.css');
   const dstCss = path.join(PLUGIN_OUT, 'styles.css');
-  fs.copyFileSync(srcCss, dstCss);
-  console.log('✅ Copied styles.css');
 
-  // Copy fonts/ directory (if it exists)
-  const srcFonts = path.join(PLUGIN_SRC, 'fonts');
-  const dstFonts = path.join(PLUGIN_OUT, 'fonts');
+  let fontsContent = '';
   if (fs.existsSync(srcFonts)) {
-    fs.mkdirSync(dstFonts, { recursive: true });
-    for (const f of fs.readdirSync(srcFonts)) {
-      fs.copyFileSync(path.join(srcFonts, f), path.join(dstFonts, f));
-    }
-    console.log('✅ Copied fonts/');
+    fontsContent = fs.readFileSync(srcFonts, 'utf-8') + '\n';
   }
+  let stylesContent = fs.readFileSync(srcCss, 'utf-8');
+  fs.writeFileSync(dstCss, fontsContent + stylesContent);
+  console.log('✅ Copied styles.css (with fonts.css prepended)');
+
+
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────

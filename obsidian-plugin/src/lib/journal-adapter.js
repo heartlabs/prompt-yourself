@@ -17,6 +17,7 @@
  * filters by mtime, and returns a JSON string. No WASM calls.
  */
 
+import { normalizePath } from 'obsidian';
 import { TEXT_EXTENSIONS } from './constants.js';
 import { msToIso8601 } from './helpers.js';
 
@@ -38,7 +39,7 @@ export function buildVaultLoadCallback(folderPath, vault) {
     if (folderPath === '' || folderPath === '/') {
       folder = vault.getRoot();
     } else {
-      folder = vault.getAbstractFileByPath(folderPath);
+      folder = vault.getAbstractFileByPath(normalizePath(folderPath));
     }
 
     if (!folder || !folder.children) return '[]';
@@ -97,9 +98,8 @@ export function buildVaultLoadCallback(folderPath, vault) {
     await walk(folder.children);
 
     if (results.length > 0) {
-      console.log(
-        `[prompt-yourself] loadEntries(sinceMs=${sinceMs}) returned ${results.length} file(s):`,
-        results.map(r => `${r.path} (${r.lastModified ?? '?'})`).join(', ')
+      console.debug(
+        `[prompt-yourself] loadEntries(sinceMs=${sinceMs}) returned ${results.length} file(s)`
       );
     }
 

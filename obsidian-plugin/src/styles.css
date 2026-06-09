@@ -1,38 +1,3 @@
-/*
- * Prompt Yourself — Adventurer's Chronicle Theme
- *
- * Warm parchment chat panel · dark wood quest board
- * Uses Obsidian CSS variables as base colors with subtle thematic overlays,
- * so it respects the user's chosen theme while keeping the personality.
- */
-
-/* ─── Local Font Faces ────────────────────────────────────────────────────── */
-
-/* Cinzel is a variable font (one file supports all weights 400–700) */
-@font-face {
-  font-family: 'Cinzel';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('fonts/cinzel.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Kalam';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('fonts/kalam-regular.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Kalam';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('fonts/kalam-bold.woff2') format('woff2');
-}
-
 /* ─── Chat Panel ─────────────────────────────────────────────────────────── */
 
 .prompt-yourself-container {
