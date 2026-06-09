@@ -20,3 +20,6 @@ Additional folders in the workspace root are:
 * `sandbox`: docker container to run a coding agent in a sandboxed environment. They are started via `pi.sh` or `claude.sh`. Probably this will be also you.
 * `scripts`: various scripts to be used by human or agent for routine tasks like building, ...
 
+## Hard Rules
+* ALWAYS rebuild the obsidian plugin after you did a change that affects it (scripts/build-plugin.sh)!
+* NEVER git commit or push code yourself or modify the commit history! You MAY use read-only git commands like `git status`, log etc.
