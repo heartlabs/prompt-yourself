@@ -1,6 +1,6 @@
 {
   "name": "prompt-yourself-obsidian-plugin",
-  "version": "1.0.7",
+  "version": "1.0.8-beta.1",
   "private": true,
   "description": "Build dependencies for the Prompt Yourself Obsidian plugin",
   "scripts": {
