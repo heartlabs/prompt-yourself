@@ -44,7 +44,7 @@ export class PromptYourselfView extends ItemView {
       cls: 'quests-btn',
       text: '🏆 Quests',
     });
-    this.questsBtnEl.addEventListener('click', async () => {
+    this.registerDomEvent(this.questsBtnEl, 'click', async () => {
       const leaf = this.app.workspace.getLeaf(true);
       await leaf.setViewState({ type: QUEST_VIEW_TYPE, active: true });
     });
@@ -62,10 +62,10 @@ export class PromptYourselfView extends ItemView {
 
     this.sendBtn = inputRow.createEl('button', { text: 'Send' });
 
-    this.inputEl.addEventListener('keydown', (e) => {
+    this.registerDomEvent(this.inputEl, 'keydown', (e) => {
       if (e.key === 'Enter') this.handleSend();
     });
-    this.sendBtn.addEventListener('click', () => this.handleSend());
+    this.registerDomEvent(this.sendBtn, 'click', () => this.handleSend());
 
     // Load the folder
     await this.loadFolder();
