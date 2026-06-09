@@ -34,8 +34,19 @@ die() {
 # ─── Parse arguments ─────────────────────────────────────────────────────────
 
 RELEASE_TYPE="${1:-}"
+BETA=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --beta) BETA=true ;;
+    patch|minor|major) RELEASE_TYPE="$arg" ;;
+  esac
+done
+
 if [[ "$RELEASE_TYPE" != "patch" && "$RELEASE_TYPE" != "minor" && "$RELEASE_TYPE" != "major" ]]; then
-  echo "Usage: $0 [patch|minor|major]"
+  echo "Usage: $0 [--beta] patch|minor|major"
+  echo ""
+  echo "  --beta    Create a pre-release version (e.g. 1.0.7-beta.1)"
   exit 1
 fi
 
@@ -118,17 +129,32 @@ CURRENT_VERSION=$(node -p "require('$PLUGIN_DIR/package.json').version")
 # Parse current version and compute the next one — pure arithmetic, no file writes
 IFS='.' read -r MAJ MIN PAT <<< "$CURRENT_VERSION"
 case "$RELEASE_TYPE" in
-  patch) NEW_VERSION="$MAJ.$MIN.$((PAT + 1))" ;;
-  minor) NEW_VERSION="$MAJ.$((MIN + 1)).0" ;;
-  major) NEW_VERSION="$((MAJ + 1)).0.0" ;;
+  patch) BASE_VERSION="$MAJ.$MIN.$((PAT + 1))" ;;
+  minor) BASE_VERSION="$MAJ.$((MIN + 1)).0" ;;
+  major) BASE_VERSION="$((MAJ + 1)).0.0" ;;
 esac
 
+if [[ "$BETA" == true ]]; then
+  # Auto-increment beta number from existing tags
+  BETA_NUM=1
+  EXISTING_TAGS=$(cd "$ROOT_DIR" && git tag -l "v${BASE_VERSION}-beta.*" 2>/dev/null || true)
+  if [[ -n "$EXISTING_TAGS" ]]; then
+    LAST_BETA=$(echo "$EXISTING_TAGS" | sed 's/.*-beta\.//' | sort -n | tail -1)
+    BETA_NUM=$((LAST_BETA + 1))
+  fi
+  NEW_VERSION="${BASE_VERSION}-beta.${BETA_NUM}"
+  LABEL="beta $BETA_NUM — preview"
+else
+  NEW_VERSION="$BASE_VERSION"
+  case "$RELEASE_TYPE" in
+    patch) LABEL="patch — bugfix" ;;
+    minor) LABEL="minor — feature" ;;
+    major) LABEL="major — breaking" ;;
+  esac
+fi
+
 echo ""
-case "$RELEASE_TYPE" in
-  patch) info "$CURRENT_VERSION → ${BOLD}$NEW_VERSION${NC} (patch — bugfix)" ;;
-  minor) info "$CURRENT_VERSION → ${BOLD}$NEW_VERSION${NC} (minor — feature)" ;;
-  major) info "$CURRENT_VERSION → ${BOLD}$NEW_VERSION${NC} (major — breaking)" ;;
-esac
+info "$CURRENT_VERSION → ${BOLD}$NEW_VERSION${NC} ($LABEL)"
 echo ""
 
 read -rp "  Create this release? [y/N] " CONFIRM
@@ -143,24 +169,54 @@ fi
 # Then we handle commit + tag ourselves for full control.
 
 echo ""
-info "Bumping package.json to $NEW_VERSION..."
+info "Bumping to $NEW_VERSION..."
 
 cd "$PLUGIN_DIR"
-npm version "$RELEASE_TYPE" --no-git-tag-version --no-commit-hooks 2>&1
 
-# Verify the file was actually written
+# Write version to package.json
+if [[ "$BETA" == true ]]; then
+  # Beta: bump base version first, then overwrite with beta tag
+  npm version "$RELEASE_TYPE" --no-git-tag-version --no-commit-hooks 2>/dev/null
+  node -e "
+    const p = require('./package.json');
+    p.version = '$NEW_VERSION';
+    require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
+  "
+else
+  npm version "$RELEASE_TYPE" --no-git-tag-version --no-commit-hooks 2>&1
+fi
+
+# Verify
 WRITTEN_VERSION=$(node -p "require('./package.json').version")
 if [[ "$WRITTEN_VERSION" != "$NEW_VERSION" ]]; then
-  die "npm version wrote '$WRITTEN_VERSION' but expected '$NEW_VERSION'"
+  die "package.json has '$WRITTEN_VERSION' but expected '$NEW_VERSION'"
 fi
 pass "package.json: $WRITTEN_VERSION"
+
+# Sync version into manifest.json
+node -e "
+  const m = require('./manifest.json');
+  m.version = '$NEW_VERSION';
+  require('fs').writeFileSync('./manifest.json', JSON.stringify(m, null, 2) + '\n');
+"
+pass "manifest.json: $NEW_VERSION"
+
+# Sync version into manifest-beta.json (so BRAT always sees the latest)
+if [[ -f "manifest-beta.json" ]]; then
+  node -e "
+    const m = require('./manifest-beta.json');
+    m.version = '$NEW_VERSION';
+    require('fs').writeFileSync('./manifest-beta.json', JSON.stringify(m, null, 2) + '\n');
+  "
+  pass "manifest-beta.json: $NEW_VERSION"
+fi
 
 # ─── Commit ──────────────────────────────────────────────────────────────────
 
 info "Committing…"
 
 cd "$ROOT_DIR"
-git add obsidian-plugin/package.json obsidian-plugin/package-lock.json
+git add obsidian-plugin/
 git commit -m "chore: bump to v$NEW_VERSION"
 
 # ─── Tag ────────────────────────────────────────────────────────────────────
@@ -185,8 +241,16 @@ git push origin "v$NEW_VERSION"
 echo ""
 echo "${GREEN}${BOLD}✅ Release v$NEW_VERSION published!${NC}"
 echo ""
-echo "  The CI workflow will now build the plugin and"
-echo "  create a GitHub Release with the artifacts."
+if [[ "$BETA" == true ]]; then
+  echo "  🧪 Beta release — testers with BRAT installed will auto-update."
+  echo ""
+fi
+echo "  CI workflow: https://github.com/heartlabs/prompt-yourself/actions"
 echo ""
-echo "    https://github.com/heartlabs/prompt-yourself/actions"
-echo ""
+if [[ "$BETA" == true ]]; then
+  echo "  Tell beta testers to:"
+  echo "    1. Install the BRAT plugin from Community Plugins"
+  echo "    2. Run command: BRAT: Add a beta plugin for testing"
+  echo "    3. Enter: https://github.com/heartlabs/prompt-yourself"
+  echo ""
+fi

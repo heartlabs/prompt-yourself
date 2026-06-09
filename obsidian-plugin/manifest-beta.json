@@ -1,0 +1,11 @@
+{
+  "id": "prompt-yourself",
+  "name": "Prompt Yourself (Beta)",
+  "version": "1.0.6-beta.1",
+  "minAppVersion": "1.0.0",
+  "description": "Beta version of Prompt Yourself — AI chat for your journal.",
+  "author": "heartlabs",
+  "authorUrl": "https://github.com/heartlabs",
+  "fundingUrl": "https://github.com/sponsors/heartlabs",
+  "isDesktopOnly": false
+}

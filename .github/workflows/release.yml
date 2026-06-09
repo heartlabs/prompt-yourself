@@ -36,12 +36,26 @@ jobs:
         run: node build.js
         working-directory: obsidian-plugin
 
+      - name: Detect pre-release
+        id: check
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ "$TAG" == *-beta* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "🧪 Pre-release detected: $TAG"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "📦 Stable release: $TAG"
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ steps.check.outputs.prerelease }}
           files: |
             obsidian-plugin/main.js
             obsidian-plugin/manifest.json
+            obsidian-plugin/manifest-beta.json
             obsidian-plugin/styles.css
             obsidian-plugin/LICENSE
             obsidian-plugin/versions.json
