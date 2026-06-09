@@ -27,7 +27,7 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
     const profileManager = new ProfileManager(this.plugin, keychain);
     const activeProfile = profileManager.activeProfile;
 
-    containerEl.createEl('h2', { text: 'Prompt Yourself Settings' });
+    new Setting(containerEl).setName('Prompt Yourself').setHeading();
 
     // ── Profile selector ──────────────────────────────────────────────
 
@@ -97,8 +97,7 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
     // ── Separator: Profile-specific settings ─────────────────────────
 
     if (activeProfile) {
-      const headerText = `── Profile: ${activeProfile.name} ──`;
-      containerEl.createEl('h3', { text: headerText });
+      new Setting(containerEl).setName(`Profile: ${activeProfile.name}`).setHeading();
 
       const useKeychain = keychain.isAvailable;
 
@@ -232,7 +231,7 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
 
     // ── Data ───────────────────────────────────────────────────────────
 
-    containerEl.createEl('h3', { text: 'Data' });
+    new Setting(containerEl).setName('Data').setHeading();
 
     new Setting(containerEl)
       .setName('Reset Game Data')
