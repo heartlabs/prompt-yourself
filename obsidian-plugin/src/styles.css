@@ -1,7 +1,37 @@
-/* Adventurer's Chronicle Theme — Prompt Yourself */
-/* Warm parchment chat panel · dark wood quest board */
+/*
+ * Prompt Yourself — Adventurer's Chronicle Theme
+ *
+ * Warm parchment chat panel · dark wood quest board
+ * Uses Obsidian CSS variables as base colors with subtle thematic overlays,
+ * so it respects the user's chosen theme while keeping the personality.
+ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Kalam:wght@400;700&display=swap');
+/* ─── Local Font Faces ────────────────────────────────────────────────────── */
+
+/* Cinzel is a variable font (one file supports all weights 400–700) */
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/cinzel.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Kalam';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/kalam-regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Kalam';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/kalam-bold.woff2') format('woff2');
+}
 
 /* ─── Chat Panel ─────────────────────────────────────────────────────────── */
 
@@ -12,15 +42,13 @@
   padding: 10px;
   gap: 7px;
   position: relative;
-  background:
-    radial-gradient(ellipse 110% 55% at 50% 35%, rgba(220, 140, 40, 0.07) 0%, transparent 65%),
-    linear-gradient(160deg, #1e1408 0%, #140e06 100%);
+  background-color: var(--background-primary);
 }
 
 .prompt-yourself-container .file-label {
   font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 10px;
-  color: rgba(200, 160, 80, 0.5);
+  color: var(--text-faint);
   letter-spacing: 0.1em;
   margin-bottom: 2px;
   white-space: nowrap;
@@ -31,50 +59,57 @@
 .prompt-yourself-container .quests-btn {
   align-self: flex-start;
   padding: 3px 10px;
-  border: 1px solid rgba(200, 160, 80, 0.28);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 2px;
-  background: linear-gradient(135deg, rgba(42, 26, 10, 0.9), rgba(30, 18, 6, 0.9));
-  color: rgba(200, 160, 80, 0.65);
+  background: var(--background-secondary);
+  color: var(--text-muted);
   cursor: pointer;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 11px;
   letter-spacing: 0.06em;
   transition: border-color 0.2s, color 0.2s, background 0.2s;
 }
 
 .prompt-yourself-container .quests-btn:hover {
-  border-color: rgba(200, 160, 80, 0.55);
-  color: rgba(220, 180, 90, 1);
-  background: linear-gradient(135deg, rgba(58, 36, 14, 0.95), rgba(42, 26, 10, 0.95));
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
+  background: var(--background-modifier-hover);
 }
 
 /* Parchment chat area with ruled lines */
 .prompt-yourself-container .chat-area {
   flex: 1;
   overflow-y: auto;
-  border: 1px solid rgba(200, 160, 80, 0.22);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 3px;
   padding: 10px;
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 23px,
-      rgba(100, 80, 40, 0.06) 23px,
-      rgba(100, 80, 40, 0.06) 24px
-    ),
-    linear-gradient(160deg, #f2e8d0 0%, #ece0c0 45%, #e8d8b0 100%);
-  box-shadow:
-    inset 0 0 24px rgba(0, 0, 0, 0.07),
-    0 2px 8px rgba(0, 0, 0, 0.32);
+  background-color: var(--background-primary);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.07), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Subtle ruled-line texture overlay — visible in light themes, muted in dark */
+.prompt-yourself-container .chat-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 23px,
+    rgba(128, 128, 128, 0.04) 23px,
+    rgba(128, 128, 128, 0.04) 24px
+  );
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 3px;
 }
 
 /* Compass rose watermark */
-.prompt-yourself-container .chat-area::before {
+.prompt-yourself-container .chat-area::after {
   content: '';
   position: absolute;
   bottom: 10px;
@@ -93,10 +128,10 @@
   width: 4px;
 }
 .prompt-yourself-container .chat-area::-webkit-scrollbar-track {
-  background: rgba(200, 160, 80, 0.08);
+  background: transparent;
 }
 .prompt-yourself-container .chat-area::-webkit-scrollbar-thumb {
-  background: rgba(200, 160, 80, 0.28);
+  background: var(--scrollbar-thumb-bg);
   border-radius: 2px;
 }
 
@@ -114,7 +149,7 @@
   -webkit-user-select: text;
   position: relative;
   z-index: 1;
-  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
+  font-family: 'Kalam', 'Bradley Hand ITC', 'Segoe Print', cursive, sans-serif;
 }
 
 .prompt-yourself-container .message > *:first-child { margin-top: 0; }
@@ -123,22 +158,22 @@
 .prompt-yourself-container .message p { margin: 0.8em 0; }
 
 .prompt-yourself-container .message pre {
-  background: rgba(200, 160, 80, 0.1);
-  border: 1px solid rgba(200, 160, 80, 0.22);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 2px;
   padding: 6px 10px;
   overflow-x: auto;
   margin: 0.3em 0;
-  font-family: monospace;
+  font-family: var(--font-monospace);
   font-size: 0.88em;
 }
 
 .prompt-yourself-container .message code {
-  background: rgba(139, 96, 48, 0.12);
+  background: var(--background-modifier-hover);
   border-radius: 2px;
   padding: 1px 4px;
   font-size: 0.88em;
-  font-family: monospace;
+  font-family: var(--font-monospace);
 }
 
 .prompt-yourself-container .message pre > code {
@@ -156,11 +191,11 @@
 .prompt-yourself-container .message li { margin: 0.4em 0; }
 
 .prompt-yourself-container .message blockquote {
-  border-left: 2px solid rgba(139, 96, 48, 0.48);
+  border-left: 2px solid var(--text-muted);
   margin: 0.3em 0;
   padding: 0.15em 0.7em;
-  color: rgba(42, 26, 8, 0.68);
-  background: rgba(200, 160, 80, 0.06);
+  color: var(--text-muted);
+  background: var(--background-secondary);
   border-radius: 0 2px 2px 0;
 }
 
@@ -172,19 +207,19 @@
 
 .prompt-yourself-container .message th,
 .prompt-yourself-container .message td {
-  border: 1px solid rgba(139, 96, 48, 0.28);
+  border: 1px solid var(--background-modifier-border);
   padding: 4px 8px;
   text-align: left;
 }
 
 .prompt-yourself-container .message th {
-  background: rgba(200, 160, 80, 0.12);
+  background: var(--background-secondary);
   font-weight: 600;
 }
 
 .prompt-yourself-container .message hr {
   border: none;
-  border-top: 1px solid rgba(139, 96, 48, 0.22);
+  border-top: 1px solid var(--background-modifier-border);
   margin: 0.8em 0;
 }
 
@@ -194,37 +229,35 @@
 }
 
 .prompt-yourself-container .message a {
-  color: #6a3a10;
+  color: var(--text-accent);
   text-decoration: underline;
 }
 
-/* User message — right-aligned, warm tint */
+/* User message — right-aligned, accent tint */
 .prompt-yourself-container .message.user {
   align-self: flex-end;
-  background: linear-gradient(135deg,
-    rgba(139, 90, 43, 0.14),
-    rgba(200, 160, 80, 0.09));
-  color: #2a1a08;
-  border: 1px solid rgba(139, 90, 43, 0.26);
-  border-right: 2px solid rgba(139, 90, 43, 0.42);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-right: 2px solid var(--interactive-accent);
 }
 
-/* Assistant message — primary parchment, dark ink */
+/* Assistant message — left-aligned, primary background */
 .prompt-yourself-container .message.assistant {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.3);
-  color: #2a1a08;
-  border: 1px solid rgba(139, 96, 48, 0.18);
-  border-left: 2px solid rgba(139, 96, 48, 0.42);
+  background: var(--background-primary-alt);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 2px solid var(--interactive-accent);
 }
 
-/* System message */
+/* System message — centered, subdued */
 .prompt-yourself-container .message.system {
   align-self: center;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 10px;
   letter-spacing: 0.06em;
-  color: rgba(42, 26, 8, 0.48);
+  color: var(--text-faint);
   background: transparent;
   padding: 3px 8px;
   border: none;
@@ -233,12 +266,12 @@
 /* Tool message */
 .prompt-yourself-container .message.tool {
   align-self: center;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 11px;
   letter-spacing: 0.06em;
-  color: rgba(139, 60, 20, 0.72);
-  background: rgba(200, 160, 80, 0.08);
-  border: 1px solid rgba(200, 160, 80, 0.16);
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
   padding: 4px 10px;
   border-radius: 2px;
 }
@@ -253,8 +286,8 @@
   height: 14px;
   border-radius: 50%;
   background: conic-gradient(
-    rgba(139, 96, 48, 0.7) calc(var(--fill-pct, 0) * 1%),
-    rgba(200, 160, 80, 0.15) calc(var(--fill-pct, 0) * 1%)
+    var(--interactive-accent) calc(var(--fill-pct, 0) * 1%),
+    var(--background-modifier-border) calc(var(--fill-pct, 0) * 1%)
   );
   cursor: default;
   z-index: 5;
@@ -268,14 +301,14 @@
   top: calc(100% + 6px);
   right: 0;
   white-space: pre-line;
-  background: rgba(20, 14, 6, 0.92);
-  color: #c8a050;
-  font-family: 'Cinzel', Georgia, serif;
+  background: var(--background-primary-alt);
+  color: var(--text-normal);
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 10px;
   line-height: 1.6;
   padding: 6px 10px;
   border-radius: 3px;
-  border: 1px solid rgba(200, 160, 80, 0.25);
+  border: 1px solid var(--background-modifier-border);
   z-index: 100;
   pointer-events: none;
   min-width: 160px;
@@ -290,9 +323,9 @@
   align-self: flex-start;
   padding: 9px 14px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.35);
-  border: 1px solid rgba(139, 96, 48, 0.18);
-  border-left: 2px solid rgba(139, 96, 48, 0.42);
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 2px solid var(--interactive-accent);
   min-height: 20px;
   position: relative;
   z-index: 1;
@@ -303,7 +336,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: rgba(139, 96, 48, 0.55);
+  background: var(--text-muted);
   animation: typing-bounce 1.4s ease-in-out infinite;
 }
 
@@ -340,36 +373,34 @@
 .prompt-yourself-container .input-row input {
   flex: 1;
   padding: 7px 10px;
-  border: 1px solid rgba(200, 160, 80, 0.28);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 2px;
-  background: linear-gradient(135deg, #f2e8d0, #ece0c0);
-  color: #2a1a08;
-  caret-color: #b8860b;
-  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  caret-color: var(--interactive-accent);
+  font-family: 'Kalam', 'Bradley Hand ITC', 'Segoe Print', cursive, sans-serif;
   font-size: 13px;
 }
 
 .prompt-yourself-container .input-row input::placeholder {
-  color: rgba(139, 96, 48, 0.42);
+  color: var(--text-faint);
   font-style: italic;
 }
 
 .prompt-yourself-container .input-row input:focus {
-  border-color: rgba(200, 160, 80, 0.85);
+  border-color: var(--interactive-accent);
   outline: none;
-  box-shadow:
-    0 0 0 1px rgba(200, 160, 80, 0.7),
-    0 0 8px rgba(242, 232, 200, 0.35);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
 }
 
 .prompt-yourself-container .input-row button {
   padding: 7px 14px;
-  border: 1px solid rgba(200, 160, 80, 0.38);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 2px;
-  background: linear-gradient(135deg, #3a2010, #2a1608);
-  color: rgba(200, 160, 80, 0.88);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
   cursor: pointer;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 11px;
   letter-spacing: 0.06em;
   transition: all 0.2s;
@@ -381,15 +412,13 @@
 }
 
 .prompt-yourself-container .input-row button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4a2814, #382010);
-  border-color: rgba(200, 160, 80, 0.62);
-  color: rgba(232, 192, 96, 1);
+  filter: brightness(1.15);
 }
 
 .prompt-yourself-container .error {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 11px;
-  color: rgba(180, 40, 20, 0.78);
+  color: var(--text-error);
   padding: 4px 8px;
 }
 
@@ -398,46 +427,45 @@
 .prompt-yourself-quests {
   padding: 14px;
   min-height: 100%;
-  /* Dark wood background */
-  background:
+  background-color: var(--background-primary-alt);
+  /* Subtle wood-grain texture overlay */
+  background-image:
     repeating-linear-gradient(
       6deg,
       transparent,
       transparent 11px,
-      rgba(255, 255, 255, 0.012) 11px,
-      rgba(255, 255, 255, 0.012) 12px
+      rgba(128, 128, 128, 0.015) 11px,
+      rgba(128, 128, 128, 0.015) 12px
     ),
     repeating-linear-gradient(
       -4deg,
       transparent,
       transparent 9px,
-      rgba(0, 0, 0, 0.04) 9px,
-      rgba(0, 0, 0, 0.04) 10px
-    ),
-    linear-gradient(160deg, #201408 0%, #1a1008 100%);
+      rgba(0, 0, 0, 0.025) 9px,
+      rgba(0, 0, 0, 0.025) 10px
+    );
 }
 
 .prompt-yourself-quests h2 {
   font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 13px;
   font-weight: 700;
-  color: rgba(200, 160, 80, 0.88);
+  color: var(--text-normal);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   margin-top: 0;
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(200, 160, 80, 0.2);
-  text-shadow: 0 0 12px rgba(200, 160, 80, 0.28);
+  border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .prompt-yourself-quests h3 {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(200, 160, 80, 0.5);
+  color: var(--text-muted);
   margin: 12px 0 10px;
 }
 
@@ -450,21 +478,21 @@
   gap: 12px;
 }
 
-/* Quest item — parchment scroll with pushpin */
+/* Quest item — scroll card with pushpin */
 .prompt-yourself-quests li {
   margin: 0;
-  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
+  font-family: 'Kalam', 'Bradley Hand ITC', 'Segoe Print', cursive, sans-serif;
   font-size: 12.5px;
   line-height: 1.48;
-  color: #2a1a08;
-  background: linear-gradient(135deg, #f0e4c0, #e8d8a8, #f2e6c4);
-  border: 1px solid rgba(200, 160, 80, 0.48);
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 2px;
   padding: 8px 10px 8px 12px;
   position: relative;
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    0 2px 6px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* Rolled top-edge shadow */
@@ -480,7 +508,7 @@
   pointer-events: none;
 }
 
-/* Pushpin */
+/* Red pushpin */
 .prompt-yourself-quests li::before {
   content: '';
   position: absolute;
@@ -491,31 +519,31 @@
   height: 9px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #e03020, #7a0a0a);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 1px 1px rgba(255, 160, 140, 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 160, 140, 0.18);
   z-index: 1;
 }
 
 .prompt-yourself-quests li strong {
   font-weight: 700;
-  color: #1a0e04;
+  color: var(--text-normal);
 }
 
 /* ─── Pinned quests ──────────────────────────────────────────────────── */
 
 .prompt-yourself-quests .quests-pinned {
   margin: 0;
-  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
+  font-family: 'Kalam', 'Bradley Hand ITC', 'Segoe Print', cursive, sans-serif;
   font-size: 12.5px;
   line-height: 1.48;
-  color: #2a1a08;
-  background: linear-gradient(135deg, #f0e4c0, #e8d8a8, #f2e6c4);
-  border: 1px solid rgba(200, 160, 80, 0.48);
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 2px;
   padding: 8px 10px 8px 12px;
   position: relative;
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    0 2px 6px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .prompt-yourself-quests .quests-pinned::after {
@@ -530,6 +558,7 @@
   pointer-events: none;
 }
 
+/* Green pushpin for pinned quests */
 .prompt-yourself-quests .quests-pinned::before {
   content: '';
   position: absolute;
@@ -540,7 +569,7 @@
   height: 9px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #3a7a3a, #1a4a1a);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 1px 1px rgba(140, 220, 140, 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(140, 220, 140, 0.18);
   z-index: 1;
 }
 
@@ -553,7 +582,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  border-left: 2px solid rgba(200, 160, 80, 0.2);
+  border-left: 2px solid var(--background-modifier-border);
   margin-left: 8px;
   padding-left: 0;
 }
@@ -581,7 +610,7 @@
 }
 
 .prompt-yourself-quests .quests-timeline-entry:hover {
-  background: rgba(200, 160, 80, 0.06);
+  background: var(--background-modifier-hover);
 }
 
 /* Timeline dot on the left border */
@@ -593,8 +622,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #d4a84a, #8b6910);
-  box-shadow: 0 0 4px rgba(200, 160, 80, 0.4);
+  background: radial-gradient(circle at 35% 30%, var(--interactive-accent), var(--text-accent));
+  box-shadow: 0 0 4px var(--interactive-accent);
   z-index: 1;
 }
 
@@ -604,19 +633,19 @@
   align-items: baseline;
   gap: 10px;
   padding: 7px 10px 7px 14px;
-  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
+  font-family: 'Kalam', 'Bradley Hand ITC', 'Segoe Print', cursive, sans-serif;
   font-size: 13px;
   line-height: 1.5;
-  color: #c8a050;
-  border-bottom: 1px solid rgba(200, 160, 80, 0.08);
+  color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
 }
 
 /* Column 1: timestamp */
 .prompt-yourself-quests .quests-timeline-time {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 10px;
   letter-spacing: 0.06em;
-  color: rgba(200, 160, 80, 0.45);
+  color: var(--text-faint);
   flex-shrink: 0;
   min-width: 60px;
 }
@@ -625,7 +654,7 @@
 .prompt-yourself-quests .quests-timeline-title {
   flex: 1;
   font-weight: 700;
-  color: #d4b868;
+  color: var(--text-normal);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -633,26 +662,26 @@
 
 /* Column 3: points badge */
 .prompt-yourself-quests .quests-timeline-points {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 11px;
   font-weight: 700;
-  color: rgba(200, 160, 80, 0.6);
+  color: var(--text-muted);
   flex-shrink: 0;
   padding: 1px 6px;
-  border: 1px solid rgba(200, 160, 80, 0.2);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 2px;
-  background: rgba(200, 160, 80, 0.06);
+  background: var(--background-secondary);
 }
 
 /* Expanded description (hidden by default) */
 .prompt-yourself-quests .quests-timeline-desc {
   display: none;
   padding: 0 10px 10px 22px;
-  font-family: 'Kalam', 'Bradley Hand ITC', cursive, sans-serif;
+  font-family: 'Kalam', 'Bradley Hand ITC', 'Segoe Print', cursive, sans-serif;
   font-size: 12px;
   line-height: 1.5;
-  color: rgba(200, 160, 80, 0.65);
-  border-bottom: 1px solid rgba(200, 160, 80, 0.08);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .prompt-yourself-quests .quests-timeline-entry.is-expanded .quests-timeline-desc {
@@ -665,8 +694,8 @@
 }
 
 .prompt-yourself-quests .quests-empty {
-  color: rgba(200, 160, 80, 0.32);
-  font-family: 'Cinzel', Georgia, serif;
+  color: var(--text-faint);
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 11px;
   font-style: italic;
   letter-spacing: 0.04em;
@@ -675,35 +704,34 @@
 .prompt-yourself-quests hr {
   margin: 12px 0;
   border: none;
-  border-top: 1px solid rgba(200, 160, 80, 0.18);
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 .prompt-yourself-quests .quests-total {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: rgba(200, 160, 80, 0.82);
+  color: var(--text-normal);
   margin: 6px 0;
-  text-shadow: 0 0 8px rgba(200, 160, 80, 0.22);
 }
 
 .prompt-yourself-quests button {
   margin-top: 10px;
   padding: 4px 14px;
-  border: 1px solid rgba(200, 160, 80, 0.32);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 2px;
-  background: linear-gradient(135deg, #2a1810, #1e1208);
-  color: rgba(200, 160, 80, 0.72);
+  background: var(--background-secondary);
+  color: var(--text-muted);
   cursor: pointer;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
   font-size: 11px;
   letter-spacing: 0.08em;
   transition: all 0.2s;
 }
 
 .prompt-yourself-quests button:hover {
-  border-color: rgba(200, 160, 80, 0.58);
-  color: rgba(220, 180, 90, 1);
-  background: linear-gradient(135deg, #3a2414, #2a1a0e);
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
+  background: var(--background-modifier-hover);
 }

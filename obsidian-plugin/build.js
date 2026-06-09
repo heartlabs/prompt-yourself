@@ -123,6 +123,17 @@ async function bundle(watch) {
   const dstCss = path.join(PLUGIN_OUT, 'styles.css');
   fs.copyFileSync(srcCss, dstCss);
   console.log('✅ Copied styles.css');
+
+  // Copy fonts/ directory (if it exists)
+  const srcFonts = path.join(PLUGIN_SRC, 'fonts');
+  const dstFonts = path.join(PLUGIN_OUT, 'fonts');
+  if (fs.existsSync(srcFonts)) {
+    fs.mkdirSync(dstFonts, { recursive: true });
+    for (const f of fs.readdirSync(srcFonts)) {
+      fs.copyFileSync(path.join(srcFonts, f), path.join(dstFonts, f));
+    }
+    console.log('✅ Copied fonts/');
+  }
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────

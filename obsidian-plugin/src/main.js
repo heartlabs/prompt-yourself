@@ -57,13 +57,6 @@ class PromptYourselfPlugin extends Plugin {
     this.questRepository = new ObsidianQuestRepository(this);
     this.timelineRepository = new ObsidianTimelineRepository(this);
 
-    // Load theme fonts
-    this._themeFont = document.createElement('link');
-    this._themeFont.rel = 'stylesheet';
-    this._themeFont.href =
-      'https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Kalam:wght@400;700&display=swap';
-    document.head.appendChild(this._themeFont);
-
     this.registerView(VIEW_TYPE, (leaf) => new PromptYourselfView(leaf, this));
     this.registerView(QUEST_VIEW_TYPE, (leaf) => new PromptYourselfQuestView(leaf));
 
@@ -122,9 +115,7 @@ class PromptYourselfPlugin extends Plugin {
   }
 
   onunload() {
-    if (this._themeFont && this._themeFont.parentNode) {
-      this._themeFont.parentNode.removeChild(this._themeFont);
-    }
+    // Font faces are bundled in styles.css — no cleanup needed.
   }
 
   async activateView() {

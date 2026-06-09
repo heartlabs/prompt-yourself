@@ -14,3 +14,4 @@ obsidian-plugin/src/core_wasm.d.ts
 obsidian-plugin/data.json
 obsidian-plugin/node_modules/
 obsidian-plugin/styles.css
+obsidian-plugin/fonts/
