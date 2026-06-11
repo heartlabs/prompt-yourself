@@ -135,16 +135,23 @@ A couple of days later a new journal entry to prime the conversation:<br>
   <tr>
     <td align="center"><strong>Chat Pane</strong></td>
     <td align="center"><strong>Chat Continued</strong></td>
-    <td align="center"><strong>Quest Pane</strong></td>
+    
   </tr>
   <tr>
-    <td><img src="documentation/chat-2.png" alt="Chat Pane" width="320" /></td>
-    <td><img src="documentation/chat-3.png" alt="Chat Continued" width="320" /></td>
-    <td><img src="documentation/quests-1.png" alt="Today's Quests" width="320" /></td>
+    <td><img src="documentation/chat-2.png" alt="Chat Pane" width="380" /></td>
+    <td><img src="documentation/chat-3.png" alt="Chat Continued" width="380" /></td>
   </tr>
   <tr>
     <td align="center">How it might look like "prompting yourself"</td>
     <td align="center">Chat continuation in the sidebar</td>
+  </tr>
+  <tr>
+  <td align="center"><strong>Quest Pane</strong></td>
+  </tr>
+  <tr>
+    <td><img src="documentation/quests-1.png" alt="Today's Quests" width="380" /></td>
+  </tr>
+  <tr>
     <td align="center">Open quests plus one completed quest on the timeline</td>
   </tr>
 </table>
