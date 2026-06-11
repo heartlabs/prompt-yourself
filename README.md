@@ -128,7 +128,7 @@ You can choose to give the LLM just access to a subdirectory of your vault, keep
 
 #### Screenshots
 
-A couple of days later a new journal entry to prime the conversation:
+A couple of days later a new journal entry to prime the conversation:<br>
 <img src="documentation/june-11.png" alt="Journal Entry" width="320" />
 
 <table>
