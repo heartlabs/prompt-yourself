@@ -49,23 +49,23 @@ While it is a variation of written rubber-ducking and thus is capable of solving
 ### The Process
 
 Setup
-1. On top of the empty page you write a paragraph detailing your goal in your words
-![Example Goal](documentation/image.png)
+1. On top of the empty page you write a paragraph detailing your goal in your words <br>
+<img src="documentation/image.png" alt="Example Goal" width="320" />
 
 Every Day
-1. Start a new section on the page (or new empty page) titled with the current date (e.g. "June 8th")
-![Empty Page](documentation/image-1.png)
+1. Start a new section on the page (or new empty page) titled with the current date (e.g. "June 8th")<br>
+<img src="documentation/image-1.png" alt="Empty Page" width="320" />
 
 2. Look at the empty page below the title, thinking about your goal
 
-3. Write the first sentence down that comes to your mind related to the goal. Focus on what feels most immediate and relevant to you in the current moment.
-![First Sentence](documentation/image-2.png)
+3. Write the first sentence down that comes to your mind related to the goal. Focus on what feels most immediate and relevant to you in the current moment.<br>
+<img src="documentation/image-2.png" alt="First Sentence" width="320" />
 
-4. Stay focussed on what you just wrote and "just sit with it" and see how it feels. Then continue writing down emerging follow-up thoughts. This can be prose or a bullet point format.
-![First  Paragraph](documentation/image-3.png)
+4. Stay focussed on what you just wrote and "just sit with it" and see how it feels. Then continue writing down emerging follow-up thoughts. This can be prose or a bullet point format.<br>
+<img src="documentation/image-3.png" alt="First  Paragraph" width="320" />
 
-5. Repeat 4. until you are satisfied. Make sure to remind yourself on your main goal from time to time and keep your writing somehow relevant. Don't worry about spelling or it even making sense to anyone else but you. Noone else is going to read it!
-![Second Paragraph](documentation/image-4.png)
+5. Repeat 4. until you are satisfied. Make sure to remind yourself on your main goal from time to time and keep your writing somehow relevant. Don't worry about spelling or it even making sense to anyone else but you. Noone else is going to read it!<br>
+<img src="documentation/image-4.png" alt="Second Paragraph" width="320" />
 
 The empty page and uncompleted thought should create a certain _tension_ in you, stimulating your brain and creating the need to complete what you started. Focussing on what you already wrote should keep the thoughts from going in circles, slowly but steadily progressing to a novel perspective or idea, one step closer to a solution.
 
@@ -129,16 +129,25 @@ You can choose to give the LLM just access to a subdirectory of your vault, keep
 #### Screenshots
 
 A couple of days later a new journal entry to prime the conversation:
-![Journal Entry](documentation/june-11.png)
+<img src="documentation/june-11.png" alt="Journal Entry" width="320" />
 
-Chat Pane:
-![Chat Pane](documentation/chat-2.png)
-![Chat Continued](documentation/chat-3.png)
-How it might look like "prompting yourself"
-
-Quest Pane:
-![Today's Quests](documentation/quests-1.png)
-The screenshot shows the open quests that just had been created, plus one already completed quest on the timeline
+<table>
+  <tr>
+    <td align="center"><strong>Chat Pane</strong></td>
+    <td align="center"><strong>Chat Continued</strong></td>
+    <td align="center"><strong>Quest Pane</strong></td>
+  </tr>
+  <tr>
+    <td><img src="documentation/chat-2.png" alt="Chat Pane" width="320" /></td>
+    <td><img src="documentation/chat-3.png" alt="Chat Continued" width="320" /></td>
+    <td><img src="documentation/quests-1.png" alt="Today's Quests" width="320" /></td>
+  </tr>
+  <tr>
+    <td align="center">How it might look like "prompting yourself"</td>
+    <td align="center">Chat continuation in the sidebar</td>
+    <td align="center">Open quests plus one completed quest on the timeline</td>
+  </tr>
+</table>
 
 #### Known Issues
 
@@ -150,7 +159,7 @@ The screenshot shows the open quests that just had been created, plus one alread
 
 ## ⚠️ A Warning
 
-Self reflection may surface past trauma etc. or re-enforce eventual harmful thoughts. The same is true for the AI chat experience which in the end just feeds back to you what you feed it with. Trust this process and/or application at most as much as you trust yourself and obviously ask for professional help and/or feedback from friends or family if any concern comes up.
+Self reflection may re-surface past trauma etc. or re-enforce eventual harmful thoughts. The same is true for the AI chat experience which in the end just feeds back to you what you feed it with. Trust this process and/or application at most as much as you trust yourself and obviously ask for professional help and/or feedback from friends or family if any concern arises during the process.
 
 I, the developer of this plugin and framework, am just a random guy from the internet, not a mental health etc. professional or expert.
 
