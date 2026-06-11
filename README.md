@@ -50,29 +50,30 @@ While it is a variation of written rubber-ducking and thus is capable of solving
 
 Setup
 1. On top of the empty page you write a paragraph detailing your goal in your words
-[TODO: Example Goal]
+![Example Goal](documentation/image.png)
 
 Every Day
 1. Start a new section on the page (or new empty page) titled with the current date (e.g. "June 8th")
-[TODO: Screenshot]
+![Empty Page](documentation/image-1.png)
 
 2. Look at the empty page below the title, thinking about your goal
-[TODO: Screenshot]
 
 3. Write the first sentence down that comes to your mind related to the goal. Focus on what feels most immediate and relevant to you in the current moment.
-[TODO: Screenshot]
+![First Sentence](documentation/image-2.png)
 
 4. Stay focussed on what you just wrote and "just sit with it" and see how it feels. Then continue writing down emerging follow-up thoughts. This can be prose or a bullet point format.
-[TODO: Screenshot]
+![First  Paragraph](documentation/image-3.png)
 
 5. Repeat 4. until you are satisfied. Make sure to remind yourself on your main goal from time to time and keep your writing somehow relevant. Don't worry about spelling or it even making sense to anyone else but you. Noone else is going to read it!
-[TODO: Screenshot]
+![Second Paragraph](documentation/image-4.png)
 
 The empty page and uncompleted thought should create a certain _tension_ in you, stimulating your brain and creating the need to complete what you started. Focussing on what you already wrote should keep the thoughts from going in circles, slowly but steadily progressing to a novel perspective or idea, one step closer to a solution.
 
 At the same time it should help you to "check in with yourself" to become aware of your mental state and how you feel in the moment, something that we often forget to prioritize and never find time to do, but is absolutely necessary for a healthy lifestyle.
 
 Finally your journal becomes a "save state" of your thought process. Just by reading the last paragraphs you can pick up on the next day where you left off.
+
+
 
 ## The AI Application
 
@@ -124,6 +125,34 @@ Features
 * A little "game" / quest system
 
 You can choose to give the LLM just access to a subdirectory of your vault, keeping the rest private. If you choose a local LLM model, the data will _not_ leave your device. Of course if you choose a hosted LLM provicer like Anthropic, your entire journal content may be processed by their servers. Their is no server backend for the plugin and it runs fully local as well so you remain entirely in control of your data.
+
+#### Screenshots
+
+A couple of days later a new journal entry to prime the conversation:
+![Journal Entry](documentation/june-11.png)
+
+Chat Pane:
+![Chat Pane](documentation/chat-2.png)
+![Chat Continued](documentation/chat-3.png)
+How it might look like "prompting yourself"
+
+Quest Pane:
+![Today's Quests](documentation/quests-1.png)
+The screenshot shows the open quests that just had been created, plus one already completed quest on the timeline
+
+#### Known Issues
+
+* At the moment the whole content of the journal is loaded into the context at the start of the conversation with the LLM, so the plugin at the moment only works for reasonably small diaries. I suggest for example <200K words for 1M token context window. A solution is under development.
+
+* There is no guaranteed backwards compatibility between plugin versions. While your markdown journal entries of course will remain valid and untouched, plugin internal data like the timeline or quests may be corrupted or inaccessible after any update. There is a reset button in the settings that deletes all plugin data and lets you start from scratch if you run into an error after an update.
+
+* Large parts of the codebase for this prototype are at the moment LLM generated. While I use and tested the application thoroughly myself, reviewed all of the code to some degree, kept dependencies to a minimum and made sure to keep the code complexity low and concerns well separated to be manageable for an LLM, still at the current stage this application should be treated as a POC for early adopters to receive early feedback and not as an enterprise grade product.
+
+## ⚠️ A Warning
+
+Self reflection may surface past trauma etc. or re-enforce eventual harmful thoughts. The same is true for the AI chat experience which in the end just feeds back to you what you feed it with. Trust this process and/or application at most as much as you trust yourself and obviously ask for professional help and/or feedback from friends or family if any concern comes up.
+
+I, the developer of this plugin and framework, am just a random guy from the internet, not a mental health etc. professional or expert.
 
 ## Prompt Yourself
 
