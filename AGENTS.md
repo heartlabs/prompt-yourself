@@ -12,9 +12,10 @@ Journalling experts are the driving adapters that call the core and plug in the 
 
 This information should help you to find the files you need faster and ignore what you don't need right now.
 
-Currently there are two experts
+Currently there are three experts
 * `obsidian-plugin`
 * `cli`
+* `ios-app`
 
 Additional folders in the workspace root are:
 * `sandbox`: docker container to run a coding agent in a sandboxed environment. They are started via `pi.sh` or `claude.sh`. Probably this will be also you.
@@ -22,4 +23,5 @@ Additional folders in the workspace root are:
 
 ## Hard Rules
 * ALWAYS rebuild the obsidian plugin after you did a change that affects it (scripts/build-plugin.sh)!
+* The `ios-app` expert must be built on macOS with Xcode (not possible in the Linux container)
 * NEVER git commit or push code yourself or modify the commit history! You MAY use read-only git commands like `git status`, log etc.
