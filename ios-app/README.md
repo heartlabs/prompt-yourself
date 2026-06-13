@@ -99,9 +99,3 @@ ios-app/
 - [x] Proper permission prompts
 - [x] Xcode project ready to open & build
 
-## Next Steps (Phase 2+)
-
-- Connect to the `core` WASM engine for coaching logic
-- Replace the standalone UI with conversation view
-- Add persistent journal storage via Core Data / iCloud
-- Handle background audio / long recordings
