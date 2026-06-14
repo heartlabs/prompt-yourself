@@ -1,8 +1,10 @@
+import SwiftData
 import SwiftUI
 
 // MARK: - Root View
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = ChatViewModel()
 
     var body: some View {
@@ -16,6 +18,9 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.light)
+        .task {
+            viewModel.setupPersistence(with: modelContext)
+        }
     }
 
 }

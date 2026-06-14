@@ -16,6 +16,8 @@
 		AAA0001D /* system-prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = AAA00021 /* system-prompt.md */; };
 		AAA00024 /* llm-config.plist in Resources */ = {isa = PBXBuildFile; fileRef = AAA00023 /* llm-config.plist */; };
 		AAA00026 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00025 /* Theme.swift */; };
+		AAA00027 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00028 /* Models.swift */; };
+		AAA00029 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002A /* ConversationService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +33,8 @@
 		AAA00021 /* system-prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "system-prompt.md"; sourceTree = "<group>"; };
 		AAA00023 /* llm-config.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "llm-config.plist"; sourceTree = "<group>"; };
 		AAA00025 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		AAA00028 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		AAA0002A /* ConversationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -54,6 +58,8 @@
 				AAA00021 /* system-prompt.md */,
 				AAA00023 /* llm-config.plist */,
 				AAA00025 /* Theme.swift */,
+				AAA00028 /* Models.swift */,
+				AAA0002A /* ConversationService.swift */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 			);
@@ -144,6 +150,8 @@
 				AAA0001B /* LLMService.swift in Sources */,
 				AAA0001C /* ChatViewModel.swift in Sources */,
 				AAA00026 /* Theme.swift in Sources */,
+				AAA00027 /* Models.swift in Sources */,
+				AAA00029 /* ConversationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
