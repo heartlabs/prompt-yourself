@@ -6,8 +6,37 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = ChatViewModel()
+    @State private var selectedTab = 0
 
     var body: some View {
+        TabView(selection: $selectedTab) {
+            // Tab 0: Conversation
+            conversationTab
+                .tabItem {
+                    Image(systemName: "bubble.left.fill")
+                        .font(.system(size: 18))
+                }
+                .tag(0)
+
+            // Tab 1: Calendar
+            CalendarView(
+                onSelectConversation: { dateKey in
+                    viewModel.loadConversation(for: dateKey)
+                    selectedTab = 0
+                }
+            )
+            .tabItem {
+                Image(systemName: "calendar")
+                    .font(.system(size: 18))
+            }
+            .tag(1)
+        }
+        .tint(.sageGreen)
+    }
+
+    // MARK: - Conversation Tab
+
+    private var conversationTab: some View {
         ZStack {
             Color.warmIvory.ignoresSafeArea()
 
@@ -22,7 +51,6 @@ struct ContentView: View {
             viewModel.setupPersistence(with: modelContext)
         }
     }
-
 }
 
 // MARK: - Moodboard (Empty State)

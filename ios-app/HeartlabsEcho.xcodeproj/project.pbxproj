@@ -18,6 +18,8 @@
 		AAA00026 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00025 /* Theme.swift */; };
 		AAA00027 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00028 /* Models.swift */; };
 		AAA00029 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002A /* ConversationService.swift */; };
+		AAA0002B /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002D /* CalendarView.swift */; };
+		AAA0002C /* CalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002E /* CalendarViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +37,8 @@
 		AAA00025 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		AAA00028 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		AAA0002A /* ConversationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationService.swift; sourceTree = "<group>"; };
+		AAA0002D /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
+		AAA0002E /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -60,6 +64,8 @@
 				AAA00025 /* Theme.swift */,
 				AAA00028 /* Models.swift */,
 				AAA0002A /* ConversationService.swift */,
+				AAA0002D /* CalendarView.swift */,
+				AAA0002E /* CalendarViewModel.swift */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 			);
@@ -152,6 +158,8 @@
 				AAA00026 /* Theme.swift in Sources */,
 				AAA00027 /* Models.swift in Sources */,
 				AAA00029 /* ConversationService.swift in Sources */,
+				AAA0002B /* CalendarView.swift in Sources */,
+				AAA0002C /* CalendarViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

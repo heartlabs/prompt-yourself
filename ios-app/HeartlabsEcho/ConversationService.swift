@@ -27,6 +27,37 @@ final class ConversationService {
         return formatter.string(from: Date())
     }
 
+    /// Fetches all date keys that have at least one conversation.
+    ///
+    /// - Returns: A sorted array of date key strings (e.g. `["2026-06-01", "2026-06-13"]`).
+    func fetchAllDateKeys() -> [String] {
+        let descriptor = FetchDescriptor<Conversation>()
+        do {
+            let conversations = try modelContext.fetch(descriptor)
+            let keys = Set(conversations.map(\.dateKey))
+            return keys.sorted()
+        } catch {
+            print("[ConversationService] Failed to fetch all date keys: \(error)")
+            return []
+        }
+    }
+
+    /// Loads a conversation for a specific date key.
+    ///
+    /// - Parameter dateKey: The date key string (e.g. `"2026-06-13"`).
+    /// - Returns: The `Conversation` if one exists for that date, or `nil`.
+    func loadConversation(dateKey: String) -> Conversation? {
+        let predicate = #Predicate<Conversation> { $0.dateKey == dateKey }
+        let descriptor = FetchDescriptor<Conversation>(predicate: predicate)
+        do {
+            let results = try modelContext.fetch(descriptor)
+            return results.first
+        } catch {
+            print("[ConversationService] Failed to load conversation for \(dateKey): \(error)")
+            return nil
+        }
+    }
+
     /// Attempts to load today's conversation.
     ///
     /// - Returns: The `Conversation` if one exists for today, or `nil`.

@@ -97,6 +97,25 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Public API
 
+    /// Loads a past conversation by its date key, replacing the current messages.
+    ///
+    /// - Parameter dateKey: The date key string (e.g. `"2026-06-13"`).
+    func loadConversation(for dateKey: String) {
+        guard let service = conversationService else { return }
+        guard let conversation = service.loadConversation(dateKey: dateKey) else { return }
+
+        currentConversation = conversation
+        messages = conversation.messages
+            .sorted(by: { $0.timestamp < $1.timestamp })
+            .map { ChatMessage(from: $0) }
+
+        if messages.isEmpty {
+            statusMessage = "No entries yet"
+        } else {
+            statusMessage = "Viewing entry from \(dateKey)"
+        }
+    }
+
     /// Toggle recording on/off.
     /// After stopping, automatically send the new transcript to the LLM.
     func toggleRecording() {
