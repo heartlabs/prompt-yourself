@@ -123,7 +123,7 @@ export class PromptYourselfView extends ItemView {
     if (apiKey) {
       try {
         // Initialise the Rust-side Chat (system prompt + API config).
-        initChat(CHAT_MODEL);
+        initChat(profile.model || CHAT_MODEL);
 
         // Re-apply test mode if it was saved (initChat resets the prompt)
         if (profile.testMode) {

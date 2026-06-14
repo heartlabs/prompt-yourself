@@ -46,7 +46,7 @@ export class ProfileManager {
     if (!this._plugin.settings.profiles) {
       // Migration: create default profile from flat settings
       this._plugin.settings.profiles = [
-        { id: 'default', name: 'Default', folderPath: this._plugin.settings.folderPath || '', testMode: !!this._plugin.settings.testMode },
+        { id: 'default', name: 'Default', folderPath: this._plugin.settings.folderPath || '', testMode: !!this._plugin.settings.testMode, model: 'deepseek-chat' },
       ];
       this._plugin.settings.activeProfileId = 'default';
     }
@@ -98,6 +98,7 @@ export class ProfileManager {
       name: name.trim() || 'New Profile',
       folderPath: '',
       testMode: false,
+      model: 'deepseek-chat',
     };
     this.profiles = [...this.profiles, profile];
     return profile;
@@ -151,6 +152,7 @@ export class ProfileManager {
     if (!profile) return;
     if (changes.folderPath !== undefined) profile.folderPath = changes.folderPath;
     if (changes.testMode !== undefined) profile.testMode = changes.testMode;
+    if (changes.model !== undefined) profile.model = changes.model;
   }
 
   /**
@@ -222,6 +224,7 @@ export class ProfileManager {
         name: 'Default',
         folderPath: this._plugin.settings.folderPath || '',
         testMode: !!this._plugin.settings.testMode,
+        model: 'deepseek-chat',
       }];
       this._plugin.settings.activeProfileId = 'default';
     }

@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = {
   apiBase: 'https://api.deepseek.com',
   folderPath: '',
   testMode: false,
-  profiles: [{ id: 'default', name: 'Default', folderPath: '', testMode: false }],
+  profiles: [{ id: 'default', name: 'Default', folderPath: '', testMode: false, model: 'deepseek-chat' }],
   activeProfileId: 'default',
 };
 
@@ -166,6 +166,23 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
             }
             await this.plugin.saveSettings();
           });
+        });
+
+      // Model Name
+      new Setting(containerEl)
+        .setName('Model Name')
+        .setDesc(
+          'The model identifier for this provider (e.g. deepseek-chat, gpt-4o, ' +
+          'llama3.2, qwen2.5). Default: deepseek-chat'
+        )
+        .addText((text) => {
+          text.setPlaceholder('deepseek-chat')
+            .setValue(activeProfile.model || 'deepseek-chat')
+            .onChange(async (value) => {
+              const model = value.trim() || 'deepseek-chat';
+              profileManager.update(activeProfile.id, { model });
+              await this.plugin.saveSettings();
+            });
         });
 
       // Folder
