@@ -139,6 +139,7 @@ CURRENT_VERSION=$(node -p "require('$PLUGIN_DIR/package.json').version")
 
 # Parse current version and compute the next one — pure arithmetic, no file writes
 IFS='.' read -r MAJ MIN PAT <<< "$CURRENT_VERSION"
+PAT="${PAT%%-*}"  # Strip pre-release suffix (e.g. 8-beta.1 → 8)
 case "$RELEASE_TYPE" in
   patch) BASE_VERSION="$MAJ.$MIN.$((PAT + 1))" ;;
   minor) BASE_VERSION="$MAJ.$((MIN + 1)).0" ;;
@@ -185,17 +186,14 @@ info "Bumping to $NEW_VERSION..."
 cd "$PLUGIN_DIR"
 
 # Write version to package.json
-if [[ "$BETA" == true ]]; then
-  # Beta: bump base version first, then overwrite with beta tag
-  npm version "$RELEASE_TYPE" --no-git-tag-version --no-commit-hooks 2>/dev/null
-  node -e "
-    const p = require('./package.json');
-    p.version = '$NEW_VERSION';
-    require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
-  "
-else
-  npm version "$RELEASE_TYPE" --no-git-tag-version --no-commit-hooks 2>&1
-fi
+# Write the exact version we computed (handles pre-release base versions
+# correctly, unlike npm version which follows strict semver and may produce
+# unexpected results when starting from a pre-release like 1.0.8-beta.1).
+node -e "
+  const p = require('./package.json');
+  p.version = '$NEW_VERSION';
+  require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
+"
 
 # Verify
 WRITTEN_VERSION=$(node -p "require('./package.json').version")
