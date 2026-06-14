@@ -47,6 +47,8 @@ final class SpeechRecognizer: ObservableObject {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
+    /// Continuation used by `stopTranscribingAsync()` to wait for the final result.
+    private var finalizationContinuation: CheckedContinuation<Void, Never>?
 
     // MARK: - Public API
 
@@ -79,7 +81,7 @@ final class SpeechRecognizer: ObservableObject {
         }
     }
 
-    /// Stop recording and finalize the transcription.
+    /// Stop recording and finalize the transcription immediately (cancels the task).
     func stopTranscribing() {
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
@@ -90,6 +92,24 @@ final class SpeechRecognizer: ObservableObject {
 
         isRecording = false
         statusMessage = transcript.isEmpty ? "Tap to start" : "Done"
+    }
+
+    /// Stop recording and **await the final transcript** instead of cancelling.
+    /// Use this for reliable transcription of long utterances.
+    func stopTranscribingAsync() async {
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        recognitionRequest?.endAudio()
+        // Do NOT cancel the task — let it finalize and produce the final result.
+
+        await withCheckedContinuation { continuation in
+            finalizationContinuation = continuation
+        }
+
+        // Final result received — transcript is now the complete text.
+        finalizationContinuation = nil
+        recognitionTask = nil
+        recognitionRequest = nil
     }
 
     // MARK: - Private Helpers
@@ -133,10 +153,24 @@ final class SpeechRecognizer: ObservableObject {
 
             if let result {
                 self.transcript = result.bestTranscription.formattedString
+
+                if result.isFinal {
+                    self.isRecording = false
+                    self.statusMessage = self.transcript.isEmpty ? "Tap to start" : "Done"
+                    self.finalizationContinuation?.resume()
+                    self.finalizationContinuation = nil
+                }
             }
 
             if let error {
-                // If audio engine is already stopped this is expected – ignore.
+                // If we're waiting for finalization via stopTranscribingAsync(),
+                // resume now to unblock (the transcript may be partial).
+                if self.finalizationContinuation != nil {
+                    self.isRecording = false
+                    self.finalizationContinuation?.resume()
+                    self.finalizationContinuation = nil
+                }
+                // If audio engine is still running after a non-user error, report it.
                 if self.audioEngine.isRunning {
                     self.stopTranscribing()
                     self.statusMessage = RecognitionError.engineError(error.localizedDescription).localizedDescription

@@ -10,6 +10,12 @@
 		AAA00001 /* PromptYourselfApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00004 /* PromptYourselfApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00005 /* ContentView.swift */; };
 		AAA00003 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00006 /* SpeechRecognizer.swift */; };
+		AAA0001A /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001E /* ChatMessage.swift */; };
+		AAA0001B /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001F /* LLMService.swift */; };
+		AAA0001C /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00020 /* ChatViewModel.swift */; };
+		AAA0001D /* system-prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = AAA00021 /* system-prompt.md */; };
+		AAA00024 /* llm-config.plist in Resources */ = {isa = PBXBuildFile; fileRef = AAA00023 /* llm-config.plist */; };
+		AAA00026 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00025 /* Theme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +25,12 @@
 		AAA00007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AAA00008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AAA0000E /* Prompt Yourself.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Prompt Yourself.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAA0001E /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		AAA0001F /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
+		AAA00020 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
+		AAA00021 /* system-prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "system-prompt.md"; sourceTree = "<group>"; };
+		AAA00023 /* llm-config.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "llm-config.plist"; sourceTree = "<group>"; };
+		AAA00025 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -36,6 +48,12 @@
 				AAA00004 /* PromptYourselfApp.swift */,
 				AAA00005 /* ContentView.swift */,
 				AAA00006 /* SpeechRecognizer.swift */,
+				AAA0001E /* ChatMessage.swift */,
+				AAA0001F /* LLMService.swift */,
+				AAA00020 /* ChatViewModel.swift */,
+				AAA00021 /* system-prompt.md */,
+				AAA00023 /* llm-config.plist */,
+				AAA00025 /* Theme.swift */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 			);
@@ -107,6 +125,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA0001D /* system-prompt.md in Resources */,
+				AAA00024 /* llm-config.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -120,6 +140,10 @@
 				AAA00001 /* PromptYourselfApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
 				AAA00003 /* SpeechRecognizer.swift in Sources */,
+				AAA0001A /* ChatMessage.swift in Sources */,
+				AAA0001B /* LLMService.swift in Sources */,
+				AAA0001C /* ChatViewModel.swift in Sources */,
+				AAA00026 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

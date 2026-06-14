@@ -10,3 +10,6 @@ xcuserdata/
 
 # macOS filesystem metadata
 .DS_Store
+
+# LLM API configuration (contains secrets — copy from .template files)
+llm-config.plist
