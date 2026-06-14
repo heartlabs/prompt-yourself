@@ -21,6 +21,10 @@ final class ChatViewModel: ObservableObject {
     /// The speech recognizer — owned here so state stays consistent.
     let recognizer = SpeechRecognizer()
 
+    /// Whether the currently displayed conversation belongs to a past date
+    /// (and should therefore be treated as read-only).
+    @Published private(set) var isShowingPastConversation = false
+
     // MARK: - Private State
 
     /// Exposed for diagnostics — shows the configuration being used.
@@ -51,6 +55,15 @@ final class ChatViewModel: ObservableObject {
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
+    }
+
+    // MARK: - Helpers
+
+    /// Updates `isShowingPastConversation` based on the current conversation.
+    private func updatePastConversationFlag() {
+        isShowingPastConversation = currentConversation.map {
+            $0.dateKey != ConversationService.todayDateKey
+        } ?? false
     }
 
     // MARK: - Persistence Setup
@@ -86,6 +99,7 @@ final class ChatViewModel: ObservableObject {
 
         // Restore the conversation
         currentConversation = conversation
+        updatePastConversationFlag()
         messages = conversation.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .map { ChatMessage(from: $0) }
@@ -97,6 +111,29 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Public API
 
+    /// Resets the chat to today's conversation.
+    /// If an active session exists for today, it loads the messages.
+    /// Otherwise it shows the start screen (moodboard).
+    func resetToToday() {
+        guard let service = conversationService else { return }
+
+        if let conversation = service.loadTodayConversation(),
+           service.isSessionActive(conversation) {
+            currentConversation = conversation
+            updatePastConversationFlag()
+            messages = conversation.messages
+                .sorted(by: { $0.timestamp < $1.timestamp })
+                .map { ChatMessage(from: $0) }
+            statusMessage = messages.isEmpty ? "Tap to start" : "Reply received"
+        } else {
+            // No active session today — show the start screen
+            currentConversation = nil
+            updatePastConversationFlag()
+            messages = []
+            statusMessage = "Tap the microphone to start"
+        }
+    }
+
     /// Loads a past conversation by its date key, replacing the current messages.
     ///
     /// - Parameter dateKey: The date key string (e.g. `"2026-06-13"`).
@@ -105,6 +142,7 @@ final class ChatViewModel: ObservableObject {
         guard let conversation = service.loadConversation(dateKey: dateKey) else { return }
 
         currentConversation = conversation
+        updatePastConversationFlag()
         messages = conversation.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .map { ChatMessage(from: $0) }

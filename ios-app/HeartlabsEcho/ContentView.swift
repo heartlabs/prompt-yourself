@@ -7,27 +7,48 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = ChatViewModel()
     @State private var selectedTab = 0
+    /// Prevents `resetToToday` from overriding a conversation that was just
+    /// loaded from the calendar preview.
+    @State private var isNavigatingFromCalendar = false
+
+    /// Custom binding that detects when the "Today" tab is tapped
+    /// even if it's already selected (TabView doesn't fire onChange for that).
+    private var tabBinding: Binding<Int> {
+        Binding {
+            selectedTab
+        } set: { newValue in
+            if newValue == selectedTab && newValue == 0 {
+                // User tapped "Today" while already on it → reset to today
+                isNavigatingFromCalendar = false
+                viewModel.resetToToday()
+            } else if newValue == 0 && !isNavigatingFromCalendar {
+                // Switching to Today from another tab (not from calendar)
+                viewModel.resetToToday()
+            }
+            isNavigatingFromCalendar = false
+            selectedTab = newValue
+        }
+    }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Tab 0: Conversation
+        TabView(selection: tabBinding) {
+            // Tab 0: Today's conversation
             conversationTab
                 .tabItem {
-                    Image(systemName: "bubble.left.fill")
-                        .font(.system(size: 18))
+                    Label("Today", systemImage: "leaf.fill")
                 }
                 .tag(0)
 
-            // Tab 1: Calendar
+            // Tab 1: Calendar / Journal history
             CalendarView(
                 onSelectConversation: { dateKey in
+                    isNavigatingFromCalendar = true
                     viewModel.loadConversation(for: dateKey)
                     selectedTab = 0
                 }
             )
             .tabItem {
-                Image(systemName: "calendar")
-                    .font(.system(size: 18))
+                Label("Journal", systemImage: "calendar")
             }
             .tag(1)
         }
@@ -79,17 +100,27 @@ extension ContentView {
 
             Spacer()
 
-            // 3-Layer Microphone Button
-            largeMicButton
+            if viewModel.isShowingPastConversation {
+                // Past conversation — read-only, no mic
+                Text("Past entry")
+                    .font(.system(size: 15, weight: .regular, design: .default))
+                    .foregroundColor(.taupeText.opacity(0.4))
+                    .padding(.top, 20)
 
-            // Instruction Text
-            Text("Tap to speak")
-                .font(.system(size: 15, weight: .regular, design: .default))
-                .foregroundColor(.taupeText.opacity(0.55))
-                .padding(.top, 20)
+                Spacer()
+            } else {
+                // 3-Layer Microphone Button
+                largeMicButton
 
-            Spacer()
-            Spacer()
+                // Instruction Text
+                Text("Tap to speak")
+                    .font(.system(size: 15, weight: .regular, design: .default))
+                    .foregroundColor(.taupeText.opacity(0.55))
+                    .padding(.top, 20)
+
+                Spacer()
+                Spacer()
+            }
         }
     }
 }
@@ -182,15 +213,23 @@ extension ContentView {
                 }
             }
 
-            // Compact Mic Button (Chat Mode)
-            VStack(spacing: 6) {
-                compactMicButton
-
-                Text(viewModel.recognizer.isRecording ? "Recording..." : "Tap to speak")
+            if viewModel.isShowingPastConversation {
+                // Past conversation — no mic, just a subtle hint
+                Text("Past entry — read only")
                     .font(.system(size: 12, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.5))
+                    .foregroundColor(.taupeText.opacity(0.35))
+                    .padding(.vertical, 12)
+            } else {
+                // Compact Mic Button (Chat Mode)
+                VStack(spacing: 6) {
+                    compactMicButton
+
+                    Text(viewModel.recognizer.isRecording ? "Recording..." : "Tap to speak")
+                        .font(.system(size: 12, weight: .regular, design: .default))
+                        .foregroundColor(.taupeText.opacity(0.5))
+                }
+                .padding(.vertical, 8)
             }
-            .padding(.vertical, 8)
         }
     }
 
