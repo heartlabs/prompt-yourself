@@ -3,20 +3,20 @@
 import PackageDescription
 
 let package = Package(
-    name: "PromptYourself",
+    name: "HeartlabsEcho",
     platforms: [
         .iOS(.v17)
     ],
     products: [
         .library(
-            name: "PromptYourself",
-            targets: ["PromptYourself"]
+            name: "HeartlabsEcho",
+            targets: ["HeartlabsEcho"]
         ),
     ],
     targets: [
         .target(
-            name: "PromptYourself",
-            path: "PromptYourself",
+            name: "HeartlabsEcho",
+            path: "HeartlabsEcho",
             resources: [
                 .process("Assets.xcassets")
             ]

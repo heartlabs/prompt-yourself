@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "AAA0000F"
-               BuildableName = "Prompt Yourself.app"
-               BlueprintName = "Prompt Yourself"
-               ReferencedContainer = "container:PromptYourself.xcodeproj">
+               BuildableName = "Heartlabs Echo.app"
+               BlueprintName = "Heartlabs Echo"
+               ReferencedContainer = "container:HeartlabsEcho.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "AAA0000F"
-            BuildableName = "Prompt Yourself.app"
-            BlueprintName = "Prompt Yourself"
-            ReferencedContainer = "container:PromptYourself.xcodeproj">
+            BuildableName = "Heartlabs Echo.app"
+            BlueprintName = "Heartlabs Echo"
+            ReferencedContainer = "container:HeartlabsEcho.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "AAA0000F"
-            BuildableName = "Prompt Yourself.app"
-            BlueprintName = "Prompt Yourself"
-            ReferencedContainer = "container:PromptYourself.xcodeproj">
+            BuildableName = "Heartlabs Echo.app"
+            BlueprintName = "Heartlabs Echo"
+            ReferencedContainer = "container:HeartlabsEcho.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

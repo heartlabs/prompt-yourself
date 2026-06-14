@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct PromptYourselfApp: App {
+struct HeartlabsEchoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()

@@ -1,4 +1,4 @@
-# Prompt Yourself — iOS App
+# Heartlabs Echo — iOS App
 
 A voice-based companion app for iPhone. Record speech, get thoughtful
 responses from an LLM. No typing, no goals, no pressure — just tap and speak.
@@ -12,13 +12,13 @@ responses from an LLM. No typing, no goals, no pressure — just tap and speak.
 5. The **LLM responds** as a chat bubble — a patient listener that mirrors your thoughts
 6. Tap the mic to continue the conversation; the full history is sent each time
 
-You can edit the system prompt in `PromptYourself/system-prompt.md` to change
+You can edit the system prompt in `HeartlabsEcho/system-prompt.md` to change
 how the LLM behaves.
 
 ### Switching LLM providers
 
 The app uses an OpenAI-compatible API. To switch providers, edit
-`PromptYourself/llm-config.plist` (gitignored — copy from `.template`):
+`HeartlabsEcho/llm-config.plist` (gitignored — copy from `.template`):
 
 | Provider | `LLMBaseURL` | `LLMModel` |
 |---|---|---|
@@ -60,7 +60,7 @@ docker cp <container-name>:/workspace/ios-app ./ios-app
 
 1. Open **Xcode** on your Mac
 2. Go to **File → Open…** (or `⌘O`)
-3. Navigate to `ios-app/PromptYourself.xcodeproj` and open it
+3. Navigate to `ios-app/HeartlabsEcho.xcodeproj` and open it
 
 ## Building & running on your iPhone
 
@@ -68,12 +68,11 @@ docker cp <container-name>:/workspace/ios-app ./ios-app
 - Xcode → Settings → Accounts → add your Apple ID
 
 ### 2. Configure signing
-- In the project navigator, select the **"Prompt Yourself"** target
+- In the project navigator, select the **"Heartlabs Echo"** target
 - Go to **Signing & Capabilities**
 - Select your **Team** from the dropdown
 - Xcode will generate a provisioning profile automatically
-- The bundle identifier is `com.yourname.promptyourself` — you may want to
-  change it to something unique (e.g. `com.<yourname>.promptyourself`)
+- The bundle identifier is `eu.heartlabs.echo`
 
 ### 3. Connect your iPhone
 - Use a USB cable, or ensure both Mac and iPhone are on the same WiFi network
@@ -94,9 +93,9 @@ docker cp <container-name>:/workspace/ios-app ./ios-app
 
 ```
 ios-app/
-├── PromptYourself.xcodeproj/     ← Xcode project (open this)
-├── PromptYourself/
-│   ├── PromptYourselfApp.swift   ← @main entry point
+├── HeartlabsEcho.xcodeproj/     ← Xcode project (open this)
+├── HeartlabsEcho/
+│   ├── HeartlabsEchoApp.swift   ← @main entry point
 │   ├── ContentView.swift         ← Main UI (chat bubbles + mic button)
 │   ├── ChatMessage.swift         ← Message model & conversation history
 │   ├── ChatViewModel.swift       ← Orchestrates STT → LLM → UI flow
