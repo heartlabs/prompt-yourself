@@ -20,6 +20,7 @@
 		AAA00029 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002A /* ConversationService.swift */; };
 		AAA0002B /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002D /* CalendarView.swift */; };
 		AAA0002C /* CalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002E /* CalendarViewModel.swift */; };
+		AAA00030 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00008 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -139,6 +140,7 @@
 			files = (
 				AAA0001D /* system-prompt.md in Resources */,
 				AAA00024 /* llm-config.plist in Resources */,
+				AAA00030 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,7 +239,7 @@
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Debug;
 		};
@@ -263,7 +265,7 @@
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Release;
 		};
