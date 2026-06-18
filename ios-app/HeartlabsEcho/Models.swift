@@ -18,6 +18,9 @@ final class Conversation {
     /// When the last message was added — used for the 30-min timeout check.
     var lastActivityAt: Date
 
+    /// Auto-generated summary for this day's conversation (e.g. "User talked about work stress...").
+    var summary: String?
+
     /// All messages in this conversation, ordered by timestamp.
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message]
@@ -28,6 +31,18 @@ final class Conversation {
         self.createdAt = Date()
         self.lastActivityAt = Date()
         self.messages = []
+    }
+
+    /// Whether this conversation belongs to today.
+    var isToday: Bool {
+        dateKey == Self.dateKey(for: Date())
+    }
+
+    /// Returns the date key string for a given date (e.g. "2026-06-13").
+    static func dateKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 }
 

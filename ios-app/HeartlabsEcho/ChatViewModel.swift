@@ -15,6 +15,9 @@ final class ChatViewModel: ObservableObject {
     /// Whether the LLM is currently generating a response.
     @Published private(set) var isThinking = false
 
+    /// Whether the LLM is retrieving a past conversation (tool call in progress).
+    @Published private(set) var isRemembering = false
+
     /// A user-facing status message.
     @Published private(set) var statusMessage: String = "Tap the microphone to start"
 
@@ -39,6 +42,24 @@ final class ChatViewModel: ObservableObject {
     private var conversationService: ConversationService?
     private var currentConversation: Conversation?
     private var hasSetupPersistence = false
+
+    // MARK: - Tool Definitions
+
+    /// Tool that lets the LLM retrieve the full conversation of a past day.
+    private let getConversationTool = LLMTool(
+        name: "get_conversation",
+        description: "Retrieve the full conversation for a specific date to get detailed context.",
+        parameters: [
+            "type": "object",
+            "properties": [
+                "dateKey": [
+                    "type": "string",
+                    "description": "The date in yyyy-MM-dd format, e.g. 2026-06-13",
+                ],
+            ],
+            "required": ["dateKey"],
+        ]
+    )
 
     // MARK: - Init
 
@@ -83,6 +104,11 @@ final class ChatViewModel: ObservableObject {
         conversationService = service
 
         loadPersistedConversation(service: service)
+
+        // Fire-and-forget: generate summary for the previous day if needed.
+        Task {
+            await generateSummaryForPreviousDayIfNeeded()
+        }
     }
 
     /// Attempts to restore today's conversation if the session is still active.
@@ -132,6 +158,11 @@ final class ChatViewModel: ObservableObject {
             messages = []
             statusMessage = "Tap the microphone to start"
         }
+
+        // Fire-and-forget: generate summary for the previous day if needed.
+        Task {
+            await generateSummaryForPreviousDayIfNeeded()
+        }
     }
 
     /// Loads a past conversation by its date key, replacing the current messages.
@@ -166,6 +197,90 @@ final class ChatViewModel: ObservableObject {
             }
         } else {
             recognizer.startTranscribing()
+        }
+    }
+
+    // MARK: - Context Building (Step 5)
+
+    /// Builds the context prompt by combining the system prompt with recent day summaries.
+    ///
+    /// The resulting string is prepended to every LLM request so the model is aware
+    /// of past days' conversations via their summaries.
+    private func buildContextPrompt() -> String {
+        var contextParts: [String] = [systemPrompt]
+
+        guard let service = conversationService else { return systemPrompt }
+
+        let recentConvs = service.fetchRecentConversations(days: 7)
+            .filter { $0.summary != nil }
+
+        if !recentConvs.isEmpty {
+            let summariesSection = recentConvs
+                .sorted(by: { $0.dateKey < $1.dateKey })
+                .map { "\($0.dateKey): \($0.summary!)" }
+                .joined(separator: "\n")
+            contextParts.append("\n## Recent days\n" + summariesSection)
+        }
+
+        return contextParts.joined(separator: "\n")
+    }
+
+    // MARK: - Summary Generation (Step 4)
+
+    /// Generates summaries for all past days that are missing them.
+    ///
+    /// This runs as a fire-and-forget background task triggered when:
+    /// - Persistence is first set up (`setupPersistence`)
+    /// - The user resets to today (`resetToToday`)
+    ///
+    /// Days are processed from most recent to oldest. Each day uses a separate, minimal LLM
+    /// call with a summarization-only system prompt. There is a small delay between calls to
+    /// avoid hammering the API. Days that fail (network error, API issue) are logged and skipped
+    /// — they stay nil and remain eligible for a future backfill attempt.
+    private func generateSummaryForPreviousDayIfNeeded() async {
+        guard let service = conversationService else { return }
+
+        let todayKey = ConversationService.todayDateKey
+        let allKeys = service.fetchAllDateKeys()
+            .filter { $0 != todayKey }
+            .reversed()  // most recent first
+
+        for dateKey in allKeys {
+            guard let conversation = service.loadConversation(dateKey: dateKey),
+                  conversation.summary == nil,
+                  !conversation.messages.isEmpty
+            else { continue }
+
+            await generateSummary(for: dateKey, service: service)
+
+            // Small delay between API calls to avoid rate limits.
+            try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+        }
+    }
+
+    /// Generates and saves a summary for a single date key.
+    private func generateSummary(for dateKey: String, service: ConversationService) async {
+        let summarySystemPrompt = """
+        You are a summarizer. Summarize the following conversation in 2-3 sentences.
+        Focus on what the user talked about, how they felt, and any key events or decisions.
+        Be concise and factual.
+        """
+
+        let conversationText = service.fetchFullConversationText(dateKey: dateKey) ?? ""
+
+        let summaryRequest: ChatHistory = [
+            ChatMessage(role: .system, content: summarySystemPrompt),
+            ChatMessage(role: .user, content: conversationText),
+        ]
+
+        do {
+            let response = try await llmService.sendMessages(summaryRequest)
+            if case .text(let summary) = response {
+                service.updateSummary(dateKey: dateKey, summary: summary)
+                print("[ChatViewModel] Summary saved for \(dateKey): \(summary.prefix(80))...")
+            }
+        } catch {
+            print("[ChatViewModel] Failed to generate summary for \(dateKey): \(error)")
         }
     }
 
@@ -209,8 +324,38 @@ final class ChatViewModel: ObservableObject {
         service.addMessage(to: conversation, id: id, role: role, content: content, timestamp: timestamp)
     }
 
-    /// Builds the full message array (system prompt + conversation history)
-    /// and sends it to the LLM.
+    /// Maximum number of tool call iterations per user message.
+    ///
+    /// Prevents infinite loops if the LLM keeps requesting tool calls.
+    private let maxToolCallIterations = 3
+
+    /// Handles a single tool call and returns the result text.
+    ///
+    /// Returns the tool result content on success, or a descriptive error message on failure.
+    /// Errors are returned as tool results (not thrown) so the LLM can respond gracefully.
+    private func executeToolCall(_ call: ToolCallPayload) -> String {
+        guard call.function.name == "get_conversation" else {
+            return "Unknown tool: \(call.function.name)"
+        }
+
+        guard let data = call.function.arguments.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dateKey = args["dateKey"] as? String
+        else {
+            return "Failed to parse arguments for get_conversation"
+        }
+
+        guard let text = conversationService?.fetchFullConversationText(dateKey: dateKey) else {
+            return "No conversation found for date \(dateKey)"
+        }
+
+        return text
+    }
+
+    // MARK: - LLM Communication
+
+    /// Builds the full message array (context prompt + conversation history)
+    /// and sends it to the LLM, handling any tool calls in a loop.
     private func sendTranscript() async {
         let transcript = recognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -231,22 +376,78 @@ final class ChatViewModel: ObservableObject {
         statusMessage = "..."
 
         do {
-            // Build full history: system prompt first, then conversation.
+            // Build LLM history: context prompt first, then user-visible conversation.
+            let contextPrompt = buildContextPrompt()
             var fullHistory: ChatHistory = []
-            if !systemPrompt.isEmpty {
-                fullHistory.append(ChatMessage(role: .system, content: systemPrompt))
+            if !contextPrompt.isEmpty {
+                fullHistory.append(ChatMessage(role: .system, content: contextPrompt))
             }
             fullHistory.append(contentsOf: messages)
 
-            let response = try await llmService.sendMessages(fullHistory)
+            let tools = [getConversationTool]
+            var finalResponse: String?
 
-            let assistantMessage = ChatMessage(role: .assistant, content: response)
-            messages.append(assistantMessage)
+            // Tool call loop — limited to prevent infinite loops (Gap 3).
+        toolLoop:
+            for _ in 0..<maxToolCallIterations {
+                let response = try await llmService.sendMessages(fullHistory, tools: tools)
 
-            // Persist assistant message
-            persistMessage(role: "assistant", content: response, id: assistantMessage.id, timestamp: assistantMessage.timestamp)
+                switch response {
+                case .text(let text):
+                    finalResponse = text
+                    break toolLoop
 
-            statusMessage = "Reply received"
+                case .toolCalls(let toolCalls):
+                    isRemembering = true
+                    let toolCallStart = Date()
+
+                    // Append assistant message with tool calls to LLM history (required by OpenAI spec).
+                    let assistantToolMsg = ChatMessage(
+                        role: .assistant,
+                        content: "",
+                        toolCalls: toolCalls
+                    )
+                    fullHistory.append(assistantToolMsg)
+
+                    // Execute each tool call and append results (Gap 4: errors returned, not thrown).
+                    for call in toolCalls {
+                        let resultText = executeToolCall(call)
+                        fullHistory.append(ChatMessage(
+                            role: .tool,
+                            content: resultText,
+                            toolCallId: call.id
+                        ))
+                    }
+
+                    // Guarantee minimum visibility so even millisecond-fast tool calls show the indicator.
+                    let elapsed = Date().timeIntervalSince(toolCallStart)
+                    let minDisplay: TimeInterval = 0.4
+                    if elapsed < minDisplay {
+                        try? await Task.sleep(nanoseconds: UInt64((minDisplay - elapsed) * 1_000_000_000))
+                    }
+                    isRemembering = false
+                    // Loop continues: LLM will see tool results and respond.
+                }
+            }
+
+            if let response = finalResponse {
+                // Only the final text response is shown to the user (Gap 2).
+                let assistantMessage = ChatMessage(role: .assistant, content: response)
+                messages.append(assistantMessage)
+
+                // Persist assistant message
+                persistMessage(
+                    role: "assistant",
+                    content: response,
+                    id: assistantMessage.id,
+                    timestamp: assistantMessage.timestamp
+                )
+
+                statusMessage = "Reply received"
+            } else {
+                // No text response after all iterations — should be rare.
+                statusMessage = "I couldn't process that — please try again"
+            }
         } catch {
             let errorMessage = ChatMessage(
                 role: .assistant,
@@ -255,7 +456,12 @@ final class ChatViewModel: ObservableObject {
             messages.append(errorMessage)
 
             // Persist error message too
-            persistMessage(role: "assistant", content: errorMessage.content, id: errorMessage.id, timestamp: errorMessage.timestamp)
+            persistMessage(
+                role: "assistant",
+                content: errorMessage.content,
+                id: errorMessage.id,
+                timestamp: errorMessage.timestamp
+            )
 
             statusMessage = "Error — tap mic to retry"
         }

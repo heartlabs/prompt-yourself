@@ -1,5 +1,43 @@
 import Foundation
 
+// MARK: - LLM Tool Types
+
+/// A tool that the LLM can request to call.
+struct LLMTool {
+    let name: String
+    let description: String
+    /// JSON Schema describing the parameters.
+    let parameters: [String: Any]
+
+    init(name: String, description: String, parameters: [String: Any]) {
+        self.name = name
+        self.description = description
+        self.parameters = parameters
+    }
+
+    /// Converts this tool to a dictionary suitable for the OpenAI-compatible API payload.
+    func toDictionary() -> [String: Any] {
+        [
+            "type": "function",
+            "function": [
+                "name": name,
+                "description": description,
+                "parameters": parameters,
+            ],
+        ]
+    }
+}
+
+/// The response from the LLM, which may be text or a request to call tools.
+enum LLMResponse {
+    /// The model generated a text response.
+    case text(String)
+    /// The model requested one or more tool calls.
+    case toolCalls(toolCalls: [ToolCallPayload])
+}
+
+// MARK: - Errors
+
 /// Errors that can occur during LLM API calls.
 enum LLMError: LocalizedError {
     case invalidURL
@@ -23,6 +61,8 @@ enum LLMError: LocalizedError {
         }
     }
 }
+
+// MARK: - Configuration
 
 /// Configuration for an OpenAI-compatible chat completion service.
 struct LLMConfiguration {
@@ -84,6 +124,8 @@ struct LLMConfiguration {
     }
 }
 
+// MARK: - LLMService
+
 /// An OpenAI-compatible chat completion service.
 ///
 /// Configure via `LLMConfiguration`:
@@ -106,8 +148,13 @@ final class LLMService {
     // MARK: - Public API
 
     /// Sends a conversation history (including system prompt) to the LLM
-    /// and returns the assistant's response text.
-    func sendMessages(_ messages: ChatHistory) async throws -> String {
+    /// and returns the response, which may be text or a tool call request.
+    ///
+    /// - Parameters:
+    ///   - messages: The full conversation history including system prompt.
+    ///   - tools: Optional tool definitions the LLM may use.
+    /// - Returns: An `LLMResponse` — either `.text(String)` or `.toolCalls([ToolCallPayload])`.
+    func sendMessages(_ messages: ChatHistory, tools: [LLMTool]? = nil) async throws -> LLMResponse {
         guard !configuration.apiKey.isEmpty else {
             throw LLMError.noAPIKey
         }
@@ -121,15 +168,14 @@ final class LLMService {
         print("[LLMService] \(configuration.diagnostics) → GET \(url.absoluteString)")
 
         // Build the request body per the OpenAI spec.
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "model": configuration.model,
-            "messages": messages.map { msg in
-                [
-                    "role": msg.role.rawValue,
-                    "content": msg.content,
-                ]
-            },
+            "messages": messages.map(encodeMessage),
         ]
+
+        if let tools, !tools.isEmpty {
+            payload["tools"] = tools.map { $0.toDictionary() }
+        }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -156,34 +202,98 @@ final class LLMService {
         return try parseResponse(data)
     }
 
+    // MARK: - Message Encoding
+
+    /// Encodes a single `ChatMessage` into a JSON-compatible dictionary for the API payload.
+    ///
+    /// Different roles produce different shapes:
+    /// - `.system`, `.user`: `{"role": "...", "content": "..."}`
+    /// - `.assistant` with tool calls: `{"role": "assistant", "content": null, "tool_calls": [...]}`
+    /// - `.assistant` without: `{"role": "assistant", "content": "..."}`
+    /// - `.tool`: `{"role": "tool", "content": "...", "tool_call_id": "..."}`
+    private func encodeMessage(_ msg: ChatMessage) -> [String: Any] {
+        var dict: [String: Any] = ["role": msg.role.rawValue]
+
+        switch msg.role {
+        case .tool:
+            dict["content"] = msg.content
+            if let toolCallId = msg.toolCallId {
+                dict["tool_call_id"] = toolCallId
+            }
+
+        case .assistant:
+            if let toolCalls = msg.toolCalls, !toolCalls.isEmpty {
+                dict["content"] = NSNull()
+                dict["tool_calls"] = toolCalls.map { tc in
+                    [
+                        "id": tc.id,
+                        "type": tc.type,
+                        "function": [
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        ],
+                    ]
+                }
+            } else {
+                dict["content"] = msg.content
+            }
+
+        default:
+            dict["content"] = msg.content
+        }
+
+        return dict
+    }
+
     // MARK: - Response Parsing
 
     /// Parses the standard OpenAI-compatible response body.
-    /// Expected shape:
+    ///
+    /// Expected shapes:
     /// ```json
-    /// {
-    ///   "choices": [{
-    ///     "message": { "role": "assistant", "content": "..." }
-    ///   }]
-    /// }
+    /// { "choices": [{ "finish_reason": "stop", "message": { "content": "..." } }] }
+    /// { "choices": [{ "finish_reason": "tool_calls", "message": { "tool_calls": [...] } }] }
     /// ```
-    private func parseResponse(_ data: Data) throws -> String {
+    private func parseResponse(_ data: Data) throws -> LLMResponse {
         struct ResponseBody: Decodable {
             let choices: [Choice]
         }
         struct Choice: Decodable {
+            let finishReason: String?
             let message: Message
+
+            enum CodingKeys: String, CodingKey {
+                case finishReason = "finish_reason"
+                case message
+            }
         }
         struct Message: Decodable {
             let content: String?
+            let toolCalls: [ToolCallPayload]?
+
+            enum CodingKeys: String, CodingKey {
+                case content
+                case toolCalls = "tool_calls"
+            }
         }
 
         do {
             let body = try JSONDecoder().decode(ResponseBody.self, from: data)
-            guard let content = body.choices.first?.message.content else {
-                throw LLMError.decodingError("No content in response")
+            guard let choice = body.choices.first else {
+                throw LLMError.decodingError("No choices in response")
             }
-            return content
+
+            if choice.finishReason == "tool_calls",
+               let toolCalls = choice.message.toolCalls,
+               !toolCalls.isEmpty {
+                return .toolCalls(toolCalls: toolCalls)
+            }
+
+            if let content = choice.message.content {
+                return .text(content)
+            }
+
+            throw LLMError.decodingError("No content or tool calls in response")
         } catch let error as LLMError {
             throw error
         } catch {

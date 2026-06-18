@@ -110,6 +110,43 @@ final class ConversationService {
         saveChanges()
     }
 
+    /// Fetches conversations from the last N days (excluding today).
+    ///
+    /// - Parameter days: Number of days to look back.
+    /// - Returns: An array of `Conversation` objects (only days with a saved conversation).
+    func fetchRecentConversations(days: Int) -> [Conversation] {
+        let todayKey = Self.todayDateKey
+        return (1 ... days)
+            .compactMap { offset in
+                guard let date = Calendar.current.date(byAdding: .day, value: -offset, to: Date()) else { return nil }
+                let key = Conversation.dateKey(for: date)
+                guard key != todayKey else { return nil }
+                return loadConversation(dateKey: key)
+            }
+    }
+
+    /// Loads a conversation and formats all messages into a plain text block.
+    ///
+    /// - Parameter dateKey: The date key string (e.g. `"2026-06-13"`).
+    /// - Returns: A formatted text block, or `nil` if no conversation exists for that date.
+    func fetchFullConversationText(dateKey: String) -> String? {
+        guard let conversation = loadConversation(dateKey: dateKey) else { return nil }
+        let sortedMessages = conversation.messages.sorted { $0.timestamp < $1.timestamp }
+        let lines = sortedMessages.map { "[\($0.role.capitalized)]: \($0.content)" }
+        return "\(dateKey) conversation:\n" + lines.joined(separator: "\n")
+    }
+
+    /// Saves a summary to an existing conversation.
+    ///
+    /// - Parameters:
+    ///   - dateKey: The date key string (e.g. `"2026-06-13"`).
+    ///   - summary: The summary text to store.
+    func updateSummary(dateKey: String, summary: String) {
+        guard let conversation = loadConversation(dateKey: dateKey) else { return }
+        conversation.summary = summary
+        saveChanges()
+    }
+
     /// Persists any pending changes to the store.
     func saveChanges() {
         do {

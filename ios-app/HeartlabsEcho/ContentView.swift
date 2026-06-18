@@ -187,12 +187,23 @@ extension ContentView {
 
                         // Typing indicator
                         if viewModel.isThinking {
-                            TypingIndicator()
-                                .id("typing")
+                            VStack(alignment: .leading, spacing: 2) {
+                                TypingIndicator()
+
+                                // "remembering…" indicator fades in/out during tool calls.
+                                if viewModel.isRemembering {
+                                    Text("remembering…")
+                                        .font(.caption2)
+                                        .foregroundColor(.taupeText.opacity(0.55))
+                                        .transition(.opacity)
+                                }
+                            }
+                            .id("typing")
                         }
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
+                    .animation(.easeOut(duration: 0.5), value: viewModel.isRemembering)
                 }
                 .frame(maxHeight: .infinity)
                 .onChange(of: viewModel.messages.count) { _, _ in
@@ -308,7 +319,7 @@ struct MessageBubble: View {
             return Color.sageGreen
         case .assistant:
             return Color.softTaupe.opacity(0.6)
-        case .system:
+        case .system, .tool:
             return Color.softTaupe.opacity(0.3)
         }
     }
