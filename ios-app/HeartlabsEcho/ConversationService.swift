@@ -1,9 +1,6 @@
 import Foundation
 import SwiftData
 
-/// Threshold for considering a session "active" after backgrounding.
-private let sessionTimeout: TimeInterval = 30 * 60  // 30 minutes
-
 // MARK: - ConversationService
 
 /// Manages persistence of conversations via SwiftData.
@@ -75,19 +72,17 @@ final class ConversationService {
         }
     }
 
-    /// Checks whether there is an active session (within the 30-minute timeout).
+    /// Returns or creates a conversation for today.
     ///
-    /// - Parameter conversation: The conversation to check.
-    /// - Returns: `true` if the conversation's last activity is within the timeout window.
-    func isSessionActive(_ conversation: Conversation) -> Bool {
-        let elapsed = Date().timeIntervalSince(conversation.lastActivityAt)
-        return elapsed < sessionTimeout
-    }
-
-    /// Creates a new conversation for today and inserts it into the context.
+    /// If a conversation already exists for today (e.g. from a previous load),
+    /// it is returned instead of creating a duplicate. This guarantees there is
+    /// never more than one conversation per day.
     ///
-    /// - Returns: The newly created `Conversation`.
+    /// - Returns: The existing or newly created `Conversation`.
     func createTodayConversation() -> Conversation {
+        if let existing = loadTodayConversation() {
+            return existing
+        }
         let conversation = Conversation(dateKey: Self.todayDateKey)
         modelContext.insert(conversation)
         saveChanges()

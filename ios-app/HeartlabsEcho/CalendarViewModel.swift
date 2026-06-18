@@ -2,6 +2,18 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+// MARK: - Preview State
+
+/// The state of the daily preview section below the calendar grid.
+enum PreviewState: Equatable {
+    /// No conversation exists for the selected date.
+    case empty
+    /// A preview is ready to display.
+    case loaded(ConversationPreview)
+    /// A summary is being generated for the selected date.
+    case generating
+}
+
 // MARK: - CalendarViewModel
 
 /// Manages the calendar grid state: current month, selected date,
@@ -16,6 +28,9 @@ final class CalendarViewModel: ObservableObject {
     /// The date the user has tapped on (or `nil`).
     @Published var selectedDate: Date?
 
+    /// The current state of the daily preview.
+    @Published var previewState: PreviewState = .empty
+
     /// Date keys (e.g. `"2026-06-13"`) that have at least one conversation.
     @Published var datesWithEntries: Set<String> = []
 
@@ -23,6 +38,7 @@ final class CalendarViewModel: ObservableObject {
 
     private var conversationService: ConversationService?
     private var hasSetup = false
+    private lazy var llmService = LLMService()
 
     // MARK: - Init
 
@@ -80,42 +96,133 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Selection
 
-    /// Selects a specific date in the calendar.
+    /// Selects a specific date in the calendar and refreshes the preview.
     func selectDate(_ date: Date) {
         selectedDate = date
+        Task {
+            await refreshPreview()
+        }
     }
 
     // MARK: - Preview Data
 
-    /// Builds a preview for the given date, or `nil` if no conversation exists.
-    func preview(for date: Date) -> ConversationPreview? {
-        guard let service = conversationService else { return nil }
+    /// Refreshes the preview for the currently selected date.
+    ///
+    /// Determines the right preview content:
+    /// - **Today**: shows the first sentences of the conversation.
+    /// - **Has summary**: shows the first lines of the summary.
+    /// - **No summary**: triggers on-the-fly generation with a loading indicator;
+    ///   falls back to conversation text if generation fails.
+    private func refreshPreview() async {
+        guard let date = selectedDate, let service = conversationService else {
+            previewState = .empty
+            return
+        }
 
         let dateKey = Self.dateKey(for: date)
-        guard let conversation = service.loadConversation(dateKey: dateKey) else { return nil }
+        guard let conversation = service.loadConversation(dateKey: dateKey) else {
+            previewState = .empty
+            return
+        }
 
         let sortedMessages = conversation.messages.sorted(by: { $0.timestamp < $1.timestamp })
-
-        // Find the first user message for the snippet.
-        let firstUserMessage = sortedMessages.first(where: { $0.role == "user" })
-        // Fall back to the very first message if no user message found.
-        let firstMessage = firstUserMessage ?? sortedMessages.first
-
+        let firstMessage = sortedMessages.first(where: { $0.role == "user" }) ?? sortedMessages.first
         let timestamp = firstMessage.map { Self.timeString(from: $0.timestamp) } ?? ""
-        let snippet = firstMessage.map { Self.snippet(from: $0.content) } ?? ""
+        let conversationSnippet = firstMessage.map { Self.snippet(from: $0.content) } ?? ""
+        let isToday = Calendar.current.isDateInToday(date)
 
-        return ConversationPreview(
-            dateKey: dateKey,
-            dateLabel: Self.dateLabel(for: date),
-            timestamp: timestamp,
-            snippet: snippet
-        )
+        if isToday {
+            // Today — show the conversation text itself.
+            previewState = .loaded(ConversationPreview(
+                dateKey: dateKey,
+                dateLabel: Self.dateLabel(for: date),
+                timestamp: timestamp,
+                snippet: conversationSnippet,
+                isToday: true
+            ))
+            return
+        }
+
+        if let summary = conversation.summary {
+            // Summary exists — show the first lines of the summary.
+            previewState = .loaded(ConversationPreview(
+                dateKey: dateKey,
+                dateLabel: Self.dateLabel(for: date),
+                timestamp: timestamp,
+                snippet: Self.snippet(from: summary),
+                isToday: false
+            ))
+            return
+        }
+
+        // No summary yet — check if conversation is still active (midnight boundary).
+        // If active, show conversation text directly instead of generating a summary.
+        if conversation.hasRecentActivity {
+            previewState = .loaded(ConversationPreview(
+                dateKey: dateKey,
+                dateLabel: Self.dateLabel(for: date),
+                timestamp: timestamp,
+                snippet: conversationSnippet,
+                isToday: false
+            ))
+            return
+        }
+
+        // No summary yet and not active — generate it on the fly.
+        previewState = .generating
+
+        do {
+            if let generatedSummary = try await generateSummary(for: dateKey, service: service) {
+                previewState = .loaded(ConversationPreview(
+                    dateKey: dateKey,
+                    dateLabel: Self.dateLabel(for: date),
+                    timestamp: timestamp,
+                    snippet: Self.snippet(from: generatedSummary),
+                    isToday: false
+                ))
+            } else {
+                // Generation returned nothing — fall back to conversation text.
+                previewState = .loaded(ConversationPreview(
+                    dateKey: dateKey,
+                    dateLabel: Self.dateLabel(for: date),
+                    timestamp: timestamp,
+                    snippet: conversationSnippet,
+                    isToday: false
+                ))
+            }
+        } catch {
+            // Generation failed — fall back to conversation text.
+            previewState = .loaded(ConversationPreview(
+                dateKey: dateKey,
+                dateLabel: Self.dateLabel(for: date),
+                timestamp: timestamp,
+                snippet: conversationSnippet,
+                isToday: false
+            ))
+        }
     }
 
-    /// The preview for the currently selected date, or `nil`.
-    var selectedPreview: ConversationPreview? {
-        guard let selectedDate else { return nil }
-        return preview(for: selectedDate)
+    /// Generates and saves a summary for a single date.
+    private func generateSummary(for dateKey: String, service: ConversationService) async throws -> String? {
+        let summarySystemPrompt = """
+        You are a summarizer. Summarize the following conversation in 2-3 sentences.
+        Focus on what the user talked about, how they felt, and any key events or decisions.
+        Be concise and factual.
+        """
+
+        let conversationText = service.fetchFullConversationText(dateKey: dateKey) ?? ""
+
+        let summaryRequest: ChatHistory = [
+            ChatMessage(role: .system, content: summarySystemPrompt),
+            ChatMessage(role: .user, content: conversationText),
+        ]
+
+        let response = try await llmService.sendMessages(summaryRequest)
+        if case .text(let summary) = response {
+            service.updateSummary(dateKey: dateKey, summary: summary)
+            return summary
+        }
+        return nil
     }
 
     // MARK: - Date Helpers
@@ -207,5 +314,8 @@ struct ConversationPreview: Equatable {
     let dateKey: String
     let dateLabel: String
     let timestamp: String
+    /// The text shown in the preview — either a conversation snippet or the first lines of a summary.
     let snippet: String
+    /// Whether this date is today (conversation text is shown as-is).
+    let isToday: Bool
 }

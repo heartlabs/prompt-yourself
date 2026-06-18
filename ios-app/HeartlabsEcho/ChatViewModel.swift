@@ -81,9 +81,17 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Helpers
 
     /// Updates `isShowingPastConversation` based on the current conversation.
+    ///
+    /// A conversation is read-only (past) only when:
+    /// - Its dateKey is not today, **and**
+    /// - It has no recent activity (idle >30 min)
+    ///
+    /// Today is always mutable. An active past-day conversation (midnight boundary)
+    /// is also treated as the current session.
     private func updatePastConversationFlag() {
-        isShowingPastConversation = currentConversation.map {
-            $0.dateKey != ConversationService.todayDateKey
+        isShowingPastConversation = currentConversation.map { conv in
+            if conv.isToday { return false }
+            return !conv.hasRecentActivity
         } ?? false
     }
 
@@ -93,7 +101,7 @@ final class ChatViewModel: ObservableObject {
     ///
     /// Call this once from the view (e.g. in `.task`) after the environment's
     /// `modelContext` is available. If a conversation already exists for today
-    /// and the session is still active (within 30 min), messages are loaded.
+    /// it is restored automatically.
     ///
     /// - Parameter modelContext: The SwiftData `ModelContext` from the environment.
     func setupPersistence(with modelContext: ModelContext) {
@@ -111,55 +119,88 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Attempts to restore today's conversation if the session is still active.
+    /// Restores the active conversation on app launch.
+    ///
+    /// Priority order:
+    /// 1. Today's conversation — always resumed.
+    /// 2. Yesterday's conversation — resumed only if still active (<30 min idle).
+    /// 3. Nothing — moodboard shown.
     private func loadPersistedConversation(service: ConversationService) {
-        guard let conversation = service.loadTodayConversation() else {
-            // No conversation for today → stay on start screen (messages is empty)
+        // 1. Check today
+        if let conversation = service.loadTodayConversation() {
+            currentConversation = conversation
+            updatePastConversationFlag()
+            messages = conversation.messages
+                .sorted(by: { $0.timestamp < $1.timestamp })
+                .map { ChatMessage(from: $0) }
+            if !messages.isEmpty { statusMessage = "Reply received" }
             return
         }
 
-        guard service.isSessionActive(conversation) else {
-            // Session timed out → stay on start screen (keep old data on disk)
+        // 2. Check yesterday — only if still active (midnight boundary)
+        if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
+           let conversation = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday)),
+           conversation.hasRecentActivity {
+            currentConversation = conversation
+            updatePastConversationFlag()
+            messages = conversation.messages
+                .sorted(by: { $0.timestamp < $1.timestamp })
+                .map { ChatMessage(from: $0) }
+            if !messages.isEmpty { statusMessage = "Reply received" }
             return
         }
 
-        // Restore the conversation
-        currentConversation = conversation
-        updatePastConversationFlag()
-        messages = conversation.messages
-            .sorted(by: { $0.timestamp < $1.timestamp })
-            .map { ChatMessage(from: $0) }
-
-        if !messages.isEmpty {
-            statusMessage = "Reply received"
-        }
+        // 3. No active conversation — moodboard
     }
 
     // MARK: - Public API
 
     /// Resets the chat to today's conversation.
-    /// If an active session exists for today, it loads the messages.
-    /// Otherwise it shows the start screen (moodboard).
+    ///
+    /// Priority order:
+    /// 1. Today's conversation — always opened.
+    /// 2. Yesterday's conversation — opened only if still active (<30 min idle).
+    /// 3. Nothing — moodboard shown.
     func resetToToday() {
         guard let service = conversationService else { return }
 
-        if let conversation = service.loadTodayConversation(),
-           service.isSessionActive(conversation) {
+        // 1. Check today
+        if let conversation = service.loadTodayConversation() {
             currentConversation = conversation
             updatePastConversationFlag()
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
             statusMessage = messages.isEmpty ? "Tap to start" : "Reply received"
-        } else {
-            // No active session today — show the start screen
-            currentConversation = nil
-            updatePastConversationFlag()
-            messages = []
-            statusMessage = "Tap the microphone to start"
+            finishReset()
+            return
         }
 
-        // Fire-and-forget: generate summary for the previous day if needed.
+        // 2. Check yesterday — only if still active (midnight boundary)
+        if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
+           let conversation = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday)),
+           conversation.hasRecentActivity {
+            currentConversation = conversation
+            updatePastConversationFlag()
+            messages = conversation.messages
+                .sorted(by: { $0.timestamp < $1.timestamp })
+                .map { ChatMessage(from: $0) }
+            statusMessage = messages.isEmpty ? "Tap to start" : "Reply received"
+            finishReset()
+            return
+        }
+
+        // 3. No conversation for today — show the start screen
+        currentConversation = nil
+        updatePastConversationFlag()
+        messages = []
+        statusMessage = "Tap the microphone to start"
+
+        finishReset()
+    }
+
+    /// Common tail of `resetToToday` — triggers summary generation for the previous day.
+    private func finishReset() {
         Task {
             await generateSummaryForPreviousDayIfNeeded()
         }
@@ -237,6 +278,9 @@ final class ChatViewModel: ObservableObject {
     /// call with a summarization-only system prompt. There is a small delay between calls to
     /// avoid hammering the API. Days that fail (network error, API issue) are logged and skipped
     /// — they stay nil and remain eligible for a future backfill attempt.
+    ///
+    /// **Skip rule:** A conversation that still has recent activity (<30 min idle) is not
+    /// summarized — it may cross the midnight boundary and continue as the current session.
     private func generateSummaryForPreviousDayIfNeeded() async {
         guard let service = conversationService else { return }
 
@@ -248,7 +292,8 @@ final class ChatViewModel: ObservableObject {
         for dateKey in allKeys {
             guard let conversation = service.loadConversation(dateKey: dateKey),
                   conversation.summary == nil,
-                  !conversation.messages.isEmpty
+                  !conversation.messages.isEmpty,
+                  !conversation.hasRecentActivity  // skip active conversations
             else { continue }
 
             await generateSummary(for: dateKey, service: service)
@@ -297,14 +342,36 @@ final class ChatViewModel: ObservableObject {
         systemPrompt = content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Ensures there is an active conversation for today, creating one if needed.
+    /// Ensures there is an active conversation, creating one if needed.
     ///
-    /// - Returns: The `Conversation` to add messages to.
+    /// Priority order:
+    /// 1. `currentConversation` — already loaded in memory.
+    /// 2. Today's conversation — exists in store from a previous session.
+    /// 3. Yesterday's conversation — only if still active (midnight boundary).
+    /// 4. New conversation for today — created by `ConversationService` (idempotent).
+    ///
+    /// - Returns: The `Conversation` to add messages to, or `nil` if no service.
     private func ensureConversation() -> Conversation? {
         if let existing = currentConversation {
             return existing
         }
         guard let service = conversationService else { return nil }
+
+        // 2. Existing today conversation
+        if let existing = service.loadTodayConversation() {
+            currentConversation = existing
+            return existing
+        }
+
+        // 3. Active yesterday conversation (midnight boundary)
+        if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
+           let existing = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday)),
+           existing.hasRecentActivity {
+            currentConversation = existing
+            return existing
+        }
+
+        // 4. Create new for today — idempotent, won't duplicate
         let new = service.createTodayConversation()
         currentConversation = new
         return new

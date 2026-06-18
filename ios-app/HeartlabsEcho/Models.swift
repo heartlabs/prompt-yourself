@@ -33,6 +33,14 @@ final class Conversation {
         self.messages = []
     }
 
+    /// Time window (in seconds) before a conversation is considered inactive.
+    static let activityTimeout: TimeInterval = 30 * 60
+
+    /// Whether the last message was within the activity window (30 minutes).
+    var hasRecentActivity: Bool {
+        Date().timeIntervalSince(lastActivityAt) < Self.activityTimeout
+    }
+
     /// Whether this conversation belongs to today.
     var isToday: Bool {
         dateKey == Self.dateKey(for: Date())

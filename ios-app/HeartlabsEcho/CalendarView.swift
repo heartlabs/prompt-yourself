@@ -125,7 +125,8 @@ struct CalendarView: View {
 
     @ViewBuilder
     private var dailyPreviewSection: some View {
-        if let preview = viewModel.selectedPreview {
+        switch viewModel.previewState {
+        case .loaded(let preview):
             VStack(alignment: .leading, spacing: 10) {
                 // Section label
                 Text(preview.dateLabel)
@@ -140,7 +141,31 @@ struct CalendarView: View {
                 }
                 .buttonStyle(.plain)
             }
-        } else {
+
+        case .generating:
+            VStack(alignment: .leading, spacing: 10) {
+                Text(previewDateLabel)
+                    .font(.system(size: 20, weight: .semibold, design: .default))
+                    .foregroundColor(.taupeText)
+
+                // Loading card with animated circles
+                HStack {
+                    Spacer()
+                    LoadingCirclesIndicator()
+                        .padding(.vertical, 32)
+                    Spacer()
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.5))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.softTaupe.opacity(0.3), lineWidth: 1)
+                )
+            }
+
+        case .empty:
             // Muted empty state when no day is selected or no entry exists
             VStack(alignment: .leading, spacing: 10) {
                 Text(emptyDateLabel)
@@ -163,6 +188,14 @@ struct CalendarView: View {
         }
     }
 
+    /// The date label shown while a summary is being generated.
+    private var previewDateLabel: String {
+        if let selected = viewModel.selectedDate {
+            return CalendarViewModel.dateLabel(for: selected)
+        }
+        return CalendarViewModel.dateLabel(for: Date())
+    }
+
     /// The date label for the empty state — shows the selected date's label
     /// if one is selected, otherwise today's.
     private var emptyDateLabel: String {
@@ -182,7 +215,7 @@ struct CalendarView: View {
                     .font(.system(size: 13, weight: .regular, design: .default))
                     .foregroundColor(.taupeText.opacity(0.5))
 
-                Text("Journal Entry")
+                Text(preview.isToday ? "Today's Entry" : "Journal Entry")
                     .font(.system(size: 16, weight: .semibold, design: .default))
                     .foregroundColor(.taupeText)
 
@@ -340,6 +373,30 @@ private struct CalendarDayCell: View {
             return .sageGreen
         }
         return .taupeText.opacity(0.7)
+    }
+}
+
+// MARK: - LoadingCirclesIndicator
+
+/// A compact pulsing-circles animation shown while a summary is being generated.
+private struct LoadingCirclesIndicator: View {
+    @State private var activeIndex = 0
+    let timer = Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0 ..< 3) { i in
+                Circle()
+                    .fill(Color.sageGreen)
+                    .frame(width: 10, height: 10)
+                    .opacity(activeIndex == i ? 1.0 : 0.25)
+                    .scaleEffect(activeIndex == i ? 1.0 : 0.7)
+                    .animation(.easeInOut(duration: 0.25), value: activeIndex)
+            }
+        }
+        .onReceive(timer) { _ in
+            activeIndex = (activeIndex + 1) % 3
+        }
     }
 }
 
