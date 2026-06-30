@@ -51,6 +51,13 @@ struct ContentView: View {
                 Label("Journal", systemImage: "calendar")
             }
             .tag(1)
+
+            // Tab 2: "Your Life" tree
+            TreeView()
+                .tabItem {
+                    Label("Tree", systemImage: "tree")
+                }
+                .tag(2)
         }
         .tint(.sageGreen)
     }

@@ -153,8 +153,12 @@ final class LLMService {
     /// - Parameters:
     ///   - messages: The full conversation history including system prompt.
     ///   - tools: Optional tool definitions the LLM may use.
+    ///   - jsonMode: When `true`, requests an OpenAI-compatible JSON object
+    ///     response (`response_format: {"type": "json_object"}`). Supported by
+    ///     DeepSeek and most OpenAI-compatible providers. Callers should still
+    ///     parse defensively, since not every provider honors it.
     /// - Returns: An `LLMResponse` — either `.text(String)` or `.toolCalls([ToolCallPayload])`.
-    func sendMessages(_ messages: ChatHistory, tools: [LLMTool]? = nil) async throws -> LLMResponse {
+    func sendMessages(_ messages: ChatHistory, tools: [LLMTool]? = nil, jsonMode: Bool = false) async throws -> LLMResponse {
         guard !configuration.apiKey.isEmpty else {
             throw LLMError.noAPIKey
         }
@@ -175,6 +179,10 @@ final class LLMService {
 
         if let tools, !tools.isEmpty {
             payload["tools"] = tools.map { $0.toDictionary() }
+        }
+
+        if jsonMode {
+            payload["response_format"] = ["type": "json_object"]
         }
 
         var request = URLRequest(url: url)

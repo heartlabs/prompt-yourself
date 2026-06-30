@@ -1,0 +1,210 @@
+{
+ "note": "Per-sprite stem + blade angle from treelib.detect_stem (largest-blob clean, blade=stem->apex). stem_x/y are fractions; blade_deg = deg cw from up. Baked from canonicalized sprite art.",
+ "sets": {
+  "round": {
+   "deep": [
+    {
+     "asset": "leaf_round_deep_1",
+     "file": "leaf_deep_1.png",
+     "w": 270,
+     "h": 307,
+     "stem_x": 0.87407,
+     "stem_y": 0.99674,
+     "blade_deg": -31.58
+    },
+    {
+     "asset": "leaf_round_deep_2",
+     "file": "leaf_deep_2.png",
+     "w": 268,
+     "h": 309,
+     "stem_x": 0.12313,
+     "stem_y": 0.99676,
+     "blade_deg": 32.02
+    },
+    {
+     "asset": "leaf_round_deep_3",
+     "file": "leaf_deep_3.png",
+     "w": 270,
+     "h": 306,
+     "stem_x": 0.87407,
+     "stem_y": 0.99673,
+     "blade_deg": -31.58
+    }
+   ],
+   "medium": [
+    {
+     "asset": "leaf_round_medium_1",
+     "file": "leaf_medium_1.png",
+     "w": 283,
+     "h": 307,
+     "stem_x": 0.16961,
+     "stem_y": 0.99674,
+     "blade_deg": 32.68
+    },
+    {
+     "asset": "leaf_round_medium_2",
+     "file": "leaf_medium_2.png",
+     "w": 275,
+     "h": 312,
+     "stem_x": 0.23273,
+     "stem_y": 0.99679,
+     "blade_deg": 26.94
+    },
+    {
+     "asset": "leaf_round_medium_3",
+     "file": "leaf_medium_3.png",
+     "w": 281,
+     "h": 306,
+     "stem_x": 0.17082,
+     "stem_y": 0.99673,
+     "blade_deg": 32.62
+    }
+   ],
+   "pale": [
+    {
+     "asset": "leaf_round_pale_1",
+     "file": "leaf_pale_1.png",
+     "w": 270,
+     "h": 307,
+     "stem_x": 0.13704,
+     "stem_y": 0.99674,
+     "blade_deg": 32.23
+    },
+    {
+     "asset": "leaf_round_pale_2",
+     "file": "leaf_pale_2.png",
+     "w": 272,
+     "h": 303,
+     "stem_x": 0.87868,
+     "stem_y": 0.9967,
+     "blade_deg": -33.74
+    },
+    {
+     "asset": "leaf_round_pale_3",
+     "file": "leaf_pale_3.png",
+     "w": 270,
+     "h": 306,
+     "stem_x": 0.13704,
+     "stem_y": 0.99673,
+     "blade_deg": 32.67
+    }
+   ]
+  },
+  "elongated": {
+   "deep": [
+    {
+     "asset": "leaf_elongated_deep_1",
+     "file": "leaf_deep_1.png",
+     "w": 425,
+     "h": 446,
+     "stem_x": 0.0,
+     "stem_y": 0.98879,
+     "blade_deg": 44.07
+    },
+    {
+     "asset": "leaf_elongated_deep_2",
+     "file": "leaf_deep_2.png",
+     "w": 418,
+     "h": 453,
+     "stem_x": 0.02632,
+     "stem_y": 0.99779,
+     "blade_deg": 41.93
+    },
+    {
+     "asset": "leaf_elongated_deep_3",
+     "file": "leaf_deep_3.png",
+     "w": 430,
+     "h": 371,
+     "stem_x": 0.02558,
+     "stem_y": 0.9973,
+     "blade_deg": 48.64
+    },
+    {
+     "asset": "leaf_elongated_deep_4",
+     "file": "leaf_deep_4.png",
+     "w": 460,
+     "h": 442,
+     "stem_x": 0.02391,
+     "stem_y": 0.99774,
+     "blade_deg": 44.74
+    }
+   ],
+   "medium": [
+    {
+     "asset": "leaf_elongated_medium_1",
+     "file": "leaf_medium_1.png",
+     "w": 405,
+     "h": 447,
+     "stem_x": 0.02716,
+     "stem_y": 0.99776,
+     "blade_deg": 41.39
+    },
+    {
+     "asset": "leaf_elongated_medium_2",
+     "file": "leaf_medium_2.png",
+     "w": 455,
+     "h": 404,
+     "stem_x": 0.0,
+     "stem_y": 0.98762,
+     "blade_deg": 49.12
+    },
+    {
+     "asset": "leaf_elongated_medium_3",
+     "file": "leaf_medium_3.png",
+     "w": 478,
+     "h": 371,
+     "stem_x": 0.02301,
+     "stem_y": 0.9973,
+     "blade_deg": 51.93
+    },
+    {
+     "asset": "leaf_elongated_medium_4",
+     "file": "leaf_medium_4.png",
+     "w": 439,
+     "h": 390,
+     "stem_x": 0.02733,
+     "stem_y": 0.99744,
+     "blade_deg": 48.04
+    }
+   ],
+   "pale": [
+    {
+     "asset": "leaf_elongated_pale_1",
+     "file": "leaf_pale_1.png",
+     "w": 418,
+     "h": 447,
+     "stem_x": 0.01914,
+     "stem_y": 0.99776,
+     "blade_deg": 46.44
+    },
+    {
+     "asset": "leaf_elongated_pale_2",
+     "file": "leaf_pale_2.png",
+     "w": 379,
+     "h": 373,
+     "stem_x": 0.02902,
+     "stem_y": 0.99732,
+     "blade_deg": 44.92
+    },
+    {
+     "asset": "leaf_elongated_pale_3",
+     "file": "leaf_pale_3.png",
+     "w": 382,
+     "h": 370,
+     "stem_x": 0.02618,
+     "stem_y": 0.9973,
+     "blade_deg": 45.39
+    },
+    {
+     "asset": "leaf_elongated_pale_4",
+     "file": "leaf_pale_4.png",
+     "w": 459,
+     "h": 442,
+     "stem_x": 0.0,
+     "stem_y": 0.98869,
+     "blade_deg": 46.48
+    }
+   ]
+  }
+ }
+}
