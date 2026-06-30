@@ -13,3 +13,5 @@ xcuserdata/
 
 # LLM API configuration (contains secrets — copy from .template files)
 llm-config.plist
+# API keys bundled in code — flip `active` to switch providers
+LLMConfigs.swift

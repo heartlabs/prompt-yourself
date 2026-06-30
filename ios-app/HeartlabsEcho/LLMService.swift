@@ -139,7 +139,7 @@ final class LLMService {
 
     // MARK: - Init
 
-    init(configuration: LLMConfiguration = .fromPlist(),
+    init(configuration: LLMConfiguration = .active,
          session: URLSession = .shared) {
         self.configuration = configuration
         self.session = session

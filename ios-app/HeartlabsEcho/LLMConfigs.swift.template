@@ -1,0 +1,43 @@
+// ⚠️ This file contains active API keys — it is gitignored.
+//   Copy to LLMConfigs.swift, fill in your keys, and flip `active`.
+//
+//   Usage:
+//     1. `cp LLMConfigs.swift.template LLMConfigs.swift`
+//     2. Fill in API keys below
+//     3. Change `_activeProvider` to select the provider for this build
+
+import Foundation
+
+// MARK: - Active Provider
+//
+// ┌─────────────────────────────────────────────────────────┐
+// │ 👇 Change this single line to switch providers:        │
+// │      .deepseek   → DeepSeek API                        │
+// │      .mistral    → Mistral API                         │
+// └─────────────────────────────────────────────────────────┘
+
+private let _activeProvider: LLMConfiguration = .deepseek
+
+// MARK: - Provider Definitions
+
+extension LLMConfiguration {
+
+    /// DeepSeek — default provider.
+    static let deepseek = LLMConfiguration(
+        apiKey: "sk-your-deepseek-key-here",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-chat",
+        source: "LLMConfigs.deepseek"
+    )
+
+    /// Mistral AI.
+    static let mistral = LLMConfiguration(
+        apiKey: "sk-your-mistral-key-here",
+        baseURL: "https://api.mistral.ai/v1",
+        model: "mistral-large-latest",
+        source: "LLMConfigs.mistral"
+    )
+
+    /// Returns the currently active configuration.
+    static var active: LLMConfiguration { _activeProvider }
+}
