@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = ChatViewModel()
     @State private var selectedTab = 0
     /// Prevents `resetToToday` from overriding a conversation that was just
@@ -60,6 +61,19 @@ struct ContentView: View {
                 .tag(2)
         }
         .tint(.sageGreen)
+        .onChange(of: selectedTab) { _, newTab in
+            // Stop recording when navigating away from the conversation tab.
+            if newTab != 0 && viewModel.recognizer.isRecording {
+                viewModel.toggleRecording()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Stop recording and send partial transcript when app goes to background
+            // (lock button, app switcher, phone call, etc.).
+            if newPhase == .background {
+                viewModel.stopRecordingOnBackground()
+            }
+        }
     }
 
     // MARK: - Conversation Tab

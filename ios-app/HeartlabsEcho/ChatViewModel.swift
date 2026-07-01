@@ -222,6 +222,19 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    /// Stops recording immediately (synchronously) and sends the partial transcript.
+    ///
+    /// Used when the app goes to background — unlike `toggleRecording()` this doesn't
+    /// await an async continuation that may never fire if the app is suspended.
+    func stopRecordingOnBackground() {
+        guard recognizer.isRecording else { return }
+        statusMessage = "Finalizing..."
+        recognizer.stopTranscribing()  // synchronous — no hanging continuation
+        Task {
+            await sendTranscript()
+        }
+    }
+
     /// Toggle recording on/off.
     /// After stopping, automatically send the new transcript to the LLM.
     func toggleRecording() {

@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Speech
+import UIKit
 
 /// An observable service that manages speech-to-text transcription using
 /// the device's microphone and `SFSpeechRecognizer`.
@@ -92,6 +93,7 @@ final class SpeechRecognizer: ObservableObject {
 
         isRecording = false
         statusMessage = transcript.isEmpty ? "Tap to start" : "Done"
+        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     /// Stop recording and **await the final transcript** instead of cancelling.
@@ -110,6 +112,7 @@ final class SpeechRecognizer: ObservableObject {
         finalizationContinuation = nil
         recognitionTask = nil
         recognitionRequest = nil
+        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     // MARK: - Private Helpers
@@ -123,6 +126,7 @@ final class SpeechRecognizer: ObservableObject {
         do {
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            UIApplication.shared.isIdleTimerDisabled = true
         } catch {
             statusMessage = "Failed to configure audio session: \(error.localizedDescription)"
             return
@@ -157,6 +161,7 @@ final class SpeechRecognizer: ObservableObject {
                 if result.isFinal {
                     self.isRecording = false
                     self.statusMessage = self.transcript.isEmpty ? "Tap to start" : "Done"
+                    UIApplication.shared.isIdleTimerDisabled = false
                     self.finalizationContinuation?.resume()
                     self.finalizationContinuation = nil
                 }
