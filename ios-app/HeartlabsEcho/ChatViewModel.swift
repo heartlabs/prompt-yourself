@@ -47,6 +47,7 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Persistence
 
     private var conversationService: ConversationService?
+    private var summaryService: SummaryService?
     private var currentConversation: Conversation?
     private var hasSetupPersistence = false
 
@@ -117,11 +118,14 @@ final class ChatViewModel: ObservableObject {
         let service = ConversationService(modelContext: modelContext)
         conversationService = service
 
+        let summ = SummaryService(conversationService: service, router: router)
+        summaryService = summ
+
         loadPersistedConversation(service: service)
 
-        // Fire-and-forget: generate summary for the previous day if needed.
+        // Fire-and-forget: backfill outdated summaries.
         Task {
-            await generateSummaryForPreviousDayIfNeeded()
+            await summ.backfillOldVersions()
         }
     }
 
@@ -224,10 +228,11 @@ final class ChatViewModel: ObservableObject {
         scrollToBottomCount += 1
     }
 
-    /// Common tail of `resetToToday` — triggers summary generation for the previous day.
+    /// Common tail of `resetToToday` — triggers backfill for outdated summaries.
     private func finishReset() {
+        guard let summ = summaryService else { return }
         Task {
-            await generateSummaryForPreviousDayIfNeeded()
+            await summ.backfillOldVersions()
         }
     }
 
@@ -307,68 +312,7 @@ final class ChatViewModel: ObservableObject {
         return contextParts.joined(separator: "\n")
     }
 
-    // MARK: - Summary Generation (Step 4)
 
-    /// Generates summaries for all past days that are missing them.
-    ///
-    /// This runs as a fire-and-forget background task triggered when:
-    /// - Persistence is first set up (`setupPersistence`)
-    /// - The user resets to today (`resetToToday`)
-    ///
-    /// Days are processed from most recent to oldest. Each day uses a separate, minimal LLM
-    /// call with a summarization-only system prompt. There is a small delay between calls to
-    /// avoid hammering the API. Days that fail (network error, API issue) are logged and skipped
-    /// — they stay nil and remain eligible for a future backfill attempt.
-    ///
-    /// **Skip rule:** A conversation that still has recent activity (<30 min idle) is not
-    /// summarized — it may cross the midnight boundary and continue as the current session.
-    private func generateSummaryForPreviousDayIfNeeded() async {
-        guard let service = conversationService else { return }
-
-        let todayKey = ConversationService.todayDateKey
-        let allKeys = service.fetchAllDateKeys()
-            .filter { $0 != todayKey }
-            .reversed()  // most recent first
-
-        for dateKey in allKeys {
-            guard let conversation = service.loadConversation(dateKey: dateKey),
-                  conversation.summary == nil,
-                  !conversation.messages.isEmpty,
-                  !conversation.hasRecentActivity  // skip active conversations
-            else { continue }
-
-            await generateSummary(for: dateKey, service: service)
-
-            // Small delay between API calls to avoid rate limits.
-            try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
-        }
-    }
-
-    /// Generates and saves a summary for a single date key.
-    private func generateSummary(for dateKey: String, service: ConversationService) async {
-        let summarySystemPrompt = """
-        You are a summarizer. Summarize the following conversation in 2-3 sentences.
-        Focus on what the user talked about, how they felt, and any key events or decisions.
-        Be concise and factual.
-        """
-
-        let conversationText = service.fetchFullConversationText(dateKey: dateKey) ?? ""
-
-        let summaryRequest: ChatHistory = [
-            ChatMessage(role: .system, content: summarySystemPrompt),
-            ChatMessage(role: .user, content: conversationText),
-        ]
-
-        do {
-            let response = try await router.sendMessages(summaryRequest, tier: .cheap)
-            if case .text(let summary) = response {
-                service.updateSummary(dateKey: dateKey, summary: summary)
-                print("[ChatViewModel] Summary saved for \(dateKey): \(summary.prefix(80))...")
-            }
-        } catch {
-            print("[ChatViewModel] Failed to generate summary for \(dateKey): \(error)")
-        }
-    }
 
     // MARK: - Private Helpers
 

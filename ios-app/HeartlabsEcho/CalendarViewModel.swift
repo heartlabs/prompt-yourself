@@ -37,8 +37,8 @@ final class CalendarViewModel: ObservableObject {
     // MARK: - Private State
 
     private var conversationService: ConversationService?
+    private var summaryService: SummaryService?
     private var hasSetup = false
-    private lazy var router = ModelRouter()
 
     // MARK: - Init
 
@@ -59,6 +59,9 @@ final class CalendarViewModel: ObservableObject {
 
         let service = ConversationService(modelContext: modelContext)
         conversationService = service
+
+        let summ = SummaryService(conversationService: service)
+        summaryService = summ
 
         loadDatesWithEntries()
 
@@ -113,7 +116,8 @@ final class CalendarViewModel: ObservableObject {
     ///
     /// Determines the right preview content:
     /// - **Today**: shows the first sentences of the conversation.
-    /// - **Has summary**: shows the first lines of the summary.
+    /// - **Has summary (current version)**: shows the first lines of the summary.
+    /// - **Has summary (outdated)**: shows the old summary immediately, regenerates in background.
     /// - **No summary**: triggers on-the-fly generation with a loading indicator;
     ///   falls back to conversation text if generation fails.
     private func refreshPreview() async {
@@ -146,20 +150,7 @@ final class CalendarViewModel: ObservableObject {
             return
         }
 
-        if let summary = conversation.summary {
-            // Summary exists — show the first lines of the summary.
-            previewState = .loaded(ConversationPreview(
-                dateKey: dateKey,
-                dateLabel: Self.dateLabel(for: date),
-                timestamp: timestamp,
-                snippet: Self.snippet(from: summary),
-                isToday: false
-            ))
-            return
-        }
-
-        // No summary yet — check if conversation is still active (midnight boundary).
-        // If active, show conversation text directly instead of generating a summary.
+        // Check if conversation is still active (midnight boundary).
         if conversation.hasRecentActivity {
             previewState = .loaded(ConversationPreview(
                 dateKey: dateKey,
@@ -171,30 +162,58 @@ final class CalendarViewModel: ObservableObject {
             return
         }
 
+        guard let summ = summaryService else { return }
+
+        if let summary = conversation.summary {
+            // Summary exists.
+            let isOutdated = summ.isOutdated(for: dateKey)
+
+            // Show it immediately (old or current version).
+            previewState = .loaded(ConversationPreview(
+                dateKey: dateKey,
+                dateLabel: Self.dateLabel(for: date),
+                timestamp: timestamp,
+                snippet: Self.snippet(from: summary),
+                isToday: false
+            ))
+
+            // If outdated, regenerate in background and update preview when done.
+            if isOutdated {
+                Task {
+                    if let newSummary = await summ.regenerateIfOutdated(for: dateKey) {
+                        // Refresh preview with the new summary, preserving the selected date.
+                        previewState = .loaded(ConversationPreview(
+                            dateKey: dateKey,
+                            dateLabel: Self.dateLabel(for: date),
+                            timestamp: timestamp,
+                            snippet: Self.snippet(from: newSummary),
+                            isToday: false
+                        ))
+                    }
+                }
+            }
+            return
+        }
+
         // No summary yet and not active — generate it on the fly.
+        // If generation is already in flight (batch backfill), show a spinner.
+        if summ.isGenerationPending(for: dateKey) {
+            previewState = .generating
+            return
+        }
+
         previewState = .generating
 
-        do {
-            if let generatedSummary = try await generateSummary(for: dateKey, service: service) {
-                previewState = .loaded(ConversationPreview(
-                    dateKey: dateKey,
-                    dateLabel: Self.dateLabel(for: date),
-                    timestamp: timestamp,
-                    snippet: Self.snippet(from: generatedSummary),
-                    isToday: false
-                ))
-            } else {
-                // Generation returned nothing — fall back to conversation text.
-                previewState = .loaded(ConversationPreview(
-                    dateKey: dateKey,
-                    dateLabel: Self.dateLabel(for: date),
-                    timestamp: timestamp,
-                    snippet: conversationSnippet,
-                    isToday: false
-                ))
-            }
-        } catch {
-            // Generation failed — fall back to conversation text.
+        if let generatedSummary = await summ.generateSummaryIfMissing(for: dateKey) {
+            previewState = .loaded(ConversationPreview(
+                dateKey: dateKey,
+                dateLabel: Self.dateLabel(for: date),
+                timestamp: timestamp,
+                snippet: Self.snippet(from: generatedSummary),
+                isToday: false
+            ))
+        } else {
+            // Generation failed or returned nothing — fall back to conversation text.
             previewState = .loaded(ConversationPreview(
                 dateKey: dateKey,
                 dateLabel: Self.dateLabel(for: date),
@@ -203,29 +222,6 @@ final class CalendarViewModel: ObservableObject {
                 isToday: false
             ))
         }
-    }
-
-    /// Generates and saves a summary for a single date.
-    private func generateSummary(for dateKey: String, service: ConversationService) async throws -> String? {
-        let summarySystemPrompt = """
-        You are a summarizer. Summarize the following conversation in 2-3 sentences.
-        Focus on what the user talked about, how they felt, and any key events or decisions.
-        Be concise and factual.
-        """
-
-        let conversationText = service.fetchFullConversationText(dateKey: dateKey) ?? ""
-
-        let summaryRequest: ChatHistory = [
-            ChatMessage(role: .system, content: summarySystemPrompt),
-            ChatMessage(role: .user, content: conversationText),
-        ]
-
-        let response = try await router.sendMessages(summaryRequest, tier: .cheap)
-        if case .text(let summary) = response {
-            service.updateSummary(dateKey: dateKey, summary: summary)
-            return summary
-        }
-        return nil
     }
 
     // MARK: - Date Helpers

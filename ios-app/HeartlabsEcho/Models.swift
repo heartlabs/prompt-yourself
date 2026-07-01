@@ -21,6 +21,11 @@ final class Conversation {
     /// Auto-generated summary for this day's conversation (e.g. "User talked about work stress...").
     var summary: String?
 
+    /// Version of the summarizer that generated `summary`. `nil` means version 0.
+    /// Increment `SummaryService.currentVersion` when the summarizer prompt changes
+    /// to trigger regeneration of outdated summaries.
+    var summaryVersion: Int?
+
     /// All messages in this conversation, ordered by timestamp.
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message]

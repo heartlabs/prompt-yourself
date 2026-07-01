@@ -136,9 +136,11 @@ final class ConversationService {
     /// - Parameters:
     ///   - dateKey: The date key string (e.g. `"2026-06-13"`).
     ///   - summary: The summary text to store.
-    func updateSummary(dateKey: String, summary: String) {
+    ///   - version: The summarizer version that produced this summary.
+    func updateSummary(dateKey: String, summary: String, version: Int? = nil) {
         guard let conversation = loadConversation(dateKey: dateKey) else { return }
         conversation.summary = summary
+        conversation.summaryVersion = version
         saveChanges()
     }
 
