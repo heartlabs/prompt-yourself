@@ -28,6 +28,16 @@ final class ChatViewModel: ObservableObject {
     /// (and should therefore be treated as read-only).
     @Published private(set) var isShowingPastConversation = false
 
+    /// Whether the chat should auto-scroll to the bottom on new messages.
+    /// True during recording or when the agent is responding.
+    /// False when browsing past conversations.
+    @Published private(set) var shouldAutoScroll = false
+
+    /// Monotonically increasing counter bumped to request a scroll-to-bottom.
+    /// Used when switching back to the conversation tab or returning from background
+    /// — cases where shouldAutoScroll may already be true and we need a fresh trigger.
+    @Published private(set) var scrollToBottomCount = 0
+
     // MARK: - Private State
 
     private let router: ModelRouter
@@ -126,10 +136,12 @@ final class ChatViewModel: ObservableObject {
         if let conversation = service.loadTodayConversation() {
             currentConversation = conversation
             updatePastConversationFlag()
+            shouldAutoScroll = false
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
             if !messages.isEmpty { statusMessage = "Reply received" }
+            requestScrollToBottomIfActive()
             return
         }
 
@@ -139,10 +151,12 @@ final class ChatViewModel: ObservableObject {
            conversation.hasRecentActivity {
             currentConversation = conversation
             updatePastConversationFlag()
+            shouldAutoScroll = false
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
             if !messages.isEmpty { statusMessage = "Reply received" }
+            requestScrollToBottomIfActive()
             return
         }
 
@@ -164,10 +178,12 @@ final class ChatViewModel: ObservableObject {
         if let conversation = service.loadTodayConversation() {
             currentConversation = conversation
             updatePastConversationFlag()
+            shouldAutoScroll = false
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
             statusMessage = messages.isEmpty ? "Tap to start" : "Reply received"
+            requestScrollToBottomIfActive()
             finishReset()
             return
         }
@@ -178,10 +194,12 @@ final class ChatViewModel: ObservableObject {
            conversation.hasRecentActivity {
             currentConversation = conversation
             updatePastConversationFlag()
+            shouldAutoScroll = false
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
             statusMessage = messages.isEmpty ? "Tap to start" : "Reply received"
+            requestScrollToBottomIfActive()
             finishReset()
             return
         }
@@ -189,10 +207,21 @@ final class ChatViewModel: ObservableObject {
         // 3. No conversation for today — show the start screen
         currentConversation = nil
         updatePastConversationFlag()
+        shouldAutoScroll = false
         messages = []
         statusMessage = "Tap the microphone to start"
 
         finishReset()
+    }
+
+    /// Bumps `scrollToBottomCount` to ask the view to scroll to the bottom
+    /// when the conversation is active (i.e. not a read-only past entry).
+    ///
+    /// This is called after loading an active conversation (app launch,
+    /// tab switch back to Today, app returning from background).
+    func requestScrollToBottomIfActive() {
+        guard !isShowingPastConversation else { return }
+        scrollToBottomCount += 1
     }
 
     /// Common tail of `resetToToday` — triggers summary generation for the previous day.
@@ -211,9 +240,11 @@ final class ChatViewModel: ObservableObject {
 
         currentConversation = conversation
         updatePastConversationFlag()
+        shouldAutoScroll = false
         messages = conversation.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .map { ChatMessage(from: $0) }
+        // Past conversation — deliberately NOT scrolling
 
         if messages.isEmpty {
             statusMessage = "No entries yet"
@@ -246,6 +277,7 @@ final class ChatViewModel: ObservableObject {
                 await sendTranscript()
             }
         } else {
+            shouldAutoScroll = true
             recognizer.startTranscribing()
         }
     }
@@ -444,11 +476,13 @@ final class ChatViewModel: ObservableObject {
         // Append the user's transcript as a message.
         let userMessage = ChatMessage(role: .user, content: transcript)
         messages.append(userMessage)
+        shouldAutoScroll = true
 
         // Persist user message
         persistMessage(role: "user", content: transcript, id: userMessage.id, timestamp: userMessage.timestamp)
 
         isThinking = true
+        shouldAutoScroll = true
         statusMessage = "..."
 
         do {

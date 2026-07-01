@@ -68,10 +68,18 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            // Stop recording and send partial transcript when app goes to background
-            // (lock button, app switcher, phone call, etc.).
-            if newPhase == .background {
+            switch newPhase {
+            case .active:
+                // App came to foreground — scroll to bottom if on an active conversation.
+                if selectedTab == 0 {
+                    viewModel.requestScrollToBottomIfActive()
+                }
+            case .background:
+                // Stop recording and send partial transcript when app goes to background
+                // (lock button, app switcher, phone call, etc.).
                 viewModel.stopRecordingOnBackground()
+            default:
+                break
             }
         }
     }
@@ -227,8 +235,12 @@ extension ContentView {
                     .animation(.easeOut(duration: 0.5), value: viewModel.isRemembering)
                 }
                 .frame(maxHeight: .infinity)
+                // Auto-scroll only when actively recording or waiting for a response.
+                // This prevents scrolling when loading past conversations.
                 .onChange(of: viewModel.messages.count) { _, _ in
-                    scrollToBottom(proxy)
+                    if viewModel.shouldAutoScroll {
+                        scrollToBottom(proxy)
+                    }
                 }
                 .onChange(of: viewModel.recognizer.isRecording) { _, _ in
                     scrollToBottom(proxy)
@@ -242,6 +254,15 @@ extension ContentView {
                     if viewModel.isThinking {
                         scrollToBottom(proxy)
                     }
+                }
+                .onChange(of: viewModel.shouldAutoScroll) { _, newValue in
+                    if newValue {
+                        scrollToBottom(proxy)
+                    }
+                }
+                // Fresh scroll request after tab switch / app foreground / initial load.
+                .onChange(of: viewModel.scrollToBottomCount) { _, _ in
+                    scrollToBottom(proxy)
                 }
             }
 
@@ -299,10 +320,14 @@ extension ContentView {
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.easeOut(duration: 0.2)) {
-            if let last = viewModel.messages.last {
-                proxy.scrollTo(last.id, anchor: .bottom)
+            if viewModel.recognizer.isRecording {
+                // Scroll to the live recording bubble so the user sees their live transcript.
+                proxy.scrollTo("live", anchor: .bottom)
             } else if viewModel.isThinking {
+                // Scroll to the typing indicator so the user sees the agent is responding.
                 proxy.scrollTo("typing", anchor: .bottom)
+            } else if let last = viewModel.messages.last {
+                proxy.scrollTo(last.id, anchor: .bottom)
             }
         }
     }
