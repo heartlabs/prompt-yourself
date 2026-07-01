@@ -229,6 +229,14 @@ extension ContentView {
                             }
                             .id("typing")
                         }
+
+                        // Invisible spacer used as a reliable scroll anchor.
+                        // Scrolling to a message bubble's .bottom anchor can land at its
+                        // top instead when LazyVStack hasn't finished laying out.
+                        // A dedicated 1pt spacer always resolves to the true bottom.
+                        Color.clear
+                            .frame(height: 1)
+                            .id("scroll_bottom")
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
@@ -326,8 +334,11 @@ extension ContentView {
             } else if viewModel.isThinking {
                 // Scroll to the typing indicator so the user sees the agent is responding.
                 proxy.scrollTo("typing", anchor: .bottom)
-            } else if let last = viewModel.messages.last {
-                proxy.scrollTo(last.id, anchor: .bottom)
+            } else {
+                // Scroll to the invisible bottom spacer — reliably positions the last
+                // message's last line at the bottom of the view, even when LazyVStack
+                // hasn't finished measuring multi-line message heights.
+                proxy.scrollTo("scroll_bottom", anchor: .bottom)
             }
         }
     }

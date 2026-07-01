@@ -16,20 +16,17 @@ struct CalendarView: View {
         ZStack {
             Color.warmIvory.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    calendarGrid
-                        .padding(.horizontal, 16)
-                        .padding(.top, 20)
+            VStack(spacing: 0) {
+                calendarGrid
+                    .padding(.horizontal, 16)
+                    .padding(.top, 20)
 
-                    Spacer().frame(height: 20)
+                Spacer().frame(height: 20)
 
-                    dailyPreviewSection
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 24)
-                }
+                dailyPreviewSection
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
             }
-            .scrollDisabled(true)
         }
         .preferredColorScheme(.light)
         .task {
@@ -133,7 +130,7 @@ struct CalendarView: View {
                     .font(.system(size: 20, weight: .semibold, design: .default))
                     .foregroundColor(.taupeText)
 
-                // Preview card (tappable → load conversation)
+                // Preview card (tappable → load conversation).
                 Button(action: {
                     onSelectConversation?(preview.dateKey)
                 }) {
@@ -209,7 +206,7 @@ struct CalendarView: View {
 
     private func previewCard(preview: ConversationPreview) -> some View {
         HStack(spacing: 16) {
-            // Left side: Text content
+            // Left side: Text content.
             VStack(alignment: .leading, spacing: 4) {
                 Text(preview.timestamp)
                     .font(.system(size: 13, weight: .regular, design: .default))
@@ -219,11 +216,18 @@ struct CalendarView: View {
                     .font(.system(size: 16, weight: .semibold, design: .default))
                     .foregroundColor(.taupeText)
 
-                Text(preview.snippet)
-                    .font(.system(size: 14, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.65))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                // Scrollable summary — uses fixedSize so the ScrollView reports its
+                // content's natural height for short summaries, with a max cap so
+                // long summaries get a scroll bar instead of expanding the card.
+                ScrollView(.vertical) {
+                    Text(preview.snippet)
+                        .font(.system(size: 14, weight: .regular, design: .default))
+                        .foregroundColor(.taupeText.opacity(0.65))
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxHeight: 250)
             }
 
             Spacer(minLength: 12)

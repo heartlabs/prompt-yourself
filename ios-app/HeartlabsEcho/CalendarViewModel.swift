@@ -61,6 +61,9 @@ final class CalendarViewModel: ObservableObject {
         conversationService = service
 
         loadDatesWithEntries()
+
+        // Auto-select today so the preview card appears immediately.
+        selectDate(Date())
     }
 
     /// Refreshes the set of date keys that have entries.
@@ -289,7 +292,7 @@ final class CalendarViewModel: ObservableObject {
         let cleaned = text
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let maxLength = 80
+        let maxLength = 5000
         if cleaned.count <= maxLength {
             return cleaned
         }
