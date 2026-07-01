@@ -21,7 +21,7 @@ final class TreeViewModel: ObservableObject {
     func setup(modelContext: ModelContext) {
         guard service == nil else { return }
         let conversationService = ConversationService(modelContext: modelContext)
-        service = TreeScoreService(conversationService: conversationService, llmService: LLMService())
+        service = TreeScoreService(conversationService: conversationService)
     }
 
     /// Loads the tree on first appearance (cache-aware).

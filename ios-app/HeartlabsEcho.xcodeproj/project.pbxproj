@@ -28,6 +28,7 @@
 		AAA00105 /* TreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00115 /* TreeView.swift */; };
 		AAA00106 /* anchors.json in Resources */ = {isa = PBXBuildFile; fileRef = AAA00116 /* anchors.json */; };
 		AAA00118 /* LLMConfigs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00117 /* LLMConfigs.swift */; };
+		AAA00119 /* ModelRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0011A /* ModelRouter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +55,7 @@
 		AAA00115 /* TreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeView.swift; sourceTree = "<group>"; };
 		AAA00116 /* anchors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = anchors.json; sourceTree = "<group>"; };
 		AAA00117 /* LLMConfigs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMConfigs.swift; sourceTree = "<group>"; };
+		AAA0011A /* ModelRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRouter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -88,6 +90,7 @@
 				AAA00115 /* TreeView.swift */,
 				AAA00116 /* anchors.json */,
 				AAA00117 /* LLMConfigs.swift */,
+				AAA0011A /* ModelRouter.swift */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 			);
@@ -189,6 +192,7 @@
 				AAA00103 /* TreeScoreService.swift in Sources */,
 				AAA00104 /* TreeViewModel.swift in Sources */,
 				AAA00105 /* TreeView.swift in Sources */,
+				AAA00119 /* ModelRouter.swift in Sources */,
 				AAA00118 /* LLMConfigs.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

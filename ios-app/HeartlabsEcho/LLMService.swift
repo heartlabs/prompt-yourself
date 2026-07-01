@@ -139,7 +139,7 @@ final class LLMService {
 
     // MARK: - Init
 
-    init(configuration: LLMConfiguration = .active,
+    init(configuration: LLMConfiguration = .cheap,
          session: URLSession = .shared) {
         self.configuration = configuration
         self.session = session

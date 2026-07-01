@@ -22,15 +22,15 @@ enum TreeState: Equatable {
 @MainActor
 final class TreeScoreService {
     private let conversationService: ConversationService
-    private let llmService: LLMService
+    private let router: ModelRouter
 
     private let lookbackDays = 30
     private let maxEntries = 10
     private let cacheKey = "tree_score_cache_v1"
 
-    init(conversationService: ConversationService, llmService: LLMService) {
+    init(conversationService: ConversationService, router: ModelRouter = ModelRouter()) {
         self.conversationService = conversationService
-        self.llmService = llmService
+        self.router = router
     }
 
     // MARK: - Public API
@@ -127,7 +127,7 @@ final class TreeScoreService {
         var lastError: Error = TreeScoreError.malformed
         for attempt in 0..<2 {
             do {
-                let response = try await llmService.sendMessages(request, jsonMode: true)
+                let response = try await router.sendMessages(request, tier: .cheap, jsonMode: true)
                 guard case .text(let content) = response else {
                     lastError = TreeScoreError.malformed
                     continue

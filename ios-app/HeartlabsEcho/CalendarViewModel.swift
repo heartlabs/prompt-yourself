@@ -38,7 +38,7 @@ final class CalendarViewModel: ObservableObject {
 
     private var conversationService: ConversationService?
     private var hasSetup = false
-    private lazy var llmService = LLMService()
+    private lazy var router = ModelRouter()
 
     // MARK: - Init
 
@@ -217,7 +217,7 @@ final class CalendarViewModel: ObservableObject {
             ChatMessage(role: .user, content: conversationText),
         ]
 
-        let response = try await llmService.sendMessages(summaryRequest)
+        let response = try await router.sendMessages(summaryRequest, tier: .cheap)
         if case .text(let summary) = response {
             service.updateSummary(dateKey: dateKey, summary: summary)
             return summary

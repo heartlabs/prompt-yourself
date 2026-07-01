@@ -30,10 +30,7 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Private State
 
-    /// Exposed for diagnostics — shows the configuration being used.
-    let configuration: LLMConfiguration
-
-    private let llmService: LLMService
+    private let router: ModelRouter
     private var systemPrompt: String = ""
     private var cancellables = Set<AnyCancellable>()
 
@@ -63,9 +60,8 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Init
 
-    init(llmService: LLMService = LLMService()) {
-        self.llmService = llmService
-        self.configuration = llmService.configuration
+    init(router: ModelRouter = ModelRouter()) {
+        self.router = router
         loadSystemPrompt()
 
         // Forward change notifications from the nested SpeechRecognizer
@@ -319,7 +315,7 @@ final class ChatViewModel: ObservableObject {
         ]
 
         do {
-            let response = try await llmService.sendMessages(summaryRequest)
+            let response = try await router.sendMessages(summaryRequest, tier: .cheap)
             if case .text(let summary) = response {
                 service.updateSummary(dateKey: dateKey, summary: summary)
                 print("[ChatViewModel] Summary saved for \(dateKey): \(summary.prefix(80))...")
@@ -457,7 +453,7 @@ final class ChatViewModel: ObservableObject {
             // Tool call loop — limited to prevent infinite loops (Gap 3).
         toolLoop:
             for _ in 0..<maxToolCallIterations {
-                let response = try await llmService.sendMessages(fullHistory, tools: tools)
+                let response = try await router.sendMessages(fullHistory, tier: .performant, tools: tools)
 
                 switch response {
                 case .text(let text):
@@ -518,7 +514,7 @@ final class ChatViewModel: ObservableObject {
         } catch {
             let errorMessage = ChatMessage(
                 role: .assistant,
-                content: "⚠️ \(error.localizedDescription)\n\n\(configuration.diagnostics)"
+                content: "⚠️ \(error.localizedDescription)\n\n\(router.diagnostics(for: .performant))"
             )
             messages.append(errorMessage)
 

@@ -6,6 +6,8 @@
 	<string>This app needs speech recognition to transcribe your journal entries as you speak them.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access to capture your voice for transcription.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundleDevelopmentRegion</key>
