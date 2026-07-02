@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AAA00001 /* HeartlabsEchoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00004 /* HeartlabsEchoApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00005 /* ContentView.swift */; };
+		AAA00401 /* ConversationUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00402 /* ConversationUI.swift */; };
 		AAA00003 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00006 /* SpeechRecognizer.swift */; };
 		AAA0001A /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001E /* ChatMessage.swift */; };
 		AAA0001B /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001F /* LLMService.swift */; };
@@ -37,6 +38,7 @@
 /* Begin PBXFileReference section */
 		AAA00004 /* HeartlabsEchoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartlabsEchoApp.swift; sourceTree = "<group>"; };
 		AAA00005 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		AAA00402 /* ConversationUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationUI.swift; sourceTree = "<group>"; };
 		AAA00006 /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
 		AAA00007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AAA00008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -80,6 +82,7 @@
 			children = (
 				AAA00004 /* HeartlabsEchoApp.swift */,
 				AAA00005 /* ContentView.swift */,
+				AAA00402 /* ConversationUI.swift */,
 				AAA00006 /* SpeechRecognizer.swift */,
 				AAA0001E /* ChatMessage.swift */,
 				AAA0001F /* LLMService.swift */,
@@ -189,6 +192,7 @@
 			files = (
 				AAA00001 /* HeartlabsEchoApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
+				AAA00401 /* ConversationUI.swift in Sources */,
 				AAA00003 /* SpeechRecognizer.swift in Sources */,
 				AAA0001A /* ChatMessage.swift in Sources */,
 				AAA0001B /* LLMService.swift in Sources */,
