@@ -14,7 +14,6 @@
 		AAA0001B /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001F /* LLMService.swift */; };
 		AAA0001C /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00020 /* ChatViewModel.swift */; };
 		AAA0001D /* system-prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = AAA00021 /* system-prompt.md */; };
-		AAA00024 /* llm-config.plist in Resources */ = {isa = PBXBuildFile; fileRef = AAA00023 /* llm-config.plist */; };
 		AAA00026 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00025 /* Theme.swift */; };
 		AAA00027 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00028 /* Models.swift */; };
 		AAA00029 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002A /* ConversationService.swift */; };
@@ -46,7 +45,6 @@
 		AAA0001F /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
 		AAA00020 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
 		AAA00021 /* system-prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "system-prompt.md"; sourceTree = "<group>"; };
-		AAA00023 /* llm-config.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "llm-config.plist"; sourceTree = "<group>"; };
 		AAA00025 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		AAA00028 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		AAA0002A /* ConversationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationService.swift; sourceTree = "<group>"; };
@@ -64,6 +62,7 @@
 		AAA00201 /* DreamViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DreamViewModel.swift; sourceTree = "<group>"; };
 		AAA00202 /* DreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DreamView.swift; sourceTree = "<group>"; };
 		AAA00203 /* dream-system-prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "dream-system-prompt.md"; sourceTree = "<group>"; };
+		AAA00301 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -72,6 +71,7 @@
 			children = (
 				AAA0000A /* HeartlabsEcho */,
 				AAA0000D /* Products */,
+				AAA00301 /* Secrets.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -85,7 +85,6 @@
 				AAA0001F /* LLMService.swift */,
 				AAA00020 /* ChatViewModel.swift */,
 				AAA00021 /* system-prompt.md */,
-				AAA00023 /* llm-config.plist */,
 				AAA00025 /* Theme.swift */,
 				AAA00028 /* Models.swift */,
 				AAA0002A /* ConversationService.swift */,
@@ -175,7 +174,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				AAA0001D /* system-prompt.md in Resources */,
-				AAA00024 /* llm-config.plist in Resources */,
 				AAA00030 /* Assets.xcassets in Resources */,
 				AAA00106 /* anchors.json in Resources */,
 				AAA00206 /* dream-system-prompt.md in Resources */,
@@ -218,6 +216,7 @@
 /* Begin XCBuildConfiguration section */
 		AAA00015 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AAA00301 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -247,6 +246,7 @@
 		};
 		AAA00016 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AAA00301 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

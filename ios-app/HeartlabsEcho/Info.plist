@@ -8,6 +8,10 @@
 	<string>This app needs microphone access to capture your voice for transcription.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>DeepSeekAPIKey</key>
+	<string>$(DEEPSEEK_API_KEY)</string>
+	<key>MistralAPIKey</key>
+	<string>$(MISTRAL_API_KEY)</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundleDevelopmentRegion</key>

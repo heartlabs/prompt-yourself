@@ -15,19 +15,30 @@ responses from an LLM. No typing, no goals, no pressure — just tap and speak.
 You can edit the system prompt in `HeartlabsEcho/system-prompt.md` to change
 how the LLM behaves.
 
-### Switching LLM providers
+### API Keys
 
-The app uses an OpenAI-compatible API. To switch providers, edit
-`HeartlabsEcho/llm-config.plist` (gitignored — copy from `.template`):
+API keys are injected at build time via a gitignored `Secrets.xcconfig` file.
 
-| Provider | `LLMBaseURL` | `LLMModel` |
-|---|---|---|
-| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` |
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
-| Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
-| Any OpenAI-compatible | your endpoint | your model |
+**Setup (every developer):**
+```bash
+cp Secrets.xcconfig.template Secrets.xcconfig
+# Then edit Secrets.xcconfig and fill in your API keys
+```
 
-## Prerequisites
+The template looks like:
+```
+DEEPSEEK_API_KEY =
+MISTRAL_API_KEY =
+```
+
+**Provider mapping** (hardcoded in `HeartlabsEcho/LLMConfigs.swift`, easy to edit):
+
+| Tier | Provider | Base URL | Model |
+|---|---|---|---|
+| `cheap` | DeepSeek | `https://api.deepseek.com` | `deepseek-chat` |
+| `performant` | Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
+
+To switch providers, edit `HeartlabsEcho/LLMConfigs.swift` — update the `baseURL` / `model` in `.cheap` or `.performant`.
 
 ## Prerequisites
 
@@ -55,6 +66,14 @@ scp -r <container-user>@<container-ip>:/workspace/ios-app /path/on/your/mac/
 ```bash
 docker cp <container-name>:/workspace/ios-app ./ios-app
 ```
+
+### 0. Set up API keys
+```bash
+cp Secrets.xcconfig.template Secrets.xcconfig
+# Then edit Secrets.xcconfig and fill in your API keys
+```
+The app will still compile without keys (they default to empty), but API
+calls will fail with a "No API key" error until you set them.
 
 ## Opening in Xcode
 
@@ -102,10 +121,11 @@ ios-app/
 │   ├── LLMService.swift          ← OpenAI-compatible API client
 │   ├── SpeechRecognizer.swift    ← SFSpeechRecognizer wrapper
 │   ├── system-prompt.md          ← Editable system prompt for the LLM
-│   ├── llm-config.plist          ← LLM API config (gitignored)
-│   ├── llm-config.plist.template ← Template — copy to llm-config.plist
-│   ├── Info.plist                ← Permissions & bundle config
+│   ├── LLMConfigs.swift          ← Provider mapping (committed, secret-free)
+│   ├── Info.plist                ← Permissions & bundle config + API key refs
 │   └── Assets.xcassets/          ← Accent color & app icon
+├── Secrets.xcconfig.template     ← Template — copy to Secrets.xcconfig
+├── Secrets.xcconfig              ← API keys (gitignored — do not commit)
 ├── Package.swift                 ← SPM manifest (for reference)
 ├── Scripts/
 │   └── copy-to-host.sh           ← Helper to copy to macOS
@@ -128,7 +148,7 @@ ios-app/
 - [x] Chat UI with message bubbles (`ContentView.swift`)
 - [x] Conversation history sent with each request
 - [x] Editable system prompt (`system-prompt.md`)
-- [x] Configurable provider via `Config.xcconfig`
+- [x] Configurable provider via `Secrets.xcconfig`
 - [x] Typing indicator while waiting for response
 - [x] Error handling with user-friendly messages
 

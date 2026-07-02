@@ -72,52 +72,6 @@ struct LLMConfiguration {
     /// Human-readable diagnostics — where the config came from.
     let source: String
 
-    static let deepseekDefault = LLMConfiguration(
-        apiKey: "",
-        baseURL: "https://api.deepseek.com",
-        model: "deepseek-chat",
-        source: "hardcoded default"
-    )
-
-    /// Reads configuration from the bundled `llm-config.plist` resource file.
-    ///
-    /// The plist is gitignored — copy `llm-config.plist.template` and fill in your API key.
-    static func fromPlist() -> LLMConfiguration {
-        guard let url = Bundle.main.url(forResource: "llm-config", withExtension: "plist") else {
-            return LLMConfiguration(
-                apiKey: "",
-                baseURL: "https://api.deepseek.com",
-                model: "deepseek-chat",
-                source: "plist NOT FOUND in bundle"
-            )
-        }
-
-        guard let data = try? Data(contentsOf: url) else {
-            return LLMConfiguration(
-                apiKey: "",
-                baseURL: "https://api.deepseek.com",
-                model: "deepseek-chat",
-                source: "plist found but unreadable: \(url.path)"
-            )
-        }
-
-        guard let dict = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
-            return LLMConfiguration(
-                apiKey: "",
-                baseURL: "https://api.deepseek.com",
-                model: "deepseek-chat",
-                source: "plist found but not a valid dict"
-            )
-        }
-
-        return LLMConfiguration(
-            apiKey: (dict["LLMApiKey"] as? String) ?? "",
-            baseURL: (dict["LLMBaseURL"] as? String) ?? "https://api.deepseek.com",
-            model: (dict["LLMModel"] as? String) ?? "deepseek-chat",
-            source: "llm-config.plist"
-        )
-    }
-
     var diagnostics: String {
         let keyPreview = apiKey.isEmpty ? "(empty)" : "\(apiKey.prefix(8))..."
         return "[src:\(source) | url:\(baseURL) | model:\(model) | key:\(keyPreview)]"
@@ -128,10 +82,6 @@ struct LLMConfiguration {
 
 /// An OpenAI-compatible chat completion service.
 ///
-/// Configure via `LLMConfiguration`:
-/// ```swift
-/// let service = LLMService(configuration: LLMConfiguration.fromPlist())
-/// ```
 final class LLMService {
     private let session: URLSession
     /// The configuration in use — exposed for diagnostics.
