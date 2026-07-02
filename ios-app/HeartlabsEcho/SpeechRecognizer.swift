@@ -9,9 +9,10 @@ import UIKit
 /// ## Timeout handling
 ///
 /// `SFSpeechRecognitionTask` has a built-in ~1-minute timeout enforced by the
-/// system. When this fires (`isFinal = true` without user action), this class
-/// **transparently restarts** the task and accumulates the transcript across
-/// restarts so the user never loses text.
+/// system. When this fires (`isFinal = true` without user action), the
+/// accumulated transcript is published via `accumulatedSegment`. The ViewModel
+/// turns each segment into a separate user bubble so the user can see where
+/// the timeout boundary fell.
 ///
 /// ## Error handling
 ///
@@ -22,8 +23,7 @@ import UIKit
 final class SpeechRecognizer: ObservableObject {
     // MARK: - Published State
 
-    /// The current (possibly partial) transcription text.
-    /// Includes accumulated text from previous task restarts.
+    /// The current (possibly partial) transcription text for the current task.
     @Published private(set) var transcript: String = ""
 
     /// Whether audio is being captured and recognition is running.
@@ -36,6 +36,11 @@ final class SpeechRecognizer: ObservableObject {
     /// (error or system finalisation without user action).
     /// The ViewModel observes this and sends it to the LLM.
     @Published var pendingTranscript: String?
+
+    /// Published when the system finalises a task at the ~1-minute timeout
+    /// boundary. The ViewModel turns each segment into a separate user bubble
+    /// so the timeout is visible in the chat.
+    @Published var accumulatedSegment: String?
 
     // MARK: - Errors
 
@@ -71,11 +76,6 @@ final class SpeechRecognizer: ObservableObject {
     /// Continuation used by `stopTranscribingAsync()` to wait for the final result.
     private var finalizationContinuation: CheckedContinuation<Void, Never>?
 
-    /// Accumulated transcript from previous task instances after system-initiated
-    /// timeouts / task finalisation. Prepended to every new task's result so the
-    /// user sees a seamless, growing transcript.
-    private var accumulatedBase: String = ""
-
     // MARK: - Public API
 
     /// Toggle recording on/off.
@@ -108,9 +108,8 @@ final class SpeechRecognizer: ObservableObject {
     }
 
     /// Stop recording and finalize the transcription immediately (cancels the task).
-    /// Clears the accumulated transcript since the user intentionally stopped.
     func stopTranscribing() {
-        accumulatedBase = ""
+        accumulatedSegment = nil
         pendingTranscript = nil
 
         audioEngine.stop()
@@ -137,9 +136,8 @@ final class SpeechRecognizer: ObservableObject {
             finalizationContinuation = continuation
         }
 
-        // Final result received — transcript is now the complete text
-        // (accumulatedBase was already folded in by the handler).
-        accumulatedBase = ""
+        // Final result received — transcript has the current task's text.
+        // accumulatedSegment was already consumed by the ViewModel subscriber.
         pendingTranscript = nil
         finalizationContinuation = nil
         recognitionTask = nil
@@ -207,21 +205,16 @@ final class SpeechRecognizer: ObservableObject {
 
             // --- Partial or final result ---
             if let result {
-                let currentText = result.bestTranscription.formattedString
-
-                // Build the full display text: accumulated base + this task's text
-                if accumulatedBase.isEmpty {
-                    self.transcript = currentText
-                } else {
-                    self.transcript = "\(accumulatedBase) \(currentText)"
-                }
+                // Plain task-local transcript — no accumulation.
+                // Old segments are published via accumulatedSegment and turned
+                // into separate user bubbles by the ViewModel.
+                self.transcript = result.bestTranscription.formattedString
 
                 // --- System finalised the task (timeout or silence) ---
                 if result.isFinal {
                     // Are we here because the user called stopTranscribingAsync()?
                     if let continuation = self.finalizationContinuation {
-                        // YES — user-initiated stop.  transcript already has the
-                        // full accumulated text.  Resume the caller.
+                        // YES — user-initiated stop.
                         self.isRecording = false
                         self.statusMessage = self.transcript.isEmpty ? "Tap to start" : "Done"
                         UIApplication.shared.isIdleTimerDisabled = false
@@ -231,8 +224,9 @@ final class SpeechRecognizer: ObservableObject {
                     }
 
                     // NO — system timeout / silence finalisation.
-                    // Accumulate what we have and transparently restart.
-                    self.accumulatedBase = self.transcript
+                    // Publish the accumulated text as a segment for the ViewModel
+                    // to turn into a user bubble, then transparently restart.
+                    self.accumulatedSegment = self.transcript
 
                     // Discard the old task and start a fresh one.
                     self.discardTask()
@@ -244,9 +238,6 @@ final class SpeechRecognizer: ObservableObject {
 
             // --- Error ---
             if let error {
-                // transcript already includes accumulatedBase (set in the result
-                // handler above), so we just preserve it as-is.
-                self.accumulatedBase = ""
                 self.stopAudioEngine()
 
                 // Snapshot whether we were still recording before we mutate state.

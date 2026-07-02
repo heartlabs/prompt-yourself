@@ -95,6 +95,20 @@ final class ChatViewModel: ObservableObject {
                 Task { await self.sendTranscript() }
             }
             .store(in: &cancellables)
+
+        // When the ~1-minute timeout fires, the recogniser publishes the
+        // accumulated text as a segment. Turn it into a separate user bubble
+        // so the timeout boundary is visible — no LLM call yet.
+        recognizer.$accumulatedSegment
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] segment in
+                guard let self, let segment, !segment.isEmpty else { return }
+                self.recognizer.accumulatedSegment = nil
+                self.shouldAutoScroll = true
+                let msg = ChatMessage(role: .user, content: segment)
+                self.messages.append(msg)
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Helpers
