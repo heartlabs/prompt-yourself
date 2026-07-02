@@ -45,9 +45,6 @@ final class SpeechRecognizer: ObservableObject {
     /// Whether audio is being captured and recognition is running.
     @Published private(set) var isRecording: Bool = false
 
-    /// A user-facing status message (idle, listening, error, …).
-    @Published private(set) var statusMessage: String = "Tap the microphone to start"
-
     /// Set to the accumulated transcript when recording ends spontaneously
     /// (error or system finalisation without user action).
     /// The ViewModel observes this and sends it to the LLM.
@@ -199,7 +196,6 @@ final class SpeechRecognizer: ObservableObject {
         recognitionRequest = nil
 
         isRecording = false
-        statusMessage = transcript.isEmpty ? "Tap to start" : "Done"
         UIApplication.shared.isIdleTimerDisabled = false
     }
 
@@ -230,7 +226,6 @@ final class SpeechRecognizer: ObservableObject {
     private func surfaceError(_ message: String) {
         diag("surfaceError: \(message)")
         isRecording = false
-        statusMessage = message
         recognitionError = message
         UIApplication.shared.isIdleTimerDisabled = false
     }
@@ -333,7 +328,6 @@ final class SpeechRecognizer: ObservableObject {
         }
 
         isRecording = true
-        statusMessage = "Listening..."
 
         guard let speechRecognizer else { return }
 
@@ -353,7 +347,6 @@ final class SpeechRecognizer: ObservableObject {
                     if let continuation = self.finalizationContinuation {
                         // YES — user-initiated stop.
                         self.isRecording = false
-                        self.statusMessage = self.transcript.isEmpty ? "Tap to start" : "Done"
                         UIApplication.shared.isIdleTimerDisabled = false
                         continuation.resume()
                         self.finalizationContinuation = nil
@@ -400,7 +393,6 @@ final class SpeechRecognizer: ObservableObject {
                     // Salvage the partial words — hand them to the ViewModel to send.
                     self.pendingTranscript = self.transcript
                     self.isRecording = false
-                    self.statusMessage = "Done"
                     self.diag("error after partial transcript (\(self.transcript.count) chars) → salvaged via pendingTranscript")
                 } else {
                     // Nothing captured — make the failure VISIBLE instead of silent.

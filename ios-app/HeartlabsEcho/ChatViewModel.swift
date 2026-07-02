@@ -18,9 +18,6 @@ final class ChatViewModel: ObservableObject {
     /// Whether the LLM is retrieving a past conversation (tool call in progress).
     @Published private(set) var isRemembering = false
 
-    /// A user-facing status message.
-    @Published private(set) var statusMessage: String = "Tap the microphone to start"
-
     /// The speech recognizer — owned here so state stays consistent.
     let recognizer = SpeechRecognizer()
 
@@ -170,7 +167,6 @@ final class ChatViewModel: ObservableObject {
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
-            if !messages.isEmpty { statusMessage = "Reply received" }
             requestScrollToBottomIfActive()
             return
         }
@@ -185,7 +181,6 @@ final class ChatViewModel: ObservableObject {
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
-            if !messages.isEmpty { statusMessage = "Reply received" }
             requestScrollToBottomIfActive()
             return
         }
@@ -212,7 +207,6 @@ final class ChatViewModel: ObservableObject {
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
-            statusMessage = messages.isEmpty ? "Tap to start" : "Reply received"
             requestScrollToBottomIfActive()
             finishReset()
             return
@@ -228,7 +222,6 @@ final class ChatViewModel: ObservableObject {
             messages = conversation.messages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .map { ChatMessage(from: $0) }
-            statusMessage = messages.isEmpty ? "Tap to start" : "Reply received"
             requestScrollToBottomIfActive()
             finishReset()
             return
@@ -239,7 +232,6 @@ final class ChatViewModel: ObservableObject {
         updatePastConversationFlag()
         shouldAutoScroll = false
         messages = []
-        statusMessage = "Tap the microphone to start"
 
         finishReset()
     }
@@ -276,12 +268,6 @@ final class ChatViewModel: ObservableObject {
             .sorted(by: { $0.timestamp < $1.timestamp })
             .map { ChatMessage(from: $0) }
         // Past conversation — deliberately NOT scrolling
-
-        if messages.isEmpty {
-            statusMessage = "No entries yet"
-        } else {
-            statusMessage = "Viewing entry from \(dateKey)"
-        }
     }
 
     /// Stops recording immediately (synchronously) and sends the partial transcript.
@@ -290,7 +276,6 @@ final class ChatViewModel: ObservableObject {
     /// await an async continuation that may never fire if the app is suspended.
     func stopRecordingOnBackground() {
         guard recognizer.isRecording else { return }
-        statusMessage = "Finalizing..."
         recognizer.stopTranscribing()  // synchronous — no hanging continuation
         Task {
             await sendTranscript()
@@ -301,7 +286,6 @@ final class ChatViewModel: ObservableObject {
     /// After stopping, automatically send the new transcript to the LLM.
     func toggleRecording() {
         if recognizer.isRecording {
-            statusMessage = "Finalizing..."
             Task {
                 // Await the final transcript (no cancellation — reliable for long speech).
                 await recognizer.stopTranscribingAsync()
@@ -439,7 +423,6 @@ final class ChatViewModel: ObservableObject {
 
         // Don't send empty messages.
         guard !transcript.isEmpty else {
-            statusMessage = "Tap to start"
             return
         }
 
@@ -453,7 +436,6 @@ final class ChatViewModel: ObservableObject {
 
         isThinking = true
         shouldAutoScroll = true
-        statusMessage = "..."
 
         do {
             // Build LLM history: context prompt first, then user-visible conversation.
@@ -522,16 +504,16 @@ final class ChatViewModel: ObservableObject {
                     id: assistantMessage.id,
                     timestamp: assistantMessage.timestamp
                 )
-
-                statusMessage = "Reply received"
-            } else {
-                // No text response after all iterations — should be rare.
-                statusMessage = "I couldn't process that — please try again"
             }
+            // If finalResponse is nil (no text after max tool iterations), we simply
+            // stop and let the user retry. This is rare.
         } catch {
+            #if DEBUG
+            print("[ChatViewModel] LLM error: \(error.localizedDescription) \(router.diagnostics(for: .performant))")
+            #endif
             let errorMessage = ChatMessage(
                 role: .assistant,
-                content: "⚠️ \(error.localizedDescription)\n\n\(router.diagnostics(for: .performant))"
+                content: "⚠️ \(error.localizedDescription)"
             )
             messages.append(errorMessage)
 
@@ -542,8 +524,6 @@ final class ChatViewModel: ObservableObject {
                 id: errorMessage.id,
                 timestamp: errorMessage.timestamp
             )
-
-            statusMessage = "Error — tap mic to retry"
         }
 
         isThinking = false

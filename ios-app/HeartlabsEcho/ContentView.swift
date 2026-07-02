@@ -62,7 +62,7 @@ struct ContentView: View {
                 .tag(2)
 
             // Tab 3: Dreams
-            DreamView()
+            DreamView(viewModel: dreamViewModel)
                 .tabItem {
                     Label("Dreams", systemImage: "moon.fill")
                 }

@@ -169,7 +169,9 @@ final class LLMService {
             throw LLMError.invalidURL
         }
 
+        #if DEBUG
         print("[LLMService] \(configuration.diagnostics) → GET \(url.absoluteString)")
+        #endif
 
         // Build the request body per the OpenAI spec.
         var payload: [String: Any] = [

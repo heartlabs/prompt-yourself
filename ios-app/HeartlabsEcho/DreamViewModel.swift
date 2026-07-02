@@ -17,9 +17,6 @@ final class DreamViewModel: ObservableObject {
     /// Whether the LLM is currently generating a response.
     @Published private(set) var isThinking = false
 
-    /// A user-facing status message.
-    @Published private(set) var statusMessage: String = "Tap the microphone to share a dream"
-
     /// The speech recognizer — owned here so state stays consistent.
     let recognizer = SpeechRecognizer()
 
@@ -80,7 +77,6 @@ final class DreamViewModel: ObservableObject {
     /// Stops recording immediately and sends the partial transcript.
     func stopRecordingOnBackground() {
         guard recognizer.isRecording else { return }
-        statusMessage = "Finalizing..."
         recognizer.stopTranscribing()
         Task {
             await sendTranscript()
@@ -91,7 +87,6 @@ final class DreamViewModel: ObservableObject {
     /// After stopping, automatically send the new transcript to the LLM.
     func toggleRecording() {
         if recognizer.isRecording {
-            statusMessage = "Finalizing..."
             Task {
                 await recognizer.stopTranscribingAsync()
                 await sendTranscript()
@@ -127,7 +122,6 @@ final class DreamViewModel: ObservableObject {
         let transcript = recognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !transcript.isEmpty else {
-            statusMessage = "Tap to speak"
             return
         }
 
@@ -138,7 +132,6 @@ final class DreamViewModel: ObservableObject {
 
         isThinking = true
         shouldAutoScroll = true
-        statusMessage = "..."
 
         do {
             // Build full history: system prompt + conversation
@@ -153,17 +146,18 @@ final class DreamViewModel: ObservableObject {
             if case .text(let text) = response {
                 let assistantMessage = ChatMessage(role: .assistant, content: text)
                 messages.append(assistantMessage)
-                statusMessage = "Reply received"
-            } else {
-                statusMessage = "I couldn't process that — please try again"
             }
+            // A non-text (tool-call) response isn't expected here (no tools passed);
+            // if it happens we simply show nothing and let the user retry.
         } catch {
+            #if DEBUG
+            print("[DreamViewModel] LLM error: \(error.localizedDescription) \(router.diagnostics(for: .performant))")
+            #endif
             let errorMessage = ChatMessage(
                 role: .assistant,
-                content: "⚠️ \(error.localizedDescription)\n\n\(router.diagnostics(for: .performant))"
+                content: "⚠️ \(error.localizedDescription)"
             )
             messages.append(errorMessage)
-            statusMessage = "Error — tap mic to retry"
         }
 
         isThinking = false

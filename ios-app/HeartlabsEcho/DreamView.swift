@@ -3,7 +3,10 @@ import SwiftUI
 // MARK: - Root Dream View
 
 struct DreamView: View {
-    @StateObject private var viewModel = DreamViewModel()
+    /// Injected by the owner (ContentView) so lifecycle management
+    /// (background/tab-switch stop-recording) acts on the SAME instance
+    /// the screen renders — previously a detached @StateObject was created here.
+    @ObservedObject var viewModel: DreamViewModel
 
     var body: some View {
         ZStack {
@@ -346,5 +349,5 @@ struct DreamTypingIndicator: View {
 // MARK: - Preview
 
 #Preview {
-    DreamView()
+    DreamView(viewModel: DreamViewModel())
 }
