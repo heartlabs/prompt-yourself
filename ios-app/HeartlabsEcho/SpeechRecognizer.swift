@@ -281,6 +281,10 @@ final class SpeechRecognizer: ObservableObject {
     }
 
     private func beginAudioCapture() {
+        // Reset transcript immediately so the UI doesn't show stale text from the
+        // previous recording before the recogniser produces its first partial result.
+        transcript = ""
+
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.taskHint = .dictation  // Slightly longer silence tolerance
