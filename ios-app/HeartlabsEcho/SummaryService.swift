@@ -16,7 +16,7 @@ final class SummaryService {
     /// or logic changes to trigger regeneration of outdated summaries.
     ///
     /// Start at 0. Existing summaries with `nil` version are treated as v0.
-    static let currentVersion = 0
+    static let currentVersion = 3
 
     // MARK: - Dependencies
 
@@ -201,7 +201,9 @@ final class SummaryService {
         let summarySystemPrompt = """
         You are a summarizer. Summarize the following conversation in 2-3 sentences.
         Focus on what the user talked about, how they felt, and any key events or decisions.
-        Be concise and factual.
+        Be concise and factual. Talk in the first person from user perspective ("I ..."). 
+        Refer to the agent as "Echo" in 3rd person only if really needed to convey the 
+        user's key experience and topics that day, otherwise just talk about the user.
         """
 
         let summaryRequest: ChatHistory = [
