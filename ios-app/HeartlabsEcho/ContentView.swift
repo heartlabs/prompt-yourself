@@ -46,10 +46,16 @@ struct ContentView: View {
 
             // Tab 1: Calendar / Journal history
             CalendarView(
-                onSelectConversation: { dateKey in
+                onSelectConversation: { dateKey, kind in
                     isNavigatingFromCalendar = true
-                    viewModel.loadConversation(for: dateKey)
-                    selectedTab = 0
+                    switch kind {
+                    case .journal:
+                        viewModel.loadConversation(for: dateKey)
+                        selectedTab = 0
+                    case .dream:
+                        dreamViewModel.loadConversation(for: dateKey)
+                        selectedTab = 3
+                    }
                 }
             )
             .tabItem {

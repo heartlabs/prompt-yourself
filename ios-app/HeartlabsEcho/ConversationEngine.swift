@@ -33,23 +33,21 @@ extension ModelRouter: ChatCompleting {}
 ///
 /// Everything that differs between the Journal and Dream conversations is
 /// expressed here as data + explicit strategy closures (system prompt, model
-/// tier, tool set, context builder, tool executor) — never as behaviour flags
-/// buried in the engine. A feature that doesn't use tools simply supplies an
-/// empty `tools` array and a no-op `executeTool`.
+/// tier, tool registry, context builder) — never as behaviour flags buried in
+/// the engine. A feature that doesn't use tools simply passes
+/// `.none` as the tool registry.
 struct ConversationConfiguration {
     let kind: ConversationKind
     /// Bundled markdown resource name (without extension) for the system prompt.
     let systemPromptResource: String
     /// Which model tier to send with.
     let tier: ModelTier
-    /// Tools the LLM may call. Empty ⇒ no tool loop.
-    let tools: [LLMTool]
+    /// Registry of tools the LLM may call. Empty ⇒ no tool loop.
+    let toolRegistry: ToolRegistry
     /// Builds the full context prompt (system prompt + any extra context such as
     /// recent-day summaries) given the current store.
     /// Runs on the main actor because it reads the (main-actor-isolated) store.
     let makeContext: @MainActor (_ systemPrompt: String, _ store: ConversationService?) -> String
-    /// Executes a single tool call and returns the result text.
-    let executeTool: @MainActor (_ call: ToolCallPayload, _ store: ConversationService?) -> String
     /// System prompt used when the bundled `systemPromptResource` cannot be
     /// loaded. Each feature keeps its own sensible default so behaviour matches
     /// the pre-composition view models exactly.
@@ -58,44 +56,37 @@ struct ConversationConfiguration {
     init(kind: ConversationKind,
          systemPromptResource: String,
          tier: ModelTier,
-         tools: [LLMTool],
+         toolRegistry: ToolRegistry,
          makeContext: @escaping @MainActor (_ systemPrompt: String, _ store: ConversationService?) -> String,
-         executeTool: @escaping @MainActor (_ call: ToolCallPayload, _ store: ConversationService?) -> String,
          fallbackSystemPrompt: String = "You are a helpful assistant.") {
         self.kind = kind
         self.systemPromptResource = systemPromptResource
         self.tier = tier
-        self.tools = tools
+        self.toolRegistry = toolRegistry
         self.makeContext = makeContext
-        self.executeTool = executeTool
         self.fallbackSystemPrompt = fallbackSystemPrompt
     }
 
     // MARK: Journal configuration
 
-    /// Tool that lets the LLM retrieve the full conversation of a past day.
-    static let getConversationTool = LLMTool(
-        name: "get_conversation",
-        description: "Retrieve the full conversation for a specific date to get detailed context.",
-        parameters: [
-            "type": "object",
-            "properties": [
-                "dateKey": [
-                    "type": "string",
-                    "description": "The date in yyyy-MM-dd format, e.g. 2026-06-13",
-                ],
-            ],
-            "required": ["dateKey"],
-        ]
-    )
-
     /// The daily journaling conversation: recent-day summary context + the
-    /// get_conversation tool.
+    /// get_conversation (journal) and get_dream_entry (dream) tools.
     static let journal = ConversationConfiguration(
         kind: .journal,
         systemPromptResource: "system-prompt",
         tier: .performant,
-        tools: [getConversationTool],
+        toolRegistry: ToolRegistry(tools: [
+            ConversationLookupTool(
+                targetKind: .journal,
+                toolName: "get_conversation",
+                toolDescription: "Retrieve a past JOURNAL entry for a specific date for detailed context."
+            ),
+            ConversationLookupTool(
+                targetKind: .dream,
+                toolName: "get_dream_entry",
+                toolDescription: "Retrieve a past DREAM entry for a specific date, to connect dreams to the user\'s waking reflections."
+            ),
+        ]),
         makeContext: { systemPrompt, store in
             var parts: [String] = [systemPrompt]
             guard let store else { return systemPrompt }
@@ -109,38 +100,73 @@ struct ConversationConfiguration {
                     .joined(separator: "\n")
                 parts.append("\n## Recent days\n" + section)
             }
+
+            // Tell the model about today's dream entry so it can pass the dateKey.
+            let todayKey = ConversationService.todayDateKey
+            if store.loadTodayConversation(kind: .dream) != nil {
+                parts.append("\nYou have an active dream conversation today (date: \(todayKey)). Use `get_dream_entry` with that dateKey to read it.")
+            }
+
             return parts.joined(separator: "\n")
-        },
-        executeTool: { call, store in
-            guard call.function.name == "get_conversation" else {
-                return "Unknown tool: \(call.function.name)"
-            }
-            guard let data = call.function.arguments.data(using: .utf8),
-                  let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let dateKey = args["dateKey"] as? String
-            else {
-                return "Failed to parse arguments for get_conversation"
-            }
-            guard let text = store?.fetchFullConversationText(kind: .journal, dateKey: dateKey) else {
-                return "No conversation found for date \(dateKey)"
-            }
-            return text
         },
         fallbackSystemPrompt: "You are a helpful assistant."
     )
 
     // MARK: Dream configuration
 
-    /// The dream-analysis conversation: no persistence, no tools, no extra
-    /// context — just the system prompt sent to a performant model. Mirrors the
-    /// behaviour of the former standalone dream view model.
+    /// The dream-analysis conversation: gains cross-kind lookup tools and context
+    /// from both recent dreams and recent journal entries.
     static let dream = ConversationConfiguration(
         kind: .dream,
         systemPromptResource: "dream-system-prompt",
         tier: .performant,
-        tools: [],
-        makeContext: { systemPrompt, _ in systemPrompt },
-        executeTool: { _, _ in "" },
+        toolRegistry: ToolRegistry(tools: [
+            ConversationLookupTool(
+                targetKind: .dream,
+                toolName: "get_dream_entry",
+                toolDescription: "Retrieve a past DREAM entry for a specific date."
+            ),
+            ConversationLookupTool(
+                targetKind: .journal,
+                toolName: "get_journal_entry",
+                toolDescription: "Retrieve a past JOURNAL entry for a specific date, to relate the dream to waking life."
+            ),
+        ]),
+        makeContext: { systemPrompt, store in
+            var parts: [String] = [systemPrompt]
+            guard let store else { return systemPrompt }
+
+            let recentDreams = store.fetchRecentConversations(kind: .dream, days: 7)
+                .filter { $0.summary != nil }
+            if !recentDreams.isEmpty {
+                let section = recentDreams
+                    .sorted(by: { $0.dateKey < $1.dateKey })
+                    .map { "\($0.dateKey): \($0.summary!)" }
+                    .joined(separator: "\n")
+                parts.append("\n## Recent dreams\n" + section)
+            }
+
+            let recentJournal = store.fetchRecentConversations(kind: .journal, days: 7)
+                .filter { $0.summary != nil }
+            if !recentJournal.isEmpty {
+                let section = recentJournal
+                    .sorted(by: { $0.dateKey < $1.dateKey })
+                    .map { "\($0.dateKey): \($0.summary!)" }
+                    .joined(separator: "\n")
+                parts.append("\n## Recent journal entries\n" + section)
+            }
+
+            // Tell the model about today's entries so it can pass the dateKey.
+            let todayKey = ConversationService.todayDateKey
+            if store.loadTodayConversation(kind: .dream) != nil {
+                parts.append("\nYou have an active dream conversation today (date: \(todayKey)). Use `get_dream_entry` with that dateKey to read it.")
+            }
+            if store.loadTodayConversation(kind: .journal) != nil {
+                parts.append("\nYou have an active journal conversation today (date: \(todayKey)). Use `get_journal_entry` with that dateKey to read it.")
+            }
+
+            return parts.joined(separator: "\n")
+        },
         fallbackSystemPrompt: "You are a thoughtful dream analyst. Help the user understand their dreams."
     )
 }
@@ -442,7 +468,7 @@ class ConversationEngine: ObservableObject {
             }
             fullHistory.append(contentsOf: messages)
 
-            let tools = configuration.tools
+            let tools = configuration.toolRegistry.definitions
             var finalResponse: String?
 
         toolLoop:
@@ -467,7 +493,7 @@ class ConversationEngine: ObservableObject {
                     fullHistory.append(ChatMessage(role: .assistant, content: "", toolCalls: toolCalls))
 
                     for call in toolCalls {
-                        let resultText = configuration.executeTool(call, conversationService)
+                        let resultText = configuration.toolRegistry.execute(call, store: conversationService)
                         fullHistory.append(ChatMessage(role: .tool, content: resultText, toolCallId: call.id))
                     }
 
