@@ -16,6 +16,14 @@ struct DreamView: View {
             }
         }
         .preferredColorScheme(.light)
+        .alert("Speech Recognition", isPresented: Binding(
+            get: { viewModel.recognizer.recognitionError != nil },
+            set: { presented in if !presented { viewModel.recognizer.recognitionError = nil } }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.recognizer.recognitionError ?? "")
+        }
     }
 }
 

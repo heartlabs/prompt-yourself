@@ -18,7 +18,23 @@ import UIKit
 ///
 /// If the recognition task errors (crash, network failure, etc.), the partial
 /// transcript is preserved and published via `pendingTranscript` so the
-/// ViewModel can send it to the LLM rather than losing the user's words.
+/// ViewModel can send it to the LLM rather than losing the user's words. When
+/// there is no partial transcript to salvage, a user-facing message is published
+/// via `recognitionError` so the failure is visible instead of silent.
+///
+/// ## Availability
+///
+/// `SFSpeechRecognizer.isAvailable` can read `false` for a moment right after
+/// creation and flip `true` once it connects. `startTranscribing()` therefore
+/// retries briefly before giving up, so the very first tap after launch isn't
+/// silently dropped.
+///
+/// ## Simulator note
+///
+/// On the iOS Simulator the on-device speech model is frequently missing or
+/// broken (recognition fails with `kLSRErrorDomain` "Failed to create
+/// recognizer"). This is an environment limitation, not an app bug — speech
+/// works on a physical device. We detect this and show a helpful message.
 @MainActor
 final class SpeechRecognizer: ObservableObject {
     // MARK: - Published State
@@ -41,6 +57,11 @@ final class SpeechRecognizer: ObservableObject {
     /// boundary. The ViewModel turns each segment into a separate user bubble
     /// so the timeout is visible in the chat.
     @Published var accumulatedSegment: String?
+
+    /// A user-facing error to present (e.g. as an alert) when recording can't
+    /// start or fails with nothing captured. `nil` when there is no error to
+    /// show. The presenting view clears this back to `nil` on dismiss.
+    @Published var recognitionError: String?
 
     // MARK: - Errors
 
@@ -76,6 +97,34 @@ final class SpeechRecognizer: ObservableObject {
     /// Continuation used by `stopTranscribingAsync()` to wait for the final result.
     private var finalizationContinuation: CheckedContinuation<Void, Never>?
 
+    // MARK: - Diagnostics
+    //
+    // Lightweight logging with the "[SpeechRecognizer]" prefix — filter the
+    // Xcode console by that string to trace the pipeline. Kept intentionally
+    // concise (start state, key aborts, full errors). Safe to remove.
+
+    /// Number of audio buffers delivered by the input tap for the CURRENT task.
+    /// If this stays 0 while "Listening…", the microphone is not feeding the
+    /// engine (host/simulator audio problem) — distinct from a recognizer/asset
+    /// failure, where buffers flow but no transcript is produced.
+    private var tapBufferCount: Int = 0
+
+    private func diag(_ message: String) {
+        print("[SpeechRecognizer] \(message)")
+    }
+
+    /// Formats an NSError with the fields that matter for speech bugs: domain +
+    /// code identify kLSRErrorDomain 300 ("Failed to create recognizer"),
+    /// kAFAssistantErrorDomain 1101/1107, SiriSpeechErrorDomain 102, etc.
+    private func describe(_ error: Error) -> String {
+        let ns = error as NSError
+        var parts = ["domain=\(ns.domain)", "code=\(ns.code)", "desc=\(ns.localizedDescription)"]
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+            parts.append("underlying=(domain=\(underlying.domain) code=\(underlying.code) desc=\(underlying.localizedDescription))")
+        }
+        return parts.joined(separator: " ")
+    }
+
     // MARK: - Public API
 
     /// Toggle recording on/off.
@@ -90,20 +139,50 @@ final class SpeechRecognizer: ObservableObject {
 
     /// Begin listening and transcribing.
     func startTranscribing() {
-        guard let speechRecognizer, speechRecognizer.isAvailable else {
-            statusMessage = RecognitionError.unavailable.localizedDescription
+        recognitionError = nil
+        diag("startTranscribing(): isAvailable=\(speechRecognizer?.isAvailable ?? false) "
+             + "supportsOnDevice=\(speechRecognizer?.supportsOnDeviceRecognition ?? false) "
+             + "authStatus=\(SFSpeechRecognizer.authorizationStatus().rawValue)")
+
+        guard speechRecognizer != nil else {
+            surfaceError(unavailableMessage())
             return
         }
 
-        // Check / request authorisation.
+        // Request authorisation first, then start (retrying briefly if the
+        // recognizer hasn't finished becoming available yet).
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
+                guard let self else { return }
                 guard status == .authorized else {
-                    self?.statusMessage = RecognitionError.notAuthorized.localizedDescription
+                    self.diag("not authorized (status=\(status.rawValue))")
+                    self.surfaceError("Speech recognition permission is off. Enable it in Settings › Privacy & Security › Speech Recognition.")
                     return
                 }
-                self?.beginAudioCapture()
+                self.attemptStart(retriesRemaining: 5)
             }
+        }
+    }
+
+    /// Waits (briefly) for the recognizer to report available, then starts.
+    /// Handles the first-tap-after-launch race where `isAvailable` is still
+    /// `false` for a moment. Gives up after ~2s and surfaces an error.
+    private func attemptStart(retriesRemaining: Int) {
+        guard let recognizer = speechRecognizer else {
+            surfaceError(unavailableMessage())
+            return
+        }
+
+        if recognizer.isAvailable {
+            beginAudioCapture()
+        } else if retriesRemaining > 0 {
+            diag("recognizer not yet available — retrying in 0.4s (\(retriesRemaining) attempts left)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.attemptStart(retriesRemaining: retriesRemaining - 1)
+            }
+        } else {
+            diag("recognizer never became available after retries → surfacing error")
+            surfaceError(unavailableMessage())
         }
     }
 
@@ -147,6 +226,43 @@ final class SpeechRecognizer: ObservableObject {
 
     // MARK: - Private Helpers
 
+    /// Marks recording stopped and publishes a user-visible error message.
+    private func surfaceError(_ message: String) {
+        diag("surfaceError: \(message)")
+        isRecording = false
+        statusMessage = message
+        recognitionError = message
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
+
+    /// A user-facing explanation tuned to the environment. In the Simulator the
+    /// on-device speech model is frequently missing/broken, so we steer the user
+    /// to a real device instead of surfacing a cryptic asset error.
+    private func unavailableMessage() -> String {
+        #if targetEnvironment(simulator)
+        return "Speech recognition isn’t available in the iOS Simulator — the on-device speech model isn’t provided here. Please run Heartlabs Echo on a physical device to use voice journaling."
+        #else
+        return "Speech recognition is currently unavailable. Check your internet connection and try again in a moment."
+        #endif
+    }
+
+    /// Maps a raw recognition error to a friendly, actionable message.
+    private func friendlyMessage(for error: Error) -> String {
+        let ns = error as NSError
+        // kLSRErrorDomain / asset-init failures mean the on-device speech MODEL
+        // couldn't be built (missing/corrupt) — same guidance as "unavailable".
+        if ns.domain == "kLSRErrorDomain"
+            || ns.localizedDescription.localizedCaseInsensitiveContains("recognizer")
+            || ns.localizedDescription.localizedCaseInsensitiveContains("asset") {
+            return unavailableMessage()
+        }
+        #if targetEnvironment(simulator)
+        return unavailableMessage()
+        #else
+        return "Speech recognition failed: \(ns.localizedDescription)"
+        #endif
+    }
+
     /// Releases the current task, request and audio tap without stopping the engine.
     /// Called before transparently restarting the recognition task.
     private func discardTask() {
@@ -176,22 +292,39 @@ final class SpeechRecognizer: ObservableObject {
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             UIApplication.shared.isIdleTimerDisabled = true
         } catch {
-            statusMessage = "Failed to configure audio session: \(error.localizedDescription)"
+            diag("audio session config failed: \(describe(error))")
+            surfaceError("Couldn’t start recording: \(error.localizedDescription)")
             return
         }
 
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+        // Known iOS 17+ simulator bug: inputNode can report a 0ch/0kHz format.
+        // installTap with an invalid format throws an NSException and crashes.
+        // Guard so we surface a clear message instead of crashing.
+        guard recordingFormat.sampleRate > 0 && recordingFormat.channelCount > 0 else {
+            diag("inputNode has an INVALID format (sampleRate=\(recordingFormat.sampleRate) channels=\(recordingFormat.channelCount)) — mic not bridged into the simulator.")
+            surfaceError(unavailableMessage())
+            return
+        }
+
+        tapBufferCount = 0
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            guard let self else { return }
             self.recognitionRequest?.append(buffer)
+            self.tapBufferCount += 1
+            if self.tapBufferCount == 1 {
+                self.diag("first audio buffer received — mic input is flowing.")
+            }
         }
 
         audioEngine.prepare()
         do {
             try audioEngine.start()
         } catch {
-            statusMessage = "Failed to start audio engine: \(error.localizedDescription)"
+            diag("audioEngine.start() failed: \(describe(error))")
+            surfaceError("Couldn’t start the microphone: \(error.localizedDescription)")
             return
         }
 
@@ -238,6 +371,7 @@ final class SpeechRecognizer: ObservableObject {
 
             // --- Error ---
             if let error {
+                self.diag("recognition ERROR: \(self.describe(error)) | tapBuffers=\(self.tapBufferCount) transcriptChars=\(self.transcript.count)")
                 self.stopAudioEngine()
 
                 // Snapshot whether we were still recording before we mutate state.
@@ -258,13 +392,16 @@ final class SpeechRecognizer: ObservableObject {
                 // The caller handled the stop — nothing more to do.
                 guard wasRecording else { return }
 
-                // Spontaneous error — preserve the partial transcript and let the
-                // ViewModel send it to the LLM.
                 if !self.transcript.isEmpty {
+                    // Salvage the partial words — hand them to the ViewModel to send.
                     self.pendingTranscript = self.transcript
+                    self.isRecording = false
+                    self.statusMessage = "Done"
+                    self.diag("error after partial transcript (\(self.transcript.count) chars) → salvaged via pendingTranscript")
+                } else {
+                    // Nothing captured — make the failure VISIBLE instead of silent.
+                    self.surfaceError(self.friendlyMessage(for: error))
                 }
-                self.isRecording = false
-                self.statusMessage = RecognitionError.engineError(error.localizedDescription).localizedDescription
                 self.recognitionTask = nil
                 self.recognitionRequest = nil
                 UIApplication.shared.isIdleTimerDisabled = false
