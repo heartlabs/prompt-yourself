@@ -65,6 +65,7 @@
 		AAA00202 /* DreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DreamView.swift; sourceTree = "<group>"; };
 		AAA00203 /* dream-system-prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "dream-system-prompt.md"; sourceTree = "<group>"; };
 		AAA00301 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		AAA00407 /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -74,6 +75,7 @@
 				AAA0000A /* HeartlabsEcho */,
 				AAA0000D /* Products */,
 				AAA00301 /* Secrets.xcconfig */,
+				AAA00407 /* Secrets.xcconfig.template */,
 			);
 			sourceTree = "<group>";
 		};
