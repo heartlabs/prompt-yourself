@@ -7,6 +7,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = ChatViewModel()
+    @StateObject private var dreamViewModel = DreamViewModel()
     @State private var selectedTab = 0
     /// Prevents `resetToToday` from overriding a conversation that was just
     /// loaded from the calendar preview.
@@ -59,12 +60,23 @@ struct ContentView: View {
                     Label("Tree", systemImage: "tree")
                 }
                 .tag(2)
+
+            // Tab 3: Dreams
+            DreamView()
+                .tabItem {
+                    Label("Dreams", systemImage: "moon.fill")
+                }
+                .tag(3)
         }
         .tint(.sageGreen)
         .onChange(of: selectedTab) { _, newTab in
             // Stop recording when navigating away from the conversation tab.
             if newTab != 0 && viewModel.recognizer.isRecording {
                 viewModel.toggleRecording()
+            }
+            // Stop recording when navigating away from the dream tab.
+            if newTab != 3 && dreamViewModel.recognizer.isRecording {
+                dreamViewModel.toggleRecording()
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -73,11 +85,14 @@ struct ContentView: View {
                 // App came to foreground — scroll to bottom if on an active conversation.
                 if selectedTab == 0 {
                     viewModel.requestScrollToBottomIfActive()
+                } else if selectedTab == 3 {
+                    dreamViewModel.requestScrollToBottom()
                 }
             case .background:
                 // Stop recording and send partial transcript when app goes to background
                 // (lock button, app switcher, phone call, etc.).
                 viewModel.stopRecordingOnBackground()
+                dreamViewModel.stopRecordingOnBackground()
             default:
                 break
             }

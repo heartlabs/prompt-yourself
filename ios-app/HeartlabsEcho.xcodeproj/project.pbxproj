@@ -30,6 +30,9 @@
 		AAA00118 /* LLMConfigs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00117 /* LLMConfigs.swift */; };
 		AAA00119 /* ModelRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0011A /* ModelRouter.swift */; };
 		AAA0011B /* SummaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0011C /* SummaryService.swift */; };
+		AAA00204 /* DreamViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00201 /* DreamViewModel.swift */; };
+		AAA00205 /* DreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00202 /* DreamView.swift */; };
+		AAA00206 /* dream-system-prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = AAA00203 /* dream-system-prompt.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +61,9 @@
 		AAA00117 /* LLMConfigs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMConfigs.swift; sourceTree = "<group>"; };
 		AAA0011A /* ModelRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRouter.swift; sourceTree = "<group>"; };
 		AAA0011C /* SummaryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryService.swift; sourceTree = "<group>"; };
+		AAA00201 /* DreamViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DreamViewModel.swift; sourceTree = "<group>"; };
+		AAA00202 /* DreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DreamView.swift; sourceTree = "<group>"; };
+		AAA00203 /* dream-system-prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "dream-system-prompt.md"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -94,6 +100,9 @@
 				AAA00117 /* LLMConfigs.swift */,
 				AAA0011A /* ModelRouter.swift */,
 				AAA0011C /* SummaryService.swift */,
+				AAA00201 /* DreamViewModel.swift */,
+				AAA00202 /* DreamView.swift */,
+				AAA00203 /* dream-system-prompt.md */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 			);
@@ -169,6 +178,7 @@
 				AAA00024 /* llm-config.plist in Resources */,
 				AAA00030 /* Assets.xcassets in Resources */,
 				AAA00106 /* anchors.json in Resources */,
+				AAA00206 /* dream-system-prompt.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -198,6 +208,8 @@
 				AAA00119 /* ModelRouter.swift in Sources */,
 				AAA00118 /* LLMConfigs.swift in Sources */,
 				AAA0011B /* SummaryService.swift in Sources */,
+				AAA00204 /* DreamViewModel.swift in Sources */,
+				AAA00205 /* DreamView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

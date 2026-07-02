@@ -18,7 +18,9 @@ let package = Package(
             name: "HeartlabsEcho",
             path: "HeartlabsEcho",
             resources: [
-                .process("Assets.xcassets")
+                .process("Assets.xcassets"),
+                .process("system-prompt.md"),
+                .process("dream-system-prompt.md"),
             ]
         ),
     ]

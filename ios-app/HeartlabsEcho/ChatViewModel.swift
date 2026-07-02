@@ -83,6 +83,18 @@ final class ChatViewModel: ObservableObject {
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
+
+        // When the recognizer publishes a spontaneous transcript (error or
+        // system timeout without user action), send it to the LLM immediately.
+        recognizer.$pendingTranscript
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] pending in
+                guard let self, let pending, !pending.isEmpty else { return }
+                self.recognizer.pendingTranscript = nil
+                self.shouldAutoScroll = true
+                Task { await self.sendTranscript() }
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Helpers

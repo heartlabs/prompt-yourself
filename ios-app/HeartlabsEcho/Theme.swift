@@ -20,6 +20,20 @@ extension Color {
 
     /// Slightly darker taupe for text on light backgrounds
     static let taupeText = Color(red: 0.471, green: 0.431, blue: 0.400)
+
+    // MARK: - Dream / Indigo Palette
+
+    /// Deep indigo accent for dream screen (#4A6FA5)
+    static let deepIndigo = Color(red: 0.290, green: 0.435, blue: 0.647)
+
+    /// Semi-transparent indigo for the middle mic ring
+    static let indigoSemibright = Color.deepIndigo.opacity(0.4)
+
+    /// Very faint indigo for the outer mic ring
+    static let indigoFaint = Color.deepIndigo.opacity(0.15)
+
+    /// Soft periwinkle for assistant dream bubbles
+    static let softPeriwinkle = Color(red: 0.831, green: 0.863, blue: 0.941)
 }
 
 // MARK: - Greeting Helper
