@@ -12,6 +12,14 @@ final class Conversation {
     /// Calendar-date key, e.g. "2026-06-13".
     var dateKey: String
 
+    /// Which feature this conversation belongs to ("journal" or "dream"),
+    /// stored as the raw value of `ConversationKind`.
+    ///
+    /// Defaulted so SwiftData performs an automatic lightweight migration:
+    /// existing rows created before this property are preserved and tagged
+    /// `"journal"`. Do NOT remove the default literal.
+    var kind: String = ConversationKind.journal.rawValue
+
     /// When this conversation was first created.
     var createdAt: Date
 
@@ -49,6 +57,13 @@ final class Conversation {
     /// Whether this conversation belongs to today.
     var isToday: Bool {
         dateKey == Self.dateKey(for: Date())
+    }
+
+    /// The typed conversation kind, decoded from the stored raw value.
+    /// Falls back to `.journal` for any unrecognised stored value (e.g. a row
+    /// written by an older build that lacked the column).
+    var conversationKind: ConversationKind {
+        ConversationKind(rawValue: kind) ?? .journal
     }
 
     /// Returns the date key string for a given date (e.g. "2026-06-13").

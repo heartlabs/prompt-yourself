@@ -23,6 +23,10 @@ final class SummaryService {
     private let conversationService: ConversationService
     private let router: ModelRouter
 
+    /// Which conversation kind this service summarizes. All store queries are
+    /// scoped to this kind so journal and dream summaries never cross-pollinate.
+    private let kind: ConversationKind
+
     // MARK: - Dedup
 
     /// Date keys currently being generated (prevents duplicate API calls).
@@ -30,8 +34,9 @@ final class SummaryService {
 
     // MARK: - Init
 
-    init(conversationService: ConversationService, router: ModelRouter = ModelRouter()) {
+    init(conversationService: ConversationService, kind: ConversationKind, router: ModelRouter = ModelRouter()) {
         self.conversationService = conversationService
+        self.kind = kind
         self.router = router
     }
 
@@ -43,7 +48,7 @@ final class SummaryService {
     /// - Parameter dateKey: The date key (e.g. `"2026-06-13"`).
     /// - Returns: The stored summary, or `nil` if none exists.
     func existingSummary(for dateKey: String) -> String? {
-        conversationService.loadConversation(dateKey: dateKey)?.summary
+        conversationService.loadConversation(dateKey: dateKey, kind: kind)?.summary
     }
 
     /// Returns the stored version for a date, or 0 if nil.
@@ -51,7 +56,7 @@ final class SummaryService {
     /// - Parameter dateKey: The date key.
     /// - Returns: The version number (0 if nil / unversioned).
     func storedVersion(for dateKey: String) -> Int {
-        guard let conv = conversationService.loadConversation(dateKey: dateKey) else { return 0 }
+        guard let conv = conversationService.loadConversation(dateKey: dateKey, kind: kind) else { return 0 }
         return conv.summaryVersion ?? 0
     }
 
@@ -80,7 +85,7 @@ final class SummaryService {
     /// - Parameter dateKey: The date key.
     /// - Returns: The generated summary, or `nil`.
     func generateSummaryIfMissing(for dateKey: String) async -> String? {
-        guard let conversation = conversationService.loadConversation(dateKey: dateKey) else { return nil }
+        guard let conversation = conversationService.loadConversation(dateKey: dateKey, kind: kind) else { return nil }
         // Skip if already has a summary.
         guard conversation.summary == nil else { return conversation.summary }
         // Skip active conversations (may cross midnight boundary).
@@ -101,7 +106,7 @@ final class SummaryService {
     /// - Parameter dateKey: The date key.
     /// - Returns: The new summary on success, or the existing summary on failure/nil.
     func regenerateIfOutdated(for dateKey: String) async -> String? {
-        guard let conversation = conversationService.loadConversation(dateKey: dateKey) else { return nil }
+        guard let conversation = conversationService.loadConversation(dateKey: dateKey, kind: kind) else { return nil }
         guard let oldSummary = conversation.summary else { return nil }
         // Already up-to-date.
         guard isOutdated(for: dateKey) else { return oldSummary }
@@ -125,7 +130,7 @@ final class SummaryService {
     /// - Parameter dateKey: The date key.
     /// - Returns: The best available summary text, or `nil`.
     func ensureSummary(for dateKey: String) async -> String? {
-        guard let conversation = conversationService.loadConversation(dateKey: dateKey) else { return nil }
+        guard let conversation = conversationService.loadConversation(dateKey: dateKey, kind: kind) else { return nil }
         guard !conversation.hasRecentActivity else { return nil }
         guard !conversation.messages.isEmpty else { return nil }
 
@@ -157,7 +162,7 @@ final class SummaryService {
     /// - Parameter lookbackDays: How many days to scan (default: 30).
     func backfillOldVersions(lookbackDays: Int = 30) async {
         let todayKey = ConversationService.todayDateKey
-        let allKeys = conversationService.fetchAllDateKeys()
+        let allKeys = conversationService.fetchAllDateKeys(kind: kind)
             .filter { $0 != todayKey }
             .sorted(by: >)  // most recent first
 
@@ -193,11 +198,15 @@ final class SummaryService {
         inFlight.insert(dateKey)
         defer { inFlight.remove(dateKey) }
 
-        let conversationText = conversationService.fetchFullConversationText(dateKey: dateKey) ?? ""
+        let conversationText = conversationService.fetchFullConversationText(kind: kind, dateKey: dateKey) ?? ""
         guard !conversationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
 
+        // NOTE: The summary prompt is intentionally shared/generic across kinds
+        // (journal + dream) for now. When a dream-specific summary is needed,
+        // branch on `kind` here to select an alternate prompt — dream summaries
+        // currently have no consumer, so this is groundwork only.
         let summarySystemPrompt = """
         You are a summarizer. Summarize the following conversation in 2-3 sentences.
         Focus on what the user talked about, how they felt, and any key events or decisions.
@@ -214,7 +223,7 @@ final class SummaryService {
         do {
             let response = try await router.sendMessages(summaryRequest, tier: .cheap)
             if case .text(let summary) = response {
-                conversationService.updateSummary(dateKey: dateKey, summary: summary, version: Self.currentVersion)
+                conversationService.updateSummary(kind: kind, dateKey: dateKey, summary: summary, version: Self.currentVersion)
                 print("[SummaryService] Summary saved for \(dateKey): \(summary.prefix(80))...")
                 return summary
             }

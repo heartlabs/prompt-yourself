@@ -7,7 +7,7 @@ import SwiftData
 /// Identifies which feature a conversation belongs to. Journal is the daily
 /// journaling chat; Dream is the dream-analysis chat (migrated onto this engine
 /// in a later phase).
-enum ConversationKind {
+enum ConversationKind: String {
     case journal
     case dream
 }
@@ -100,7 +100,7 @@ struct ConversationConfiguration {
             var parts: [String] = [systemPrompt]
             guard let store else { return systemPrompt }
 
-            let recent = store.fetchRecentConversations(days: 7)
+            let recent = store.fetchRecentConversations(kind: .journal, days: 7)
                 .filter { $0.summary != nil }
             if !recent.isEmpty {
                 let section = recent
@@ -121,7 +121,7 @@ struct ConversationConfiguration {
             else {
                 return "Failed to parse arguments for get_conversation"
             }
-            guard let text = store?.fetchFullConversationText(dateKey: dateKey) else {
+            guard let text = store?.fetchFullConversationText(kind: .journal, dateKey: dateKey) else {
                 return "No conversation found for date \(dateKey)"
             }
             return text
@@ -271,7 +271,7 @@ class ConversationEngine: ObservableObject {
         let service = ConversationService(modelContext: modelContext)
         conversationService = service
 
-        let summ = SummaryService(conversationService: service, router: router)
+        let summ = SummaryService(conversationService: service, kind: configuration.kind, router: router)
         summaryService = summ
 
         loadPersistedConversation(service: service)
@@ -282,12 +282,12 @@ class ConversationEngine: ObservableObject {
     /// Restores the active conversation on app launch (today, else active
     /// yesterday, else nothing).
     private func loadPersistedConversation(service: ConversationService) {
-        if let conversation = service.loadTodayConversation() {
+        if let conversation = service.loadTodayConversation(kind: configuration.kind) {
             adopt(conversation)
             return
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let conversation = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday)),
+           let conversation = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday), kind: configuration.kind),
            conversation.hasRecentActivity {
             adopt(conversation)
             return
@@ -313,13 +313,13 @@ class ConversationEngine: ObservableObject {
     func resetToToday() {
         guard let service = conversationService else { return }
 
-        if let conversation = service.loadTodayConversation() {
+        if let conversation = service.loadTodayConversation(kind: configuration.kind) {
             adopt(conversation)
             finishReset()
             return
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let conversation = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday)),
+           let conversation = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday), kind: configuration.kind),
            conversation.hasRecentActivity {
             adopt(conversation)
             finishReset()
@@ -349,7 +349,7 @@ class ConversationEngine: ObservableObject {
     /// Loads a past conversation by its date key (read-only; no auto-scroll).
     func loadConversation(for dateKey: String) {
         guard let service = conversationService else { return }
-        guard let conversation = service.loadConversation(dateKey: dateKey) else { return }
+        guard let conversation = service.loadConversation(dateKey: dateKey, kind: configuration.kind) else { return }
 
         currentConversation = conversation
         updatePastConversationFlag()
@@ -398,17 +398,17 @@ class ConversationEngine: ObservableObject {
         if let existing = currentConversation { return existing }
         guard let service = conversationService else { return nil }
 
-        if let existing = service.loadTodayConversation() {
+        if let existing = service.loadTodayConversation(kind: configuration.kind) {
             currentConversation = existing
             return existing
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let existing = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday)),
+           let existing = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday), kind: configuration.kind),
            existing.hasRecentActivity {
             currentConversation = existing
             return existing
         }
-        let new = service.createTodayConversation()
+        let new = service.createTodayConversation(kind: configuration.kind)
         currentConversation = new
         return new
     }

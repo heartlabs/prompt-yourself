@@ -88,7 +88,8 @@ final class TreeScoreService {
     /// Up to `maxEntries` past days within `lookbackDays`, today excluded,
     /// most recent first. Prefers a day's summary, falls back to its transcript.
     private func gatherEntries() -> [Entry] {
-        let conversations = conversationService.fetchRecentConversations(days: lookbackDays)
+        // Life Tree scores journal entries only (behaviour-preserving).
+        let conversations = conversationService.fetchRecentConversations(kind: .journal, days: lookbackDays)
             .filter { !$0.messages.isEmpty }
             .sorted { $0.dateKey > $1.dateKey }   // most recent first
 
@@ -97,7 +98,7 @@ final class TreeScoreService {
             if entries.count >= maxEntries { break }
             if let summary = conv.summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 entries.append(Entry(dateKey: conv.dateKey, text: summary, usedSummary: true))
-            } else if let transcript = conversationService.fetchFullConversationText(dateKey: conv.dateKey),
+            } else if let transcript = conversationService.fetchFullConversationText(kind: .journal, dateKey: conv.dateKey),
                       !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 entries.append(Entry(dateKey: conv.dateKey, text: transcript, usedSummary: false))
             }

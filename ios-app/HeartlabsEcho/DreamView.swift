@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 // MARK: - Root Dream View
@@ -7,6 +8,10 @@ struct DreamView: View {
     /// (background/tab-switch stop-recording) acts on the SAME instance
     /// the screen renders.
     @ObservedObject var viewModel: ConversationEngine
+
+    /// SwiftData context used to enable per-day dream persistence, mirroring
+    /// ContentView's journal setup.
+    @Environment(\.modelContext) private var modelContext
 
     /// Shared visual style for the dream conversation screen.
     private let style = ConversationStyle.dream
@@ -22,6 +27,11 @@ struct DreamView: View {
             }
         }
         .preferredColorScheme(.light)
+        .task {
+            // Enable per-day dream persistence (kind `.dream`). Idempotent —
+            // safe to run on every appearance.
+            viewModel.setupPersistence(with: modelContext)
+        }
         .alert("Speech Recognition", isPresented: Binding(
             get: { viewModel.recognizer.recognitionError != nil },
             set: { presented in if !presented { viewModel.recognizer.recognitionError = nil } }

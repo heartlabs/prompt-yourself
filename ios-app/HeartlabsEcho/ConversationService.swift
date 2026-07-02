@@ -24,11 +24,16 @@ final class ConversationService {
         return formatter.string(from: Date())
     }
 
-    /// Fetches all date keys that have at least one conversation.
+    /// Fetches all date keys that have at least one conversation of the given kind.
     ///
+    /// - Parameter kind: The conversation kind to scope to (e.g. `.journal`).
     /// - Returns: A sorted array of date key strings (e.g. `["2026-06-01", "2026-06-13"]`).
-    func fetchAllDateKeys() -> [String] {
-        let descriptor = FetchDescriptor<Conversation>()
+    func fetchAllDateKeys(kind: ConversationKind) -> [String] {
+        // #Predicate can only compare stored primitives, so compare against the
+        // raw String value captured locally — never the enum itself.
+        let kindRaw = kind.rawValue
+        let predicate = #Predicate<Conversation> { $0.kind == kindRaw }
+        let descriptor = FetchDescriptor<Conversation>(predicate: predicate)
         do {
             let conversations = try modelContext.fetch(descriptor)
             let keys = Set(conversations.map(\.dateKey))
@@ -39,12 +44,15 @@ final class ConversationService {
         }
     }
 
-    /// Loads a conversation for a specific date key.
+    /// Loads a conversation for a specific date key and kind.
     ///
-    /// - Parameter dateKey: The date key string (e.g. `"2026-06-13"`).
-    /// - Returns: The `Conversation` if one exists for that date, or `nil`.
-    func loadConversation(dateKey: String) -> Conversation? {
-        let predicate = #Predicate<Conversation> { $0.dateKey == dateKey }
+    /// - Parameters:
+    ///   - dateKey: The date key string (e.g. `"2026-06-13"`).
+    ///   - kind: The conversation kind to scope to (e.g. `.journal`).
+    /// - Returns: The `Conversation` if one exists for that date+kind, or `nil`.
+    func loadConversation(dateKey: String, kind: ConversationKind) -> Conversation? {
+        let kindRaw = kind.rawValue
+        let predicate = #Predicate<Conversation> { $0.dateKey == dateKey && $0.kind == kindRaw }
         let descriptor = FetchDescriptor<Conversation>(predicate: predicate)
         do {
             let results = try modelContext.fetch(descriptor)
@@ -55,12 +63,14 @@ final class ConversationService {
         }
     }
 
-    /// Attempts to load today's conversation.
+    /// Attempts to load today's conversation for the given kind.
     ///
-    /// - Returns: The `Conversation` if one exists for today, or `nil`.
-    func loadTodayConversation() -> Conversation? {
+    /// - Parameter kind: The conversation kind to scope to (e.g. `.journal`).
+    /// - Returns: The `Conversation` if one exists for today+kind, or `nil`.
+    func loadTodayConversation(kind: ConversationKind) -> Conversation? {
         let key = Self.todayDateKey
-        let predicate = #Predicate<Conversation> { $0.dateKey == key }
+        let kindRaw = kind.rawValue
+        let predicate = #Predicate<Conversation> { $0.dateKey == key && $0.kind == kindRaw }
         let descriptor = FetchDescriptor<Conversation>(predicate: predicate)
 
         do {
@@ -72,18 +82,20 @@ final class ConversationService {
         }
     }
 
-    /// Returns or creates a conversation for today.
+    /// Returns or creates a conversation for today of the given kind.
     ///
-    /// If a conversation already exists for today (e.g. from a previous load),
-    /// it is returned instead of creating a duplicate. This guarantees there is
-    /// never more than one conversation per day.
+    /// If a conversation already exists for today+kind (e.g. from a previous
+    /// load), it is returned instead of creating a duplicate. This guarantees
+    /// there is never more than one conversation per (day, kind).
     ///
+    /// - Parameter kind: The conversation kind to create/scope to (e.g. `.journal`).
     /// - Returns: The existing or newly created `Conversation`.
-    func createTodayConversation() -> Conversation {
-        if let existing = loadTodayConversation() {
+    func createTodayConversation(kind: ConversationKind) -> Conversation {
+        if let existing = loadTodayConversation(kind: kind) {
             return existing
         }
         let conversation = Conversation(dateKey: Self.todayDateKey)
+        conversation.kind = kind.rawValue
         modelContext.insert(conversation)
         saveChanges()
         return conversation
@@ -105,40 +117,45 @@ final class ConversationService {
         saveChanges()
     }
 
-    /// Fetches conversations from the last N days (excluding today).
+    /// Fetches conversations of the given kind from the last N days (excluding today).
     ///
-    /// - Parameter days: Number of days to look back.
-    /// - Returns: An array of `Conversation` objects (only days with a saved conversation).
-    func fetchRecentConversations(days: Int) -> [Conversation] {
+    /// - Parameters:
+    ///   - kind: The conversation kind to scope to (e.g. `.journal`).
+    ///   - days: Number of days to look back.
+    /// - Returns: An array of `Conversation` objects (only days with a saved conversation of that kind).
+    func fetchRecentConversations(kind: ConversationKind, days: Int) -> [Conversation] {
         let todayKey = Self.todayDateKey
         return (1 ... days)
             .compactMap { offset in
                 guard let date = Calendar.current.date(byAdding: .day, value: -offset, to: Date()) else { return nil }
                 let key = Conversation.dateKey(for: date)
                 guard key != todayKey else { return nil }
-                return loadConversation(dateKey: key)
+                return loadConversation(dateKey: key, kind: kind)
             }
     }
 
-    /// Loads a conversation and formats all messages into a plain text block.
+    /// Loads a conversation of the given kind and formats all messages into a plain text block.
     ///
-    /// - Parameter dateKey: The date key string (e.g. `"2026-06-13"`).
-    /// - Returns: A formatted text block, or `nil` if no conversation exists for that date.
-    func fetchFullConversationText(dateKey: String) -> String? {
-        guard let conversation = loadConversation(dateKey: dateKey) else { return nil }
+    /// - Parameters:
+    ///   - kind: The conversation kind to scope to (e.g. `.journal`).
+    ///   - dateKey: The date key string (e.g. `"2026-06-13"`).
+    /// - Returns: A formatted text block, or `nil` if no conversation exists for that date+kind.
+    func fetchFullConversationText(kind: ConversationKind, dateKey: String) -> String? {
+        guard let conversation = loadConversation(dateKey: dateKey, kind: kind) else { return nil }
         let sortedMessages = conversation.messages.sorted { $0.timestamp < $1.timestamp }
         let lines = sortedMessages.map { "[\($0.role.capitalized)]: \($0.content)" }
         return "\(dateKey) conversation:\n" + lines.joined(separator: "\n")
     }
 
-    /// Saves a summary to an existing conversation.
+    /// Saves a summary to an existing conversation of the given kind.
     ///
     /// - Parameters:
+    ///   - kind: The conversation kind to scope to (e.g. `.journal`).
     ///   - dateKey: The date key string (e.g. `"2026-06-13"`).
     ///   - summary: The summary text to store.
     ///   - version: The summarizer version that produced this summary.
-    func updateSummary(dateKey: String, summary: String, version: Int? = nil) {
-        guard let conversation = loadConversation(dateKey: dateKey) else { return }
+    func updateSummary(kind: ConversationKind, dateKey: String, summary: String, version: Int? = nil) {
+        guard let conversation = loadConversation(dateKey: dateKey, kind: kind) else { return }
         conversation.summary = summary
         conversation.summaryVersion = version
         saveChanges()

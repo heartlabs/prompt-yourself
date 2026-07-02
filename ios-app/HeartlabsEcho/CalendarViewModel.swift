@@ -60,7 +60,8 @@ final class CalendarViewModel: ObservableObject {
         let service = ConversationService(modelContext: modelContext)
         conversationService = service
 
-        let summ = SummaryService(conversationService: service)
+        // Journal calendar is journal-only this phase.
+        let summ = SummaryService(conversationService: service, kind: .journal)
         summaryService = summ
 
         loadDatesWithEntries()
@@ -72,7 +73,7 @@ final class CalendarViewModel: ObservableObject {
     /// Refreshes the set of date keys that have entries.
     func loadDatesWithEntries() {
         guard let service = conversationService else { return }
-        datesWithEntries = Set(service.fetchAllDateKeys())
+        datesWithEntries = Set(service.fetchAllDateKeys(kind: .journal))
     }
 
     // MARK: - Month Navigation
@@ -127,7 +128,7 @@ final class CalendarViewModel: ObservableObject {
         }
 
         let dateKey = Self.dateKey(for: date)
-        guard let conversation = service.loadConversation(dateKey: dateKey) else {
+        guard let conversation = service.loadConversation(dateKey: dateKey, kind: .journal) else {
             previewState = .empty
             return
         }
