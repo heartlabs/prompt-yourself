@@ -6,7 +6,7 @@ struct DreamView: View {
     /// Injected by the owner (ContentView) so lifecycle management
     /// (background/tab-switch stop-recording) acts on the SAME instance
     /// the screen renders.
-    @ObservedObject var viewModel: DreamViewModel
+    @ObservedObject var viewModel: ConversationEngine
 
     /// Shared visual style for the dream conversation screen.
     private let style = ConversationStyle.dream
@@ -123,5 +123,5 @@ extension DreamView {
 // MARK: - Preview
 
 #Preview {
-    DreamView(viewModel: DreamViewModel())
+    DreamView(viewModel: ConversationEngine(configuration: .dream))
 }

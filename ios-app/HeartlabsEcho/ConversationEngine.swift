@@ -50,6 +50,26 @@ struct ConversationConfiguration {
     let makeContext: @MainActor (_ systemPrompt: String, _ store: ConversationService?) -> String
     /// Executes a single tool call and returns the result text.
     let executeTool: @MainActor (_ call: ToolCallPayload, _ store: ConversationService?) -> String
+    /// System prompt used when the bundled `systemPromptResource` cannot be
+    /// loaded. Each feature keeps its own sensible default so behaviour matches
+    /// the pre-composition view models exactly.
+    let fallbackSystemPrompt: String
+
+    init(kind: ConversationKind,
+         systemPromptResource: String,
+         tier: ModelTier,
+         tools: [LLMTool],
+         makeContext: @escaping @MainActor (_ systemPrompt: String, _ store: ConversationService?) -> String,
+         executeTool: @escaping @MainActor (_ call: ToolCallPayload, _ store: ConversationService?) -> String,
+         fallbackSystemPrompt: String = "You are a helpful assistant.") {
+        self.kind = kind
+        self.systemPromptResource = systemPromptResource
+        self.tier = tier
+        self.tools = tools
+        self.makeContext = makeContext
+        self.executeTool = executeTool
+        self.fallbackSystemPrompt = fallbackSystemPrompt
+    }
 
     // MARK: Journal configuration
 
@@ -105,7 +125,23 @@ struct ConversationConfiguration {
                 return "No conversation found for date \(dateKey)"
             }
             return text
-        }
+        },
+        fallbackSystemPrompt: "You are a helpful assistant."
+    )
+
+    // MARK: Dream configuration
+
+    /// The dream-analysis conversation: no persistence, no tools, no extra
+    /// context — just the system prompt sent to a performant model. Mirrors the
+    /// behaviour of the former standalone dream view model.
+    static let dream = ConversationConfiguration(
+        kind: .dream,
+        systemPromptResource: "dream-system-prompt",
+        tier: .performant,
+        tools: [],
+        makeContext: { systemPrompt, _ in systemPrompt },
+        executeTool: { _, _ in "" },
+        fallbackSystemPrompt: "You are a thoughtful dream analyst. Help the user understand their dreams."
     )
 }
 
@@ -117,8 +153,10 @@ struct ConversationConfiguration {
 /// scroll/UI state the view binds to.
 ///
 /// Feature-specific behaviour comes entirely from the injected
-/// `ConversationConfiguration`. `ChatViewModel` is a thin subclass that supplies
-/// `.journal`; the Dream screen will compose this engine in a later phase.
+/// `ConversationConfiguration`. Both features compose this engine directly:
+/// the Journal screen uses `ConversationEngine(configuration: .journal)` and
+/// the Dream screen uses `ConversationEngine(configuration: .dream)` — no
+/// subclassing.
 @MainActor
 class ConversationEngine: ObservableObject {
     // MARK: - Published State
@@ -349,7 +387,7 @@ class ConversationEngine: ObservableObject {
         guard let url = Bundle.main.url(forResource: configuration.systemPromptResource, withExtension: "md"),
               let content = try? String(contentsOf: url, encoding: .utf8)
         else {
-            systemPrompt = "You are a helpful assistant."
+            systemPrompt = configuration.fallbackSystemPrompt
             return
         }
         systemPrompt = content.trimmingCharacters(in: .whitespacesAndNewlines)

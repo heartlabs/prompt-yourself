@@ -6,8 +6,8 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var viewModel = ChatViewModel()
-    @StateObject private var dreamViewModel = DreamViewModel()
+    @StateObject private var viewModel = ConversationEngine(configuration: .journal)
+    @StateObject private var dreamViewModel = ConversationEngine(configuration: .dream)
     @State private var selectedTab = 0
     /// Prevents `resetToToday` from overriding a conversation that was just
     /// loaded from the calendar preview.
@@ -89,7 +89,7 @@ struct ContentView: View {
                 if selectedTab == 0 {
                     viewModel.requestScrollToBottomIfActive()
                 } else if selectedTab == 3 {
-                    dreamViewModel.requestScrollToBottom()
+                    dreamViewModel.requestScrollToBottomIfActive()
                 }
             case .background:
                 // Stop recording and send partial transcript when app goes to background
