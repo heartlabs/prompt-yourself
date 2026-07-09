@@ -1,10 +1,69 @@
 import Foundation
 
+// MARK: - MessageContent
+
+/// The content of a single message — either text or an image from the user.
+///
+/// A message is strictly **either/or**: an image message contains no text,
+/// a text message contains no image. Assistant messages are always text.
+enum MessageContent: Codable, Equatable {
+    case text(String)
+    case image(relativePath: String)
+
+    // MARK: Codable
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case text
+        case path
+    }
+
+    private enum ContentType: String, Codable {
+        case text
+        case image
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .text(let text):
+            try container.encode(ContentType.text, forKey: .type)
+            try container.encode(text, forKey: .text)
+        case .image(let path):
+            try container.encode(ContentType.image, forKey: .type)
+            try container.encode(path, forKey: .path)
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(ContentType.self, forKey: .type)
+        switch type {
+        case .text:
+            let text = try container.decode(String.self, forKey: .text)
+            self = .text(text)
+        case .image:
+            let path = try container.decode(String.self, forKey: .path)
+            self = .image(relativePath: path)
+        }
+    }
+
+    /// Splits this content into a `(type, value)` pair for SwiftData storage.
+    var persistable: (type: String, value: String) {
+        switch self {
+        case .text(let text):    return ("text", text)
+        case .image(let path):  return ("image", path)
+        }
+    }
+}
+
+// MARK: - ChatMessage
+
 /// A single message in the conversation.
 struct ChatMessage: Identifiable, Codable, Equatable {
     let id: UUID
     let role: Role
-    let content: String
+    let content: MessageContent
     let timestamp: Date
     let toolCallId: String?
     let toolCalls: [ToolCallPayload]?
@@ -16,13 +75,22 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         case tool
     }
 
-    init(role: Role, content: String, toolCallId: String? = nil, toolCalls: [ToolCallPayload]? = nil) {
+    // MARK: Primary init — takes a MessageContent
+
+    init(role: Role, content: MessageContent, toolCallId: String? = nil, toolCalls: [ToolCallPayload]? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
         self.timestamp = Date()
         self.toolCallId = toolCallId
         self.toolCalls = toolCalls
+    }
+
+    // MARK: Convenience init — wraps a plain string in .text(...)
+    // Keeps all existing call sites working without changes.
+
+    init(role: Role, content: String, toolCallId: String? = nil, toolCalls: [ToolCallPayload]? = nil) {
+        self.init(role: role, content: .text(content), toolCallId: toolCallId, toolCalls: toolCalls)
     }
 }
 
@@ -61,7 +129,9 @@ extension ChatMessage {
     init(from model: Message) {
         self.id = model.id
         self.role = Role(rawValue: model.role) ?? .user
-        self.content = model.content
+        self.content = model.contentType == "image"
+            ? .image(relativePath: model.content)
+            : .text(model.content)
         self.timestamp = model.timestamp
         self.toolCallId = nil
         self.toolCalls = nil

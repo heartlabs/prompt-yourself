@@ -154,7 +154,14 @@ final class CalendarViewModel: ObservableObject {
         let sortedMessages = conversation.messages.sorted(by: { $0.timestamp < $1.timestamp })
         let firstMessage = sortedMessages.first(where: { $0.role == "user" }) ?? sortedMessages.first
         let timestamp = firstMessage.map { Self.timeString(from: $0.timestamp) } ?? ""
-        let conversationSnippet = firstMessage.map { Self.snippet(from: $0.content) } ?? ""
+        let snippetText: String = {
+            guard let first = firstMessage else { return "" }
+            if first.contentType == "image" {
+                return "[Image]"
+            }
+            return first.content
+        }()
+        let conversationSnippet = Self.snippet(from: snippetText)
         let isToday = Calendar.current.isDateInToday(date)
 
         // Today or active past session — show conversation text directly.

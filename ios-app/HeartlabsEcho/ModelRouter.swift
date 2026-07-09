@@ -43,16 +43,17 @@ final class ModelRouter {
     func sendMessages(_ messages: ChatHistory,
                       tier: ModelTier,
                       tools: [LLMTool]? = nil,
-                      jsonMode: Bool = false) async throws -> LLMResponse {
+                      jsonMode: Bool = false,
+                      imageData: [UUID: Data] = [:]) async throws -> LLMResponse {
         let primary = service(for: tier)
 
         do {
-            return try await primary.sendMessages(messages, tools: tools, jsonMode: jsonMode)
+            return try await primary.sendMessages(messages, tools: tools, jsonMode: jsonMode, imageData: imageData)
         } catch let error as LLMError {
             guard shouldFallBack(error) else { throw error }
             print("[ModelRouter] \(tier) failed: \(error.localizedDescription) → falling back to \(fallbackTier(for: tier))")
             let backup = service(for: fallbackTier(for: tier))
-            return try await backup.sendMessages(messages, tools: tools, jsonMode: jsonMode)
+            return try await backup.sendMessages(messages, tools: tools, jsonMode: jsonMode, imageData: imageData)
         }
     }
 

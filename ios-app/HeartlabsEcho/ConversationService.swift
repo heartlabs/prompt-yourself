@@ -107,10 +107,11 @@ final class ConversationService {
     ///   - conversation: The conversation to add to.
     ///   - id: The message's UUID.
     ///   - role: The role — "user" or "assistant".
-    ///   - content: The message text.
+    ///   - contentType: The type of content — "text" or "image".
+    ///   - content: The message text or relative image path.
     ///   - timestamp: When the message was created.
-    func addMessage(to conversation: Conversation, id: UUID, role: String, content: String, timestamp: Date) {
-        let message = Message(id: id, role: role, content: content, timestamp: timestamp)
+    func addMessage(to conversation: Conversation, id: UUID, role: String, contentType: String = "text", content: String, timestamp: Date) {
+        let message = Message(id: id, role: role, contentType: contentType, content: content, timestamp: timestamp)
         message.conversation = conversation
         conversation.messages.append(message)
         conversation.lastActivityAt = Date()

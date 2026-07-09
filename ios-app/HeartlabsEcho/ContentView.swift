@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -196,19 +197,29 @@ extension ContentView {
                     .foregroundColor(.taupeText.opacity(0.35))
                     .padding(.vertical, 12)
             } else {
-                // Compact Mic Button (Chat Mode)
+                // Bottom bar: photo button + compact mic
                 VStack(spacing: 6) {
-                    MicButton(
-                        style: style,
-                        size: .compact,
-                        isRecording: viewModel.recognizer.isRecording,
-                        isEnabled: !viewModel.isThinking,
-                        action: { viewModel.toggleRecording() }
-                    )
+                    HStack(spacing: 16) {
+                        // Photo picker button — only visible after first message
+                        if !viewModel.messages.isEmpty {
+                            PhotoButton(
+                                isEnabled: !viewModel.isThinking
+                            ) { image in
+                                if let path = ImageUtils.saveImage(image) {
+                                    viewModel.sendImage(relativePath: path)
+                                }
+                            }
+                        }
 
-                    Text(viewModel.recognizer.isRecording ? "Recording..." : "Tap to speak")
-                        .font(.system(size: 12, weight: .regular, design: .default))
-                        .foregroundColor(.taupeText.opacity(0.5))
+                        MicButton(
+                            style: style,
+                            size: .compact,
+                            isRecording: viewModel.recognizer.isRecording,
+                            isEnabled: !viewModel.isThinking,
+                            action: { viewModel.toggleRecording() }
+                        )
+                    }
+
                 }
                 .padding(.vertical, 8)
             }

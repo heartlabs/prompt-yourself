@@ -32,6 +32,8 @@
 		AAA00119 /* ModelRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0011A /* ModelRouter.swift */; };
 		AAA0011B /* SummaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0011C /* SummaryService.swift */; };
 		AAA00206 /* dream-system-prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = AAA00203 /* dream-system-prompt.md */; };
+		AAA0040A /* ImageUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00408 /* ImageUtils.swift */; };
+		AAA0040B /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00409 /* ImagePicker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -64,6 +66,8 @@
 		AAA00203 /* dream-system-prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "dream-system-prompt.md"; sourceTree = "<group>"; };
 		AAA00301 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		AAA00407 /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
+		AAA00408 /* ImageUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUtils.swift; sourceTree = "<group>"; };
+		AAA00409 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -104,6 +108,8 @@
 				AAA0011A /* ModelRouter.swift */,
 				AAA0011C /* SummaryService.swift */,
 				AAA00203 /* dream-system-prompt.md */,
+				AAA00408 /* ImageUtils.swift */,
+				AAA00409 /* ImagePicker.swift */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 			);
@@ -210,6 +216,8 @@
 				AAA00119 /* ModelRouter.swift in Sources */,
 				AAA00118 /* LLMConfigs.swift in Sources */,
 				AAA0011B /* SummaryService.swift in Sources */,
+				AAA0040A /* ImageUtils.swift in Sources */,
+				AAA0040B /* ImagePicker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

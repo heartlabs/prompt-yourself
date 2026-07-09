@@ -19,7 +19,8 @@ protocol ChatCompleting {
         _ messages: ChatHistory,
         tier: ModelTier,
         tools: [LLMTool]?,
-        jsonMode: Bool
+        jsonMode: Bool,
+        imageData: [UUID: Data]
     ) async throws -> LLMResponse
 }
 
@@ -367,11 +368,33 @@ class ConversationEngine: ObservableObject {
         return new
     }
 
-    private func persistMessage(role: String, content: String, id: UUID, timestamp: Date) {
+    // MARK: - Persistence
+
+    /// Persists a message with typed content.
+    /// `MessageContent` is split into `(contentType, content)` for SwiftData.
+    private func persistMessage(role: String, content: MessageContent, id: UUID, timestamp: Date) {
         guard let service = conversationService,
               let conversation = ensureConversation()
         else { return }
-        service.addMessage(to: conversation, id: id, role: role, content: content, timestamp: timestamp)
+        let (type, value) = content.persistable
+        service.addMessage(to: conversation, id: id, role: role, contentType: type, content: value, timestamp: timestamp)
+    }
+
+    /// Convenience overload for text-only messages.
+    private func persistMessage(role: String, content: String, id: UUID, timestamp: Date) {
+        persistMessage(role: role, content: .text(content), id: id, timestamp: timestamp)
+    }
+
+    // MARK: - Public: Send Image
+
+    /// Creates an image message and sends it to the LLM.
+    func sendImage(relativePath: String) {
+        let userMessage = ChatMessage(role: .user, content: .image(relativePath: relativePath))
+        messages.append(userMessage)
+        shouldAutoScroll = true
+        persistMessage(role: "user", content: userMessage.content, id: userMessage.id, timestamp: userMessage.timestamp)
+
+        Task { await sendToLLM() }
     }
 
     // MARK: - LLM Communication
@@ -383,10 +406,27 @@ class ConversationEngine: ObservableObject {
         let userMessage = ChatMessage(role: .user, content: transcript)
         messages.append(userMessage)
         shouldAutoScroll = true
-        persistMessage(role: "user", content: transcript, id: userMessage.id, timestamp: userMessage.timestamp)
+        persistMessage(role: "user", content: userMessage.content, id: userMessage.id, timestamp: userMessage.timestamp)
 
+        await sendToLLM()
+    }
+
+    /// Shared send loop: builds context, calls the LLM (with tool loop),
+    /// appends the assistant response, and persists it.
+    ///
+    /// The caller is responsible for appending the user message to `messages`
+    /// and persisting it before calling this method.
+    private func sendToLLM() async {
         isThinking = true
         shouldAutoScroll = true
+
+        // Pre-load image data for any image messages in the history.
+        var imageData: [UUID: Data] = [:]
+        for msg in messages {
+            if case .image(let path) = msg.content, let data = ImageUtils.loadImageData(relativePath: path) {
+                imageData[msg.id] = data
+            }
+        }
 
         do {
             let contextPrompt = configuration.makeContext(systemPrompt, conversationService)
@@ -405,7 +445,8 @@ class ConversationEngine: ObservableObject {
                     fullHistory,
                     tier: configuration.tier,
                     tools: tools.isEmpty ? nil : tools,
-                    jsonMode: false
+                    jsonMode: false,
+                    imageData: imageData
                 )
 
                 switch response {
@@ -440,13 +481,11 @@ class ConversationEngine: ObservableObject {
                 messages.append(assistantMessage)
                 persistMessage(
                     role: "assistant",
-                    content: response,
+                    content: .text(response),
                     id: assistantMessage.id,
                     timestamp: assistantMessage.timestamp
                 )
             }
-            // If finalResponse is nil (no text after max tool iterations), we
-            // simply stop and let the user retry. This is rare.
         } catch {
             #if DEBUG
             print("[ConversationEngine] LLM error: \(error.localizedDescription) \(router.diagnostics(for: configuration.tier))")

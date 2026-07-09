@@ -76,6 +76,15 @@ struct LLMConfiguration {
         let keyPreview = apiKey.isEmpty ? "(empty)" : "\(apiKey.prefix(8))..."
         return "[src:\(source) | url:\(baseURL) | model:\(model) | key:\(keyPreview)]"
     }
+
+    /// Whether this model supports image inputs via content parts.
+    var supportsImages: Bool {
+        // Vision-capable models (known list — extend as needed).
+        let visionModels: Set<String> = [
+            "mistral-large-latest",
+        ]
+        return visionModels.contains(model)
+    }
 }
 
 // MARK: - LLMService
@@ -107,8 +116,13 @@ final class LLMService {
     ///     response (`response_format: {"type": "json_object"}`). Supported by
     ///     DeepSeek and most OpenAI-compatible providers. Callers should still
     ///     parse defensively, since not every provider honors it.
+    ///   - imageData: Pre-loaded image data keyed by message ID. Used when
+    ///     a message contains an image and the model supports vision.
     /// - Returns: An `LLMResponse` — either `.text(String)` or `.toolCalls([ToolCallPayload])`.
-    func sendMessages(_ messages: ChatHistory, tools: [LLMTool]? = nil, jsonMode: Bool = false) async throws -> LLMResponse {
+    func sendMessages(_ messages: ChatHistory,
+                      tools: [LLMTool]? = nil,
+                      jsonMode: Bool = false,
+                      imageData: [UUID: Data] = [:]) async throws -> LLMResponse {
         guard !configuration.apiKey.isEmpty else {
             throw LLMError.noAPIKey
         }
@@ -123,10 +137,12 @@ final class LLMService {
         print("[LLMService] \(configuration.diagnostics) → GET \(url.absoluteString)")
         #endif
 
+        let supportsImages = configuration.supportsImages
+
         // Build the request body per the OpenAI spec.
         var payload: [String: Any] = [
             "model": configuration.model,
-            "messages": messages.map(encodeMessage),
+            "messages": messages.map { encodeMessage($0, supportsImages: supportsImages, imageData: imageData) },
         ]
 
         if let tools, !tools.isEmpty {
@@ -167,16 +183,16 @@ final class LLMService {
     /// Encodes a single `ChatMessage` into a JSON-compatible dictionary for the API payload.
     ///
     /// Different roles produce different shapes:
-    /// - `.system`, `.user`: `{"role": "...", "content": "..."}`
+    /// - `.system`, `.user`: `{"role": "...", "content": "..."}` or multi-part for images
     /// - `.assistant` with tool calls: `{"role": "assistant", "content": null, "tool_calls": [...]}`
     /// - `.assistant` without: `{"role": "assistant", "content": "..."}`
     /// - `.tool`: `{"role": "tool", "content": "...", "tool_call_id": "..."}`
-    private func encodeMessage(_ msg: ChatMessage) -> [String: Any] {
+    private func encodeMessage(_ msg: ChatMessage, supportsImages: Bool, imageData: [UUID: Data]) -> [String: Any] {
         var dict: [String: Any] = ["role": msg.role.rawValue]
 
         switch msg.role {
         case .tool:
-            dict["content"] = msg.content
+            dict["content"] = textContent(from: msg)
             if let toolCallId = msg.toolCallId {
                 dict["tool_call_id"] = toolCallId
             }
@@ -195,14 +211,40 @@ final class LLMService {
                     ]
                 }
             } else {
-                dict["content"] = msg.content
+                dict["content"] = textContent(from: msg)
             }
 
-        default:
-            dict["content"] = msg.content
+        case .user:
+            switch msg.content {
+            case .text(let text):
+                dict["content"] = text
+
+            case .image:
+                if supportsImages, let data = imageData[msg.id] {
+                    let base64 = data.base64EncodedString()
+                    dict["content"] = [
+                        ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(base64)"]]
+                    ]
+                } else {
+                    dict["content"] = "[User shared an image]"
+                }
+            }
+
+        case .system:
+            dict["content"] = textContent(from: msg)
         }
 
         return dict
+    }
+
+    /// Extracts the text from a message that is expected to contain `.text(...)`.
+    /// Returns an empty string if the content is not text (shouldn't happen for
+    /// non-user roles).
+    private func textContent(from msg: ChatMessage) -> String {
+        if case .text(let t) = msg.content {
+            return t
+        }
+        return ""
     }
 
     // MARK: - Response Parsing

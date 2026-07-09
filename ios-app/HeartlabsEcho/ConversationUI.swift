@@ -104,17 +104,6 @@ struct MicButton: View {
             Circle()
                 .fill(isRecording ? style.accent.opacity(0.85) : style.accent)
                 .frame(width: 56, height: 56)
-                .overlay(
-                    Circle()
-                        .stroke(style.ringSemibright, lineWidth: 2)
-                        .frame(width: 68, height: 68)
-                        .scaleEffect(isRecording ? 1.15 : 1.0)
-                        .opacity(isRecording ? 0.6 : 0.8)
-                        .animation(
-                            .easeInOut(duration: 0.9).repeatForever(autoreverses: true),
-                            value: isRecording
-                        )
-                )
 
             Image(systemName: isRecording ? "mic.slash.fill" : "mic.fill")
                 .font(.system(size: 20, weight: .semibold))
@@ -135,14 +124,35 @@ struct MessageBubbleView: View {
                 Spacer(minLength: 40)
             }
 
-            Text(message.content)
-                .font(.system(size: 16, weight: .regular, design: .default))
-                .foregroundColor(message.role == .user ? style.userText : style.assistantText)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+            switch message.content {
+            case .text(let text):
+                Text(text)
+                    .font(.system(size: 16, weight: .regular, design: .default))
+                    .foregroundColor(message.role == .user ? style.userText : style.assistantText)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(bubbleColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .textSelection(.enabled)
+
+            case .image(let path):
+                Group {
+                    if let uiImage = ImageUtils.loadImage(relativePath: path) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 240)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    } else {
+                        Text("📷")
+                            .font(.system(size: 32))
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
                 .background(bubbleColor)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .textSelection(.enabled)
+            }
 
             if message.role == .assistant {
                 Spacer(minLength: 40)

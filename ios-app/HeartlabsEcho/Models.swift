@@ -85,7 +85,13 @@ final class Message {
     /// One of "system", "user", "assistant".
     var role: String
 
-    /// The message text content.
+    /// The type of content — "text" or "image".
+    /// Old messages without this field get "text" automatically.
+    var contentType: String = "text"
+
+    /// The message content:
+    /// - For text messages: the text itself.
+    /// - For image messages: relative path in the app sandbox (e.g. "attachments/uuid.jpg").
     var content: String
 
     /// When the message was created.
@@ -94,9 +100,10 @@ final class Message {
     /// The conversation this message belongs to.
     var conversation: Conversation?
 
-    init(id: UUID, role: String, content: String, timestamp: Date) {
+    init(id: UUID, role: String, contentType: String = "text", content: String, timestamp: Date) {
         self.id = id
         self.role = role
+        self.contentType = contentType
         self.content = content
         self.timestamp = timestamp
     }
