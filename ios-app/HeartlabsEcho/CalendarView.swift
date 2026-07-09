@@ -50,7 +50,7 @@ struct CalendarView: View {
                     .font(.system(size: 36, weight: .medium, design: .serif))
                     .foregroundColor(.sageGreen)
 
-                Text(viewModel.conversationDaysCount == 1 ? "conversation" : "conversations")
+                Text(viewModel.conversationDaysCount == 1 ? "Journal Day" : "Journal Days")
                     .font(.system(size: 13, weight: .regular, design: .default))
                     .foregroundColor(.taupeText.opacity(0.55))
             }
