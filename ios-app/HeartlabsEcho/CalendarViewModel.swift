@@ -36,6 +36,11 @@ final class CalendarViewModel: ObservableObject {
     /// Date keys that have at least one dream conversation.
     @Published var dreamDatesWithEntries: Set<String> = []
 
+    /// Total number of unique days the user has journaled with the agent.
+    var conversationDaysCount: Int {
+        datesWithEntries.count
+    }
+
     // MARK: - Private State
 
     private var conversationService: ConversationService?

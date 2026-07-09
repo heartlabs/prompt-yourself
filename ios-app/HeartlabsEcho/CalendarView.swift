@@ -16,22 +16,56 @@ struct CalendarView: View {
         ZStack {
             Color.warmIvory.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                calendarGrid
-                    .padding(.horizontal, 16)
-                    .padding(.top, 20)
+            ScrollView {
+                VStack(spacing: 0) {
+                    statisticsSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 24)
+                        .padding(.bottom, 16)
 
-                Spacer().frame(height: 20)
+                    calendarGrid
+                        .padding(.horizontal, 16)
 
-                dailyPreviewSection
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 24)
+                    dailyPreviewSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 20)
+                        .padding(.bottom, 32)
+                }
             }
         }
         .preferredColorScheme(.light)
         .task {
             viewModel.setup(with: modelContext)
         }
+    }
+
+    // MARK: - Statistics Section
+
+    private var statisticsSection: some View {
+        HStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 4) {
+                Text("\(viewModel.conversationDaysCount)")
+                    .font(.system(size: 36, weight: .medium, design: .serif))
+                    .foregroundColor(.sageGreen)
+
+                Text(viewModel.conversationDaysCount == 1 ? "conversation" : "conversations")
+                    .font(.system(size: 13, weight: .regular, design: .default))
+                    .foregroundColor(.taupeText.opacity(0.55))
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.softTaupe.opacity(0.3), lineWidth: 1)
+        )
     }
 
     // MARK: - Calendar Grid
