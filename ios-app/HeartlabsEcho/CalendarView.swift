@@ -138,7 +138,6 @@ struct CalendarView: View {
                         day: day.day,
                         isSelected: day.isSelected,
                         hasEntry: day.hasEntry,
-                        hasDreamEntry: day.hasDreamEntry,
                         isToday: day.isToday
                     )
                     .aspectRatio(1.0, contentMode: .fit)
@@ -159,22 +158,18 @@ struct CalendarView: View {
     private var dailyPreviewSection: some View {
         switch viewModel.previewState {
         case .loaded(let previews):
-            if let first = previews.first {
+            if let preview = previews.first {
                 VStack(alignment: .leading, spacing: 10) {
-                    // Section label (from the first preview — all share the same date).
-                    Text(first.dateLabel)
+                    Text(preview.dateLabel)
                         .font(.system(size: 20, weight: .semibold, design: .default))
                         .foregroundColor(.taupeText)
 
-                    // Stacked preview cards — one per conversation kind.
-                    ForEach(previews, id: \.kind) { preview in
-                        Button(action: {
-                            onSelectConversation?(preview.dateKey, preview.kind)
-                        }) {
-                            previewCard(preview: preview)
-                        }
-                        .buttonStyle(.plain)
+                    Button(action: {
+                        onSelectConversation?(preview.dateKey, .journal)
+                    }) {
+                        previewCard(preview: preview)
                     }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -244,19 +239,14 @@ struct CalendarView: View {
     // MARK: Preview Card
 
     private func previewCard(preview: ConversationPreview) -> some View {
-        let isJournal = preview.kind == .journal
-        let accentColor = isJournal ? Color.sageGreen : Color.deepIndigo
-        let iconName = isJournal ? "leaf.fill" : "moon.fill"
-        let kindLabel = isJournal ? "Journal" : "Dream"
-
-        return HStack(spacing: 16) {
+        HStack(spacing: 16) {
             // Left side: Text content.
             VStack(alignment: .leading, spacing: 4) {
                 Text(preview.timestamp)
                     .font(.system(size: 13, weight: .regular, design: .default))
                     .foregroundColor(.taupeText.opacity(0.5))
 
-                Text(preview.isToday ? "Today's \(kindLabel)" : "\(kindLabel) Entry")
+                Text(preview.isToday ? "Today's Journal" : "Journal Entry")
                     .font(.system(size: 16, weight: .semibold, design: .default))
                     .foregroundColor(.taupeText)
 
@@ -276,14 +266,14 @@ struct CalendarView: View {
 
             Spacer(minLength: 12)
 
-            // Right side: Kind-specific icon
+            // Right side: Journal icon
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(accentColor.opacity(0.15))
+                .fill(Color.sageGreen.opacity(0.15))
                 .frame(width: 64, height: 80)
                 .overlay(
-                    Image(systemName: iconName)
+                    Image(systemName: "leaf.fill")
                         .font(.system(size: 22))
-                        .foregroundColor(accentColor.opacity(0.5))
+                        .foregroundColor(.sageGreen.opacity(0.5))
                 )
         }
         .padding(16)
@@ -293,7 +283,7 @@ struct CalendarView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(accentColor.opacity(0.25), lineWidth: 1)
+                .stroke(Color.sageGreen.opacity(0.25), lineWidth: 1)
         )
     }
 
@@ -307,7 +297,6 @@ struct CalendarView: View {
         let isPlaceholder: Bool
         let isSelected: Bool
         let hasEntry: Bool
-        let hasDreamEntry: Bool
         let isToday: Bool
     }
 
@@ -332,7 +321,6 @@ struct CalendarView: View {
                 isPlaceholder: true,
                 isSelected: false,
                 hasEntry: false,
-                hasDreamEntry: false,
                 isToday: false
             ))
             idCounter += 1
@@ -349,7 +337,6 @@ struct CalendarView: View {
             let dateKey = CalendarViewModel.dateKey(for: date)
             let isSelected = selectedKey == dateKey
             let hasEntry = viewModel.datesWithEntries.contains(dateKey)
-            let hasDreamEntry = viewModel.dreamDatesWithEntries.contains(dateKey)
             let isToday = dateKey == todayKey
 
             days.append(CalendarDay(
@@ -359,7 +346,6 @@ struct CalendarView: View {
                 isPlaceholder: false,
                 isSelected: isSelected,
                 hasEntry: hasEntry,
-                hasDreamEntry: hasDreamEntry,
                 isToday: isToday
             ))
             idCounter += 1
@@ -376,7 +362,6 @@ private struct CalendarDayCell: View {
     let day: Int
     let isSelected: Bool
     let hasEntry: Bool
-    let hasDreamEntry: Bool
     let isToday: Bool
 
     var body: some View {
@@ -403,21 +388,14 @@ private struct CalendarDayCell: View {
             }
             .frame(height: 44)
 
-            // Indicators for days with entries
-            HStack(spacing: 4) {
-                if hasEntry {
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.sageGreen.opacity(isSelected ? 1.0 : 0.55))
-                }
-                if hasDreamEntry {
-                    Image(systemName: "moon.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.deepIndigo.opacity(isSelected ? 1.0 : 0.55))
-                }
+            // Indicator for days with entries
+            if hasEntry {
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.sageGreen.opacity(isSelected ? 1.0 : 0.55))
+                    .frame(height: 10)
+                    .offset(y: -2)
             }
-            .frame(height: 10)
-            .offset(y: -2)
         }
     }
 

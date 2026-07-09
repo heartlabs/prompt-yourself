@@ -7,7 +7,6 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = ConversationEngine(configuration: .journal)
-    @StateObject private var dreamViewModel = ConversationEngine(configuration: .dream)
     @State private var selectedTab = 0
     /// Prevents `resetToToday` from overriding a conversation that was just
     /// loaded from the calendar preview.
@@ -46,16 +45,10 @@ struct ContentView: View {
 
             // Tab 1: Calendar / Journal history
             CalendarView(
-                onSelectConversation: { dateKey, kind in
+                onSelectConversation: { dateKey, _ in
                     isNavigatingFromCalendar = true
-                    switch kind {
-                    case .journal:
-                        viewModel.loadConversation(for: dateKey)
-                        selectedTab = 0
-                    case .dream:
-                        dreamViewModel.loadConversation(for: dateKey)
-                        selectedTab = 3
-                    }
+                    viewModel.loadConversation(for: dateKey)
+                    selectedTab = 0
                 }
             )
             .tabItem {
@@ -69,23 +62,12 @@ struct ContentView: View {
                     Label("Tree", systemImage: "tree")
                 }
                 .tag(2)
-
-            // Tab 3: Dreams
-            DreamView(viewModel: dreamViewModel)
-                .tabItem {
-                    Label("Dreams", systemImage: "moon.fill")
-                }
-                .tag(3)
         }
         .tint(.sageGreen)
         .onChange(of: selectedTab) { _, newTab in
             // Stop recording when navigating away from the conversation tab.
             if newTab != 0 && viewModel.recognizer.isRecording {
                 viewModel.toggleRecording()
-            }
-            // Stop recording when navigating away from the dream tab.
-            if newTab != 3 && dreamViewModel.recognizer.isRecording {
-                dreamViewModel.toggleRecording()
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -94,14 +76,11 @@ struct ContentView: View {
                 // App came to foreground — scroll to bottom if on an active conversation.
                 if selectedTab == 0 {
                     viewModel.requestScrollToBottomIfActive()
-                } else if selectedTab == 3 {
-                    dreamViewModel.requestScrollToBottomIfActive()
                 }
             case .background:
                 // Stop recording and send partial transcript when app goes to background
                 // (lock button, app switcher, phone call, etc.).
                 viewModel.stopRecordingOnBackground()
-                dreamViewModel.stopRecordingOnBackground()
             default:
                 break
             }
@@ -123,6 +102,9 @@ struct ContentView: View {
         .preferredColorScheme(.light)
         .task {
             viewModel.setupPersistence(with: modelContext)
+            // Remove stale dream data from a removed feature.
+            let service = ConversationService(modelContext: modelContext)
+            service.deleteAllDreamConversations()
         }
         .alert("Speech Recognition", isPresented: Binding(
             get: { viewModel.recognizer.recognitionError != nil },

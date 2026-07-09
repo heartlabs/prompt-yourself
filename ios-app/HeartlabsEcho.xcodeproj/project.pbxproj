@@ -31,7 +31,6 @@
 		AAA00118 /* LLMConfigs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00117 /* LLMConfigs.swift */; };
 		AAA00119 /* ModelRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0011A /* ModelRouter.swift */; };
 		AAA0011B /* SummaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0011C /* SummaryService.swift */; };
-		AAA00205 /* DreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00202 /* DreamView.swift */; };
 		AAA00206 /* dream-system-prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = AAA00203 /* dream-system-prompt.md */; };
 /* End PBXBuildFile section */
 
@@ -62,7 +61,6 @@
 		AAA00117 /* LLMConfigs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMConfigs.swift; sourceTree = "<group>"; };
 		AAA0011A /* ModelRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRouter.swift; sourceTree = "<group>"; };
 		AAA0011C /* SummaryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryService.swift; sourceTree = "<group>"; };
-		AAA00202 /* DreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DreamView.swift; sourceTree = "<group>"; };
 		AAA00203 /* dream-system-prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "dream-system-prompt.md"; sourceTree = "<group>"; };
 		AAA00301 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		AAA00407 /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
@@ -105,7 +103,6 @@
 				AAA00117 /* LLMConfigs.swift */,
 				AAA0011A /* ModelRouter.swift */,
 				AAA0011C /* SummaryService.swift */,
-				AAA00202 /* DreamView.swift */,
 				AAA00203 /* dream-system-prompt.md */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
@@ -213,7 +210,6 @@
 				AAA00119 /* ModelRouter.swift in Sources */,
 				AAA00118 /* LLMConfigs.swift in Sources */,
 				AAA0011B /* SummaryService.swift in Sources */,
-				AAA00205 /* DreamView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

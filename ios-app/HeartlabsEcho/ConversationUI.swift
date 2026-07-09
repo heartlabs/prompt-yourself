@@ -2,10 +2,10 @@ import SwiftUI
 
 // MARK: - ConversationStyle
 //
-// A value type that captures everything visually distinct between the Journal
-// (sage) and Dream (indigo) conversation screens. Shared UI components below are
-// parameterised by a `ConversationStyle`, so both screens render from ONE set of
-// views while keeping independent palettes and copy.
+// A value type that captures everything visually distinct between conversation
+// screens. Shared UI components below are parameterised by a `ConversationStyle`,
+// so multiple screens can render from ONE set of views while keeping independent
+// palettes and copy.
 
 struct ConversationStyle {
     // Chat bubbles
@@ -45,21 +45,6 @@ struct ConversationStyle {
         showsRememberingIndicator: true
     )
 
-    /// Dream conversation — deep indigo.
-    static let dream = ConversationStyle(
-        userBubble: .deepIndigo,
-        userText: .white,
-        assistantBubble: .softPeriwinkle,
-        assistantText: .taupeText,
-        systemBubble: Color.softPeriwinkle.opacity(0.5),
-        accent: .deepIndigo,
-        ringSemibright: .indigoSemibright,
-        ringFaint: .indigoFaint,
-        liveBubble: Color.deepIndigo.opacity(0.8),
-        typingDot: .softPeriwinkle,
-        typingBubble: Color.softPeriwinkle.opacity(0.5),
-        showsRememberingIndicator: false
-    )
 }
 
 // MARK: - Mic Button

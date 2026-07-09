@@ -8,7 +8,7 @@ import SwiftUI
 enum PreviewState: Equatable {
     /// No conversation exists for the selected date.
     case empty
-    /// One or more previews are ready to display (journal, dream, or both).
+    /// A preview is ready to display.
     case loaded([ConversationPreview])
     /// A summary is being generated for the selected date.
     case generating
@@ -33,8 +33,6 @@ final class CalendarViewModel: ObservableObject {
 
     /// Date keys (e.g. `"2026-06-13"`) that have at least one journal conversation.
     @Published var datesWithEntries: Set<String> = []
-    /// Date keys that have at least one dream conversation.
-    @Published var dreamDatesWithEntries: Set<String> = []
 
     /// Total number of unique days the user has journaled with the agent.
     var conversationDaysCount: Int {
@@ -45,7 +43,6 @@ final class CalendarViewModel: ObservableObject {
 
     private var conversationService: ConversationService?
     private var summaryService: SummaryService?
-    private var dreamSummaryService: SummaryService?
     private var hasSetup = false
 
     // MARK: - Init
@@ -71,20 +68,16 @@ final class CalendarViewModel: ObservableObject {
         let summ = SummaryService(conversationService: service, kind: .journal)
         summaryService = summ
 
-        let dreamSumm = SummaryService(conversationService: service, kind: .dream)
-        dreamSummaryService = dreamSumm
-
         loadDatesWithEntries()
 
         // Auto-select today so the preview card appears immediately.
         selectDate(Date())
     }
 
-    /// Refreshes the set of date keys that have entries (both journal and dream).
+    /// Refreshes the set of date keys that have entries.
     func loadDatesWithEntries() {
         guard let service = conversationService else { return }
         datesWithEntries = Set(service.fetchAllDateKeys(kind: .journal))
-        dreamDatesWithEntries = Set(service.fetchAllDateKeys(kind: .dream))
     }
 
     // MARK: - Month Navigation
@@ -140,35 +133,21 @@ final class CalendarViewModel: ObservableObject {
 
         let dateKey = Self.dateKey(for: date)
 
-        // Collect previews for both kinds in parallel.
-        async let journalPreview = self.preview(
-            for: .journal, date: date, dateKey: dateKey,
-            service: service, summ: summaryService
-        )
-        async let dreamPreview = self.preview(
-            for: .dream, date: date, dateKey: dateKey,
-            service: service, summ: dreamSummaryService
-        )
-
-        let previews = await [journalPreview, dreamPreview].compactMap { $0 }
-
-        if previews.isEmpty {
-            previewState = .empty
+        if let preview = await buildPreview(for: date, dateKey: dateKey, service: service) {
+            previewState = .loaded([preview])
         } else {
-            previewState = .loaded(previews)
+            previewState = .empty
         }
     }
 
-    /// Builds a preview for a single conversation kind on the given date.
-    /// Returns `nil` if no conversation exists for that kind on that date.
-    private func preview(
-        for kind: ConversationKind,
-        date: Date,
+    /// Builds a preview for the given date.
+    /// Returns `nil` if no conversation exists for that date.
+    private func buildPreview(
+        for date: Date,
         dateKey: String,
-        service: ConversationService,
-        summ: SummaryService?
+        service: ConversationService
     ) async -> ConversationPreview? {
-        guard let conversation = service.loadConversation(dateKey: dateKey, kind: kind) else {
+        guard let conversation = service.loadConversation(dateKey: dateKey, kind: .journal) else {
             return nil
         }
 
@@ -185,12 +164,11 @@ final class CalendarViewModel: ObservableObject {
                 dateLabel: Self.dateLabel(for: date),
                 timestamp: timestamp,
                 snippet: conversationSnippet,
-                isToday: isToday,
-                kind: kind
+                isToday: isToday
             )
         }
 
-        guard let summ else { return nil }
+        guard let summ = summaryService else { return nil }
 
         if let summary = conversation.summary {
             // Regenerate outdated summary in background (fire-and-forget).
@@ -204,8 +182,7 @@ final class CalendarViewModel: ObservableObject {
                 dateLabel: Self.dateLabel(for: date),
                 timestamp: timestamp,
                 snippet: Self.snippet(from: summary),
-                isToday: false,
-                kind: kind
+                isToday: false
             )
         }
 
@@ -220,8 +197,7 @@ final class CalendarViewModel: ObservableObject {
                 dateLabel: Self.dateLabel(for: date),
                 timestamp: timestamp,
                 snippet: Self.snippet(from: generatedSummary),
-                isToday: false,
-                kind: kind
+                isToday: false
             )
         }
 
@@ -231,8 +207,7 @@ final class CalendarViewModel: ObservableObject {
             dateLabel: Self.dateLabel(for: date),
             timestamp: timestamp,
             snippet: conversationSnippet,
-            isToday: false,
-            kind: kind
+            isToday: false
         )
     }
 
@@ -329,6 +304,4 @@ struct ConversationPreview: Equatable {
     let snippet: String
     /// Whether this date is today (conversation text is shown as-is).
     let isToday: Bool
-    /// Which kind of conversation this preview belongs to.
-    let kind: ConversationKind
 }
