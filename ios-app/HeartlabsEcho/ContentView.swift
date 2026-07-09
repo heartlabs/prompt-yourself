@@ -52,7 +52,7 @@ struct ContentView: View {
                 }
             )
             .tabItem {
-                Label("Journal", systemImage: "calendar")
+                Label("Me", systemImage: "figure.mind.and.body")
             }
             .tag(1)
 
