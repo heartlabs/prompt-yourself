@@ -18,9 +18,13 @@ struct CalendarView: View {
 
             ScrollView {
                 VStack(spacing: 0) {
+                    headerSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 32)
+                        .padding(.bottom, 20)
+
                     statisticsSection
                         .padding(.horizontal, 16)
-                        .padding(.top, 24)
                         .padding(.bottom, 16)
 
                     calendarGrid
@@ -36,6 +40,19 @@ struct CalendarView: View {
         .preferredColorScheme(.light)
         .task {
             viewModel.setup(with: modelContext)
+        }
+    }
+
+    // MARK: - Header Section
+
+    /// Shows the user's name as a personalised heading, if set.
+    @ViewBuilder
+    private var headerSection: some View {
+        if let name = UserName.current, !name.isEmpty {
+            Text(name)
+                .font(.system(size: 34, weight: .medium, design: .serif))
+                .foregroundColor(.taupeText)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 

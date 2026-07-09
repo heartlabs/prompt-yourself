@@ -345,7 +345,14 @@ class ConversationEngine: ObservableObject {
             systemPrompt = configuration.fallbackSystemPrompt
             return
         }
-        systemPrompt = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        var prompt = content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Prepend the user's name so the LLM can address them personally.
+        if let name = UserName.current, !name.isEmpty {
+            prompt = "The user's name is \(name). Always address them by name.\n\n" + prompt
+        }
+
+        systemPrompt = prompt
     }
 
     /// Ensures there is an active conversation, creating one for today if needed.

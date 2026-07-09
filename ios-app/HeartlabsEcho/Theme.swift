@@ -23,17 +23,52 @@ extension Color {
 
 }
 
+// MARK: - User Name
+
+/// Persists the user's display name in UserDefaults.
+enum UserName {
+    private static let key = "user_display_name"
+
+    /// The stored name, or `nil` if not set.
+    static var current: String? {
+        UserDefaults.standard.string(forKey: key)
+    }
+
+    /// Returns `true` if a non-empty name has been saved.
+    static var isSet: Bool {
+        guard let name = current else { return false }
+        return !name.isEmpty
+    }
+
+    /// Saves a trimmed name. Does nothing if the string is empty.
+    static func save(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        UserDefaults.standard.set(trimmed, forKey: key)
+    }
+
+    /// Removes the stored name (resets onboarding).
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
 // MARK: - Greeting Helper
 
-/// Returns a warm time-appropriate greeting string.
+/// Returns a warm time-appropriate greeting string, optionally personalised.
 func timeAwareGreeting() -> String {
     let hour = Calendar.current.component(.hour, from: Date())
+    let base: String
     switch hour {
     case 5..<12:
-        return "Good morning"
+        base = "Good morning"
     case 12..<17:
-        return "Good afternoon"
+        base = "Good afternoon"
     default:
-        return "Good evening"
+        base = "Good evening"
     }
+    if let name = UserName.current, !name.isEmpty {
+        return "\(base), \(name)"
+    }
+    return base
 }

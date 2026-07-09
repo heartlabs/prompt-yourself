@@ -12,6 +12,8 @@ struct ContentView: View {
     /// Prevents `resetToToday` from overriding a conversation that was just
     /// loaded from the calendar preview.
     @State private var isNavigatingFromCalendar = false
+    /// Whether to show the onboarding sheet (first launch).
+    @State private var showOnboarding = !UserName.isSet
 
     /// Shared visual style for the daily conversation screen.
     private let style = ConversationStyle.journal
@@ -65,6 +67,11 @@ struct ContentView: View {
                 .tag(2)
         }
         .tint(.sageGreen)
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingView(onComplete: {
+                showOnboarding = false
+            })
+        }
         .onChange(of: selectedTab) { _, newTab in
             // Stop recording when navigating away from the conversation tab.
             if newTab != 0 && viewModel.recognizer.isRecording {
@@ -224,6 +231,58 @@ extension ContentView {
                 .padding(.vertical, 8)
             }
         }
+    }
+}
+
+// MARK: - Onboarding View
+
+/// Shown on first launch to capture the user's name for personalisation.
+struct OnboardingView: View {
+    @State private var name = ""
+    let onComplete: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "leaf.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.sageGreen)
+
+            Text("Welcome to Heartlabs Echo")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(.taupeText)
+
+            Text("What should I call you?")
+                .font(.body)
+                .foregroundColor(.taupeText.opacity(0.65))
+
+            TextField("Your name", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 240)
+                .onSubmit(submit)
+
+            Button("Get Started") {
+                submit()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.sageGreen)
+            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+
+            Spacer()
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.warmIvory)
+        .preferredColorScheme(.light)
+    }
+
+    private func submit() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        UserName.save(trimmed)
+        onComplete()
     }
 }
 
