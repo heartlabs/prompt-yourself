@@ -60,21 +60,37 @@ struct CalendarView: View {
 
     private var statisticsSection: some View {
         HStack(spacing: 0) {
-            Spacer()
+            statisticCell(
+                icon: "leaf.fill",
+                value: viewModel.conversationDaysCount,
+                label: viewModel.conversationDaysCount == 1 ? "Journal Day" : "Journal Days"
+            )
 
-            VStack(spacing: 4) {
-                Text("\(viewModel.conversationDaysCount)")
-                    .font(.system(size: 36, weight: .medium, design: .serif))
-                    .foregroundColor(.sageGreen)
+            divider
 
-                Text(viewModel.conversationDaysCount == 1 ? "Journal Day" : "Journal Days")
-                    .font(.system(size: 13, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.55))
-            }
+            statisticCell(
+                icon: "waveform",
+                value: viewModel.voiceMemoriesCount,
+                label: viewModel.voiceMemoriesCount == 1 ? "Voice Memo" : "Voice Memories"
+            )
 
-            Spacer()
+            divider
+
+            statisticCell(
+                icon: "photo.fill",
+                value: viewModel.photosCount,
+                label: viewModel.photosCount == 1 ? "Photo" : "Photos"
+            )
+
+            divider
+
+            statisticCell(
+                icon: "target",
+                value: viewModel.goalsCompletedCount,
+                label: viewModel.goalsCompletedCount == 1 ? "Goal Done" : "Goals Done"
+            )
         }
-        .padding(.vertical, 18)
+        .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.white.opacity(0.5))
@@ -83,6 +99,38 @@ struct CalendarView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.softTaupe.opacity(0.3), lineWidth: 1)
         )
+    }
+
+    /// A single statistic cell inside the statistics row.
+    /// Uses fixed heights for icon, number, and label so all cells stay aligned.
+    private func statisticCell(icon: String, value: Int, label: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 28))
+                .foregroundColor(.sageGreen.opacity(0.6))
+                .frame(height: 34)
+                .padding(.bottom, 6)
+
+            Text("\(value)")
+                .font(.system(size: 32, weight: .medium, design: .serif))
+                .foregroundColor(.sageGreen)
+                .frame(height: 36)
+
+            Text(label)
+                .font(.system(size: 12, weight: .regular, design: .default))
+                .foregroundColor(.taupeText.opacity(0.55))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(height: 34)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// A thin vertical separator between statistic cells.
+    private var divider: some View {
+        Rectangle()
+            .fill(Color.softTaupe.opacity(0.3))
+            .frame(width: 1, height: 44)
     }
 
     // MARK: - Calendar Grid

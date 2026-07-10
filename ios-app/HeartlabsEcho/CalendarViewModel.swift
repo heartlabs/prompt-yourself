@@ -34,15 +34,40 @@ final class CalendarViewModel: ObservableObject {
     /// Date keys (e.g. `"2026-06-13"`) that have at least one journal conversation.
     @Published var datesWithEntries: Set<String> = []
 
+    // MARK: - Statistics
+
     /// Total number of unique days the user has journaled with the agent.
     var conversationDaysCount: Int {
         datesWithEntries.count
     }
 
+    /// Total number of user messages across all conversations.
+    var voiceMemoriesCount: Int {
+        guard let context = modelContext else { return 0 }
+        let predicate = #Predicate<Message> { $0.role == "user" }
+        let descriptor = FetchDescriptor<Message>(predicate: predicate)
+        return (try? context.fetchCount(descriptor)) ?? 0
+    }
+
+    /// Total number of image messages across all conversations.
+    var photosCount: Int {
+        guard let context = modelContext else { return 0 }
+        let predicate = #Predicate<Message> { $0.contentType == "image" }
+        let descriptor = FetchDescriptor<Message>(predicate: predicate)
+        return (try? context.fetchCount(descriptor)) ?? 0
+    }
+
+    /// Total number of completed goals (progress >= target).
+    var goalsCompletedCount: Int {
+        goalService?.closedGoals().count ?? 0
+    }
+
     // MARK: - Private State
 
+    private var modelContext: ModelContext?
     private var conversationService: ConversationService?
     private var summaryService: SummaryService?
+    private var goalService: GoalService?
     private var hasSetup = false
 
     // MARK: - Init
@@ -62,11 +87,15 @@ final class CalendarViewModel: ObservableObject {
         guard !hasSetup else { return }
         hasSetup = true
 
+        self.modelContext = modelContext
+
         let service = ConversationService(modelContext: modelContext)
         conversationService = service
 
         let summ = SummaryService(conversationService: service, kind: .journal)
         summaryService = summ
+
+        goalService = GoalService(modelContext: modelContext)
 
         loadDatesWithEntries()
 
