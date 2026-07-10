@@ -7,6 +7,6 @@ struct HeartlabsEchoApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: [Conversation.self, Message.self])
+        .modelContainer(for: [Conversation.self, Message.self, Goal.self])
     }
 }

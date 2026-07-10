@@ -79,6 +79,11 @@ struct ConversationConfiguration {
                 toolName: "get_conversation",
                 toolDescription: "Retrieve a past JOURNAL entry for a specific date for detailed context."
             ),
+            CreateGoalTool(),
+            ListOpenGoalsTool(),
+            FindGoalTool(),
+            UpdateGoalTool(),
+            DeleteGoalTool(),
         ]),
         makeContext: { systemPrompt, store in
             var parts: [String] = [systemPrompt]
@@ -150,6 +155,7 @@ class ConversationEngine: ObservableObject {
 
     private var conversationService: ConversationService?
     private var summaryService: SummaryService?
+    private var goalService: GoalService?
     private var currentConversation: Conversation?
     private var hasSetupPersistence = false
 
@@ -228,6 +234,8 @@ class ConversationEngine: ObservableObject {
 
         let summ = SummaryService(conversationService: service, kind: configuration.kind, router: router)
         summaryService = summ
+
+        goalService = GoalService(modelContext: modelContext)
 
         loadPersistedConversation(service: service)
 
@@ -441,6 +449,14 @@ class ConversationEngine: ObservableObject {
             if !contextPrompt.isEmpty {
                 fullHistory.append(ChatMessage(role: .system, content: contextPrompt))
             }
+            // Inject open goals context
+            if let goalService = goalService {
+                let goalsContext = goalService.openGoalsContextString()
+                if !goalsContext.isEmpty {
+                    fullHistory.append(ChatMessage(role: .system, content: goalsContext))
+                }
+            }
+
             fullHistory.append(contentsOf: messages)
 
             let tools = configuration.toolRegistry.definitions
@@ -468,8 +484,13 @@ class ConversationEngine: ObservableObject {
                     // Append assistant tool-call message to LLM history (OpenAI spec).
                     fullHistory.append(ChatMessage(role: .assistant, content: "", toolCalls: toolCalls))
 
+                    let toolContext = ToolContext(
+                        conversationService: conversationService,
+                        goalService: goalService
+                    )
+
                     for call in toolCalls {
-                        let resultText = configuration.toolRegistry.execute(call, store: conversationService)
+                        let resultText = configuration.toolRegistry.execute(call, context: toolContext)
                         fullHistory.append(ChatMessage(role: .tool, content: resultText, toolCallId: call.id))
                     }
 

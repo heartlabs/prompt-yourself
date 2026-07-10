@@ -1,11 +1,24 @@
 import Foundation
 
+// MARK: - ToolContext
+
+/// Services available to tool implementations during execution.
+struct ToolContext {
+    let conversationService: ConversationService?
+    let goalService: GoalService?
+
+    init(conversationService: ConversationService? = nil, goalService: GoalService? = nil) {
+        self.conversationService = conversationService
+        self.goalService = goalService
+    }
+}
+
 // MARK: - ConversationTool
 
 /// One callable tool: its LLM-facing definition + how to run it.
 protocol ConversationTool {
     var definition: LLMTool { get }
-    @MainActor func run(arguments: String, store: ConversationService?) -> String
+    @MainActor func run(arguments: String, context: ToolContext) -> String
 }
 
 // MARK: - ToolRegistry
@@ -17,11 +30,11 @@ struct ToolRegistry {
 
     var definitions: [LLMTool] { tools.map(\.definition) }
 
-    @MainActor func execute(_ call: ToolCallPayload, store: ConversationService?) -> String {
+    @MainActor func execute(_ call: ToolCallPayload, context: ToolContext) -> String {
         guard let tool = tools.first(where: { $0.definition.name == call.function.name }) else {
             return "Unknown tool: \(call.function.name)"
         }
-        return tool.run(arguments: call.function.arguments, store: store)
+        return tool.run(arguments: call.function.arguments, context: context)
     }
 
     static let none = ToolRegistry(tools: [])
@@ -53,14 +66,14 @@ struct ConversationLookupTool: ConversationTool {
         )
     }
 
-    @MainActor func run(arguments: String, store: ConversationService?) -> String {
+    @MainActor func run(arguments: String, context: ToolContext) -> String {
         guard let data = arguments.data(using: .utf8),
               let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let dateKey = args["dateKey"] as? String
         else {
             return "Failed to parse arguments for \(toolName)"
         }
-        guard let text = store?.fetchFullConversationText(kind: targetKind, dateKey: dateKey) else {
+        guard let text = context.conversationService?.fetchFullConversationText(kind: targetKind, dateKey: dateKey) else {
             return "No \(targetKind.rawValue) entry found for date \(dateKey)"
         }
         return text

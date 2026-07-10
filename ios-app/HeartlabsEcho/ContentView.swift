@@ -46,7 +46,14 @@ struct ContentView: View {
                 }
                 .tag(0)
 
-            // Tab 1: Calendar / Journal history
+            // Tab 1: Goals overview
+            GoalsView()
+                .tabItem {
+                    Label("Goals", systemImage: "target")
+                }
+                .tag(1)
+
+            // Tab 2: Calendar / Journal history
             CalendarView(
                 onSelectConversation: { dateKey, _ in
                     isNavigatingFromCalendar = true
@@ -57,14 +64,14 @@ struct ContentView: View {
             .tabItem {
                 Label("Me", systemImage: "figure.mind.and.body")
             }
-            .tag(1)
+                .tag(2)
 
-            // Tab 2: "Your Life" tree
+            // Tab 3: "Your Life" tree
             TreeView()
                 .tabItem {
                     Label("Tree", systemImage: "tree")
                 }
-                .tag(2)
+                .tag(3)
         }
         .tint(.sageGreen)
         .sheet(isPresented: $showOnboarding) {

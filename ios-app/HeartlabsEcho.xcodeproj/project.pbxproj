@@ -34,6 +34,10 @@
 		AAA00206 /* dream-system-prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = AAA00203 /* dream-system-prompt.md */; };
 		AAA0040A /* ImageUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00408 /* ImageUtils.swift */; };
 		AAA0040B /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00409 /* ImagePicker.swift */; };
+		AAA0040D /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0040C /* Goal.swift */; };
+		AAA0040F /* GoalTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0040E /* GoalTools.swift */; };
+		AAA00411 /* GoalCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00410 /* GoalCardView.swift */; };
+		AAA00413 /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00412 /* GoalsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +72,10 @@
 		AAA00407 /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
 		AAA00408 /* ImageUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUtils.swift; sourceTree = "<group>"; };
 		AAA00409 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
+		AAA0040C /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
+		AAA0040E /* GoalTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalTools.swift; sourceTree = "<group>"; };
+		AAA00410 /* GoalCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCardView.swift; sourceTree = "<group>"; };
+		AAA00412 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -110,6 +118,10 @@
 				AAA00203 /* dream-system-prompt.md */,
 				AAA00408 /* ImageUtils.swift */,
 				AAA00409 /* ImagePicker.swift */,
+				AAA0040C /* Goal.swift */,
+				AAA0040E /* GoalTools.swift */,
+				AAA00410 /* GoalCardView.swift */,
+				AAA00412 /* GoalsView.swift */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 			);
@@ -218,6 +230,10 @@
 				AAA0011B /* SummaryService.swift in Sources */,
 				AAA0040A /* ImageUtils.swift in Sources */,
 				AAA0040B /* ImagePicker.swift in Sources */,
+				AAA0040D /* Goal.swift in Sources */,
+				AAA0040F /* GoalTools.swift in Sources */,
+				AAA00411 /* GoalCardView.swift in Sources */,
+				AAA00413 /* GoalsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
