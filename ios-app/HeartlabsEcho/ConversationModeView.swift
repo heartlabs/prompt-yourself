@@ -11,15 +11,24 @@ import SwiftUI
 /// mode is a pure *composer* — every exit path lands back in the chat view,
 /// where the assistant's reply arrives as a normal bubble.
 ///
-///  * tap the orb        → send the transcript
+/// The orb shows a dynamic glyph reflecting the current state:
+///   – breathing (no glyph)  : mic is live, nothing said yet
+///   – `arrow.up` send icon  : there is content to send (transcript and/or photo)
+///   – `mic` icon            : photo picked, no speech yet — tap to add voice
+///
+///  * tap the orb        → depends on state:
+///       – breathing     : nothing to send, cancel
+///       – `arrow.up`    : send the composition (transcript + optional photo)
+///       – `mic`         : start recording to add a spoken message
 ///  * tap the photo chip → recording stops (mic off while browsing),
 ///                         the system photo picker opens:
-///       – pick          → send transcript (if any), then the image
-///       – cancel        → send transcript (if any) — same as a normal finish
+///       – pick          : stores the photo, stays in composer (can add voice)
+///       – cancel        : if transcript exists → go back to composer;
+///                         if nothing was said → dismiss
 ///  * swipe down         → discard everything, nothing is sent
 ///
-/// The composition is either speech, speech followed by a photo, or a photo
-/// alone (when nothing was said) — see `ConversationEngine.sendComposition`.
+/// The composition is either speech, speech with a photo, or a photo alone
+/// (when nothing was said) — see `ConversationEngine.sendComposition`.
 struct ConversationModeView: View {
     @ObservedObject var viewModel: ConversationEngine
     @ObservedObject private var loc = LocalizationService.shared
@@ -35,6 +44,9 @@ struct ConversationModeView: View {
     /// Set while the photo flow owns the recording stop, so the
     /// recording-ended watcher doesn't mistake it for an error.
     @State private var isPickingPhoto = false
+    /// Relative path of a photo picked from the library, or `nil` if none
+    /// picked yet. Set by the picker callback; cleared on send or cancel.
+    @State private var pickedPhotoPath: String? = nil
 
     var body: some View {
         ZStack {
@@ -76,7 +88,11 @@ struct ConversationModeView: View {
                    let image = UIImage(data: data) {
                     path = ImageUtils.saveImage(image)
                 }
-                finish(.send(imagePath: path))
+                // Store the path — no longer sends immediately.
+                // The user stays in the composer and can optionally add voice
+                // before tapping the orb to send.
+                pickedPhotoPath = path
+                isPickingPhoto = false
             }
         }
         .onChange(of: isPickerPresented) { _, presented in
@@ -104,14 +120,28 @@ struct ConversationModeView: View {
 
     private var transcriptArea: some View {
         ScrollView(showsIndicators: false) {
-            Text(displayTranscript)
-                .font(.echoLiveTranscript)
-                .foregroundColor(hasTranscript ? .textPrimary : .textTertiary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, Theme.Spacing.xxl)
-                .padding(.vertical, Theme.Spacing.xl)
-                .animation(.easeOut(duration: 0.2), value: displayTranscript)
+            VStack(spacing: Theme.Spacing.m) {
+                // Photo preview — shown when a photo is picked, regardless
+                // of whether speech has been added yet.
+                if let photoPath = pickedPhotoPath,
+                   let uiImage = ImageUtils.loadImage(relativePath: photoPath) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 240)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal)
+                }
+
+                Text(displayTranscript)
+                    .font(.echoLiveTranscript)
+                    .foregroundColor(hasTranscript ? .textPrimary : .textTertiary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, Theme.Spacing.xxl)
+                    .padding(.vertical, Theme.Spacing.xl)
+                    .animation(.easeOut(duration: 0.2), value: displayTranscript)
+            }
         }
         .defaultScrollAnchor(.bottom)
         // The transcript is a live stream, not a reading surface (reviewing
@@ -127,9 +157,10 @@ struct ConversationModeView: View {
                 style: style,
                 diameter: Theme.Orb.composerDiameter,
                 isListening: viewModel.recognizer.isRecording,
-                isEnabled: !isFinishing
+                isEnabled: !isFinishing,
+                glyph: orbGlyph
             ) {
-                finish(.send(imagePath: nil))
+                handleOrbTap()
             }
 
             photoChip
@@ -138,16 +169,74 @@ struct ConversationModeView: View {
     }
 
     private var photoChip: some View {
-        Button(action: openPhotoPicker) {
-            Image(systemName: "photo.on.rectangle")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundColor(.white)
-                .frame(width: 48, height: 48)
-                .background(style.accent.opacity(0.8))
-                .clipShape(Circle())
+        // Hide the chip once a photo is already composed — one photo per
+        // message, and the user can swipe down to start over if needed.
+        if pickedPhotoPath != nil {
+            return AnyView(EmptyView())
         }
-        .buttonStyle(.plain)
-        .disabled(isFinishing || isPickingPhoto)
+        return AnyView(
+            Button(action: openPhotoPicker) {
+                Image(systemName: "photo.on.rectangle")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundColor(.white)
+                    .frame(width: 48, height: 48)
+                    .background(style.accent.opacity(0.8))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isFinishing || isPickingPhoto)
+        )
+    }
+
+    // MARK: - State Machine
+
+    /// Every possible state the composer can be in, derived from the three
+    /// booleans (recording, hasTranscript, hasPhoto). Using an exhaustive enum
+    /// instead of scattered boolean checks keeps the orb icon and tap behaviour
+    /// locally defined and compiler-checked.
+    private enum ComposerState {
+        /// (Y,N,N) — initial, mic is live, nothing said yet
+        case initial
+        /// (Y,N,Y) — recording with photo, waiting for speech
+        case recordingPhotoListening
+        /// (Y,Y,N) — recording, transcript is growing
+        case recordingWithSpeech
+        /// (Y,Y,Y) — recording with both transcript and photo
+        case recordingWithBoth
+        /// (N,N,Y) — photo picked, no speech yet, mic is off
+        case photoWaitingForSpeech
+        /// (N,Y,Y) — preview before sending: has both, not recording
+        case previewBoth
+        /// (N,Y,N) — preview before sending: has transcript only, not recording
+        case previewTranscript
+    }
+
+    private var composerState: ComposerState {
+        let r = viewModel.recognizer.isRecording
+        let t = !viewModel.recognizer.transcript.trimmingCharacters(in: .whitespaces).isEmpty
+        let p = pickedPhotoPath != nil
+        switch (r, t, p) {
+        case (true,  false, false): return .initial
+        case (true,  false, true):  return .recordingPhotoListening
+        case (true,  true,  false): return .recordingWithSpeech
+        case (true,  true,  true):  return .recordingWithBoth
+        case (false, false, true):  return .photoWaitingForSpeech
+        case (false, true,  true):  return .previewBoth
+        case (false, true,  false): return .previewTranscript
+        case (false, false, false): return .initial // unreachable, handled as cancel
+        }
+    }
+
+    private var orbGlyph: String? {
+        switch composerState {
+        case .recordingWithSpeech, .recordingWithBoth,
+             .previewBoth, .previewTranscript:
+            return "arrow.up"
+        case .photoWaitingForSpeech:
+            return "mic"
+        case .initial, .recordingPhotoListening:
+            return nil // breathing sphere, no glyph
+        }
     }
 
     private var hasTranscript: Bool {
@@ -189,9 +278,14 @@ struct ConversationModeView: View {
                     OrbCoachmark.recordCompositionSent()
                 }
             case .cancel:
+                if let path = pickedPhotoPath {
+                    ImageUtils.deleteImage(relativePath: path)
+                }
                 viewModel.recognizer.stopTranscribing()
             case .recognizerEnded:
-                break
+                if let path = pickedPhotoPath {
+                    ImageUtils.deleteImage(relativePath: path)
+                }
             }
             dismiss()
         }
@@ -218,16 +312,60 @@ struct ConversationModeView: View {
         }
     }
 
-    /// The system picker was dismissed. If nothing was picked, this is a
-    /// cancel — which behaves like a normal finish (any speech still sends).
+    /// Called when the orb is tapped. Behaviour depends on the current
+    /// composer state. This is the ONLY path that calls `finish(.send(...))`
+    /// — the photo picker callback no longer sends directly.
+    private func handleOrbTap() {
+        guard !isFinishing else { return }
+
+        switch composerState {
+        case .initial:
+            // Nothing to send — just cancel.
+            finish(.cancel)
+
+        case .recordingWithSpeech:
+            // Has transcript only — finalise and send.
+            finish(.send(imagePath: nil))
+
+        case .recordingWithBoth, .recordingPhotoListening:
+            // Has photo (with or without speech) — send the composition.
+            finish(.send(imagePath: pickedPhotoPath))
+
+        case .photoWaitingForSpeech:
+            // Photo picked but no speech yet — start recording so the user
+            // can add their voice.
+            viewModel.recognizer.startTranscribing()
+
+        case .previewBoth, .previewTranscript:
+            // In preview (not recording) — send what we have.
+            finish(.send(imagePath: pickedPhotoPath))
+        }
+    }
+
+    /// The system picker was dismissed. If nothing was picked, the behaviour
+    /// depends on whether the user had already spoken:
+    ///   - Transcript exists  → go back to composer (state F) so the user can
+    ///     review before sending.
+    ///   - No transcript      → nothing was composed, dismiss cleanly.
     /// The 300ms grace period is load-bearing: dismissal can land BEFORE the
     /// selection publishes, so deciding immediately would mis-read a pick as
     /// a cancel and drop the photo.
     private func handlePickerDismissed() {
         Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
-            if pickerItem == nil {
-                finish(.send(imagePath: nil))
+            guard pickerItem == nil, isPickingPhoto else { return }
+
+            isPickingPhoto = false
+
+            let hasTranscript = !viewModel.recognizer.transcript
+                .trimmingCharacters(in: .whitespaces).isEmpty
+
+            if hasTranscript {
+                // Go back to composer in state F — user sees their transcript
+                // with a send icon. Don't call finish().
+            } else {
+                // Nothing composed — dismiss.
+                finish(.cancel)
             }
         }
     }

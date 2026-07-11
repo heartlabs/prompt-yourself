@@ -64,6 +64,10 @@ struct CompanionOrbView: View {
     /// rest. Conversation mode leaves it off: while listening, the ripples and
     /// the live transcript are the state.
     var showsMicGlyph: Bool = false
+    /// Optional SF Symbol name rendered on the orb. When set, takes priority
+    /// over `showsMicGlyph`. Pass `nil` (the default) for the breathing sphere
+    /// with no glyph.
+    var glyph: String? = nil
     let action: () -> Void
 
     /// Drives the idle breathing loop (started once on appear).
@@ -82,7 +86,11 @@ struct CompanionOrbView: View {
                 // Sphere and glyph breathe together as one body.
                 ZStack {
                     sphere
-                    if showsMicGlyph {
+                    if let glyphName = glyph {
+                        Image(systemName: glyphName)
+                            .font(.system(size: diameter * 0.28, weight: .medium))
+                            .foregroundColor(.white.opacity(0.9))
+                    } else if showsMicGlyph {
                         Image(systemName: "mic.fill")
                             .font(.system(size: diameter * 0.28, weight: .medium))
                             .foregroundColor(.white.opacity(0.9))
