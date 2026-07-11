@@ -114,3 +114,6 @@
 "what_branch_holds" = "What this branch holds";
 "balance_grows" = "Balance grows with awareness.";
 "focus_line_format" = "A little more attention on %@ could help your tree flourish.";
+"focus_line_and" = "%@ and %@";
+"focus_line_balanced" = "Beautifully balanced — keep tending every part of your life.";
+"focus_line_fallback" = "Every reflection helps your tree grow.";

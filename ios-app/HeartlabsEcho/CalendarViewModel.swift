@@ -330,7 +330,7 @@ final class CalendarViewModel: ObservableObject {
     static var weekdayLabels: [String] {
         let formatter = DateFormatter()
         formatter.locale = AppLanguage.current.locale
-        let symbols = formatter.veryShortStandaloneWeekdaySymbols ?? []
+        let symbols = formatter.shortStandaloneWeekdaySymbols ?? []
         // Gregorian calendar: weekday 1 = Sunday, so reorder to Monday-first.
         // symbols indices: [0]=Sun, [1]=Mon, [2]=Tue, [3]=Wed, [4]=Thu, [5]=Fri, [6]=Sat
         if symbols.count == 7 {

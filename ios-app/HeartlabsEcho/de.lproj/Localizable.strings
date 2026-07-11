@@ -108,9 +108,12 @@
 
 // MARK: - Tree
 "your_life" = "Dein Leben";
-"tree_subtitle" = "Jede Selbstreflektion lässt deinen Baum wachsen.";
+"tree_subtitle" = "Jeder Eintrag lässt deinen Baum wachsen.";
 "growing_tree" = "Dein Baum wächst…";
 "try_again" = "Erneut versuchen";
 "what_branch_holds" = "Wofür dieser Zweig steht";
 "balance_grows" = "Gleichgewicht wächst mit Achtsamkeit.";
 "focus_line_format" = "Achte noch ein bisschen mehr auf %@ um deinem Baum beim Wachsen zu helfen.";
+"focus_line_and" = "%@ und %@";
+"focus_line_balanced" = "Schön ausgewogen — kümmere dich weiterhin um jeden Bereich deines Lebens.";
+"focus_line_fallback" = "Jeder Eintrag lässt deinen Baum wachsen.";

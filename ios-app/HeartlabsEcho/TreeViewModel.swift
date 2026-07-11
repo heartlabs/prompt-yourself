@@ -63,17 +63,19 @@ final class TreeViewModel: ObservableObject {
             .sorted { $0.value < $1.value }
 
         guard let lowest = ranked.first else {
-            return "Every reflection helps your tree grow."
+            return LocalizationService.shared.localized("focus_line_fallback")
         }
 
         // If everything is already thriving, celebrate instead of nudging.
         if lowest.value >= 70 {
-            return "Beautifully balanced — keep tending every part of your life."
+            return LocalizationService.shared.localized("focus_line_balanced")
         }
 
         let names: String
         if ranked.count >= 2, ranked[1].value < 70 {
-            names = "\(lowest.cat.title.lowercased()) and \(ranked[1].cat.title.lowercased())"
+            let a = lowest.cat.title.lowercased()
+            let b = ranked[1].cat.title.lowercased()
+            names = String(format: LocalizationService.shared.localized("focus_line_and"), a, b)
         } else {
             names = lowest.cat.title.lowercased()
         }

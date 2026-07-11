@@ -168,7 +168,8 @@ struct CalendarView: View {
 
     private var weekdayRow: some View {
         HStack(spacing: 0) {
-            ForEach(CalendarViewModel.weekdayLabels, id: \.self) { label in
+            let labels = CalendarViewModel.weekdayLabels
+            ForEach(Array(labels.enumerated()), id: \.offset) { _, label in
                 Text(label)
                     .font(.echoCaption)
                     .foregroundColor(.textTertiary)

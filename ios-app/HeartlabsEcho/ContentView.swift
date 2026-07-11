@@ -321,6 +321,9 @@ struct OnboardingView: View {
                 }
                 .pickerStyle(.menu)
                 .tint(.sageGreen)
+                .onChange(of: selectedLanguage) { _, newLang in
+                    LocalizationService.shared.setLanguage(newLang)
+                }
             }
 
             Text(loc.localized("name_prompt"))
@@ -352,7 +355,7 @@ struct OnboardingView: View {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         // Save the chosen language before the name
-        AppLanguage.save(selectedLanguage)
+        LocalizationService.shared.setLanguage(selectedLanguage)
         UserName.save(trimmed)
         onComplete()
     }
