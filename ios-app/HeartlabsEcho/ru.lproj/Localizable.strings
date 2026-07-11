@@ -6,6 +6,7 @@
 "get_started" = "Начать";
 "save" = "Сохранить";
 "edit_profile_title" = "Редактировать профиль";
+"change_profile_picture" = "Изменить фото профиля";
 
 // MARK: - Tab Bar
 "today_tab" = "Сегодня";

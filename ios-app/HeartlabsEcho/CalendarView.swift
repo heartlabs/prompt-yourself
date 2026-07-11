@@ -50,22 +50,23 @@ struct CalendarView: View {
 
     // MARK: - Header Section
 
-    /// Shows the user's name as a personalised heading, if set, with an
-    /// edit button (pencil icon) to the right that opens the profile editor.
+    /// Shows the user's name left-aligned with a circular profile picture on
+    /// the left. Tapping the circle (or pencil-in-circle if no photo is set)
+    /// opens the profile editor. The name alone also opens the editor.
     @ViewBuilder
     private var headerSection: some View {
         if let name = UserName.current, !name.isEmpty {
-            HStack(spacing: Theme.Spacing.s) {
-                ScreenTitle(text: name, centered: true)
-
+            HStack(spacing: Theme.Spacing.m) {
                 Button {
                     showEditProfile = true
                 } label: {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 34, weight: .medium))
-                        .foregroundColor(.sageGreen)
+                    ProfileCircleView(diameter: 56)
                 }
                 .buttonStyle(.plain)
+
+                ScreenTitle(text: name, centered: false)
+
+                Spacer(minLength: 0)
             }
         }
     }

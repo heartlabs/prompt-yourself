@@ -6,6 +6,7 @@
 "get_started" = "Los Geht's!";
 "save" = "Speichern";
 "edit_profile_title" = "Profil bearbeiten";
+"change_profile_picture" = "Profilbild ändern";
 
 // MARK: - Tab Bar
 "today_tab" = "Heute";

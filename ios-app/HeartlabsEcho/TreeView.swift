@@ -265,6 +265,22 @@ struct TreeView: View {
                 .pickerStyle(.segmented)
             }
 
+            Divider().padding(.vertical, 4)
+
+            Button(role: .destructive) {
+                if let path = ProfilePicture.current {
+                    ImageUtils.deleteImage(relativePath: path)
+                }
+                ProfilePicture.clear()
+            } label: {
+                HStack {
+                    Image(systemName: "trash")
+                    Text("Remove profile photo")
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.red)
+            }
+
             Spacer()
         }
         .padding(20)

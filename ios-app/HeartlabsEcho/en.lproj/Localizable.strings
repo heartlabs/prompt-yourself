@@ -6,6 +6,7 @@
 "get_started" = "Get Started";
 "save" = "Save";
 "edit_profile_title" = "Edit your Profile";
+"change_profile_picture" = "Change profile picture";
 
 // MARK: - Tab Bar
 "today_tab" = "Today";

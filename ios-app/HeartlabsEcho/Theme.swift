@@ -53,6 +53,35 @@ enum UserName {
     }
 }
 
+// MARK: - Profile Picture
+
+/// Persists the relative path of the user's profile picture in UserDefaults.
+/// The actual image file is stored in the app's attachments directory via `ImageUtils`.
+enum ProfilePicture {
+    private static let key = "user_profile_picture_path"
+
+    /// The stored relative path (e.g. "attachments/uuid.jpg"), or `nil` if not set.
+    static var current: String? {
+        UserDefaults.standard.string(forKey: key)
+    }
+
+    /// Returns `true` if a profile picture has been saved.
+    static var isSet: Bool {
+        guard let path = current else { return false }
+        return !path.isEmpty
+    }
+
+    /// Saves the relative path.
+    static func save(_ path: String) {
+        UserDefaults.standard.set(path, forKey: key)
+    }
+
+    /// Removes the stored path (does NOT delete the image file).
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
 // MARK: - App Language
 
 /// Supported app languages for UI and speech recognition.
@@ -367,5 +396,42 @@ struct GroupLabel: View {
             .tracking(0.6)
             .foregroundColor(.textTertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Profile Circle
+
+/// A circular profile picture view. Shows the user's photo if set, otherwise
+/// displays a sage green circle with a pencil icon inside.
+///
+/// Uses `@AppStorage` so SwiftUI re-renders when the profile picture is
+/// saved or removed (e.g. after dismissing the edit profile sheet).
+struct ProfileCircleView: View {
+    let diameter: CGFloat
+
+    @AppStorage("user_profile_picture_path") private var photoPath: String?
+
+    var body: some View {
+        ZStack {
+            if let path = photoPath,
+               let uiImage = ImageUtils.loadImage(relativePath: path) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: diameter, height: diameter)
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color.sageGreen)
+                    .frame(width: diameter, height: diameter)
+
+                Image(systemName: "pencil")
+                    .font(.system(size: diameter * 0.4, weight: .medium))
+                    .foregroundColor(.white)
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .clipShape(Circle())
+        .contentShape(Circle())
     }
 }
