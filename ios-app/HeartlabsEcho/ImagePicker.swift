@@ -19,11 +19,13 @@ struct PhotoButton: View {
             matching: .images,
             photoLibrary: .shared()
         ) {
+            // Secondary control: smaller and softly tinted so the mic reads as
+            // the primary action.
             Image(systemName: "photo.on.rectangle")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: 56, height: 56)
-                .background(isEnabled ? Color.sageGreen : Color.gray)
+                .font(.system(size: 18, weight: .regular))
+                .foregroundColor(isEnabled ? .sageGreen : Color.gray)
+                .frame(width: 46, height: 46)
+                .background(Color.sageGreen.opacity(isEnabled ? 0.14 : 0.06))
                 .clipShape(Circle())
         }
         .disabled(!isEnabled || isLoading)

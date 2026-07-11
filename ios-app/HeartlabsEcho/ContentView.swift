@@ -69,7 +69,7 @@ struct ContentView: View {
             // Tab 3: "Your Life" tree
             TreeView()
                 .tabItem {
-                    Label("Tree", systemImage: "tree")
+                    Label("Tree", image: "TreeGlyph")
                 }
                 .tag(3)
         }
@@ -211,33 +211,46 @@ extension ContentView {
                     .foregroundColor(.textTertiary)
                     .padding(.vertical, Theme.Spacing.m)
             } else {
-                // Bottom bar: photo button + compact mic
-                VStack(spacing: Theme.Spacing.xs) {
-                    HStack(spacing: Theme.Spacing.l) {
-                        // Photo picker button — only visible after first message
-                        if !viewModel.messages.isEmpty {
-                            PhotoButton(
-                                isEnabled: !viewModel.isThinking
-                            ) { image in
-                                if let path = ImageUtils.saveImage(image) {
-                                    viewModel.sendImage(relativePath: path)
-                                }
-                            }
-                        }
-
-                        MicButton(
-                            style: style,
-                            size: .compact,
-                            isRecording: viewModel.recognizer.isRecording,
-                            isEnabled: !viewModel.isThinking,
-                            action: { viewModel.toggleRecording() }
-                        )
-                    }
-
-                }
-                .padding(.vertical, 8)
+                inputBar
             }
         }
+    }
+
+    /// A defined input bar: the mic is the centered primary action, with the
+    /// photo picker as a smaller secondary control on the left. A hairline
+    /// separator distinguishes it from the transcript above.
+    private var inputBar: some View {
+        ZStack {
+            MicButton(
+                style: style,
+                size: .compact,
+                isRecording: viewModel.recognizer.isRecording,
+                isEnabled: !viewModel.isThinking,
+                action: { viewModel.toggleRecording() }
+            )
+
+            HStack {
+                if !viewModel.messages.isEmpty {
+                    PhotoButton(
+                        isEnabled: !viewModel.isThinking
+                    ) { image in
+                        if let path = ImageUtils.saveImage(image) {
+                            viewModel.sendImage(relativePath: path)
+                        }
+                    }
+                }
+                Spacer()
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.xl)
+        .padding(.top, Theme.Spacing.m)
+        .padding(.bottom, Theme.Spacing.s)
+        .background(
+            Color.warmIvory
+                .overlay(alignment: .top) {
+                    Rectangle().fill(Color.cardBorder).frame(height: 1)
+                }
+        )
     }
 }
 

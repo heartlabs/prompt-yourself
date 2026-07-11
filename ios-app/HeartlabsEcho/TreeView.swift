@@ -88,15 +88,6 @@ struct TreeView: View {
                     .font(.echoLargeTitle)
                     .foregroundColor(.textPrimary)
 
-                HStack(spacing: 6) {
-                    Text(viewModel.monthLabel)
-                        .font(.system(size: 16, weight: .regular, design: .serif))
-                        .foregroundColor(.textSecondary)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.textTertiary)
-                }
-
                 Text("Every reflection helps your tree grow.")
                     .font(.echoSubheadline)
                     .foregroundColor(.textSecondary)
@@ -104,24 +95,15 @@ struct TreeView: View {
 
             Spacer()
 
-            HStack(spacing: 14) {
-                Button { Task { await viewModel.refresh() } } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.textSecondary)
-                }
-                .buttonStyle(.plain)
-
-                #if DEBUG
-                Button { showDebug = true } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.textSecondary)
-                }
-                .buttonStyle(.plain)
-                #endif
+            #if DEBUG
+            Button { showDebug = true } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.textSecondary)
             }
+            .buttonStyle(.plain)
             .padding(.top, 6)
+            #endif
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

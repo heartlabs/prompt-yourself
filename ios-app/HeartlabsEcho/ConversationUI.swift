@@ -300,6 +300,9 @@ struct ConversationTranscriptView: View {
                 .padding(.vertical, 8)
                 .animation(.easeOut(duration: 0.5), value: isRemembering)
             }
+            // Pin content to the bottom so a short conversation sits just above
+            // the input bar instead of leaving a gap beneath the greeting.
+            .defaultScrollAnchor(.bottom)
             .frame(maxHeight: .infinity)
             .onChange(of: messages.count) { _, _ in
                 if shouldAutoScroll { scrollToBottom(proxy) }
