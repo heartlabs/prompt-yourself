@@ -311,26 +311,16 @@ struct CategoryDetailSheet: View {
     private var band: ScoreBand { ScoreBand.of(score) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            // Title row
-            HStack(spacing: Theme.Spacing.m) {
-                ZStack {
-                    Circle().fill(Color.softTaupe.opacity(0.4)).frame(width: 44, height: 44)
-                    Image(systemName: category.systemIcon)
-                        .font(.system(size: 19, weight: .regular))
-                        .foregroundColor(.taupeText)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(category.title)
-                        .font(.echoTitle)
-                        .foregroundColor(.textPrimary)
-                    Text(category.subtitle)
-                        .font(.echoCaption)
-                        .foregroundColor(.textSecondary)
-                }
+        DetailView(title: category.title, subtitle: category.subtitle) {
+            ZStack {
+                Circle().fill(Color.softTaupe.opacity(0.4)).frame(width: 44, height: 44)
+                Image(systemName: category.systemIcon)
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundColor(.taupeText)
             }
-
-            // Score + status
+        } content: {
+            // Score + status — the metric readout is the category's own, not
+            // part of the shared container.
             HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.m) {
                 Text("\(score)%")
                     .font(.system(size: 40, weight: .semibold, design: .serif))
@@ -347,36 +337,32 @@ struct CategoryDetailSheet: View {
                 .frame(height: 8)
 
             // Sub-items
-            Text("What this branch holds")
-                .font(.echoGroupLabel)
-                .foregroundColor(.textTertiary)
-                .padding(.top, Theme.Spacing.xs)
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                Text("What this branch holds")
+                    .font(.echoGroupLabel)
+                    .foregroundColor(.textTertiary)
 
-            FlowLayout(spacing: 8) {
-                ForEach(category.subItems, id: \.self) { item in
-                    HStack(spacing: 6) {
-                        Image(systemName: "leaf")
-                            .font(.system(size: 11))
-                            .foregroundColor(.sageGreen.opacity(0.7))
-                        Text(item)
-                            .font(.echoCaption)
-                            .foregroundColor(.textPrimary)
-                            .fixedSize()
+                FlowLayout(spacing: 8) {
+                    ForEach(category.subItems, id: \.self) { item in
+                        HStack(spacing: 6) {
+                            Image(systemName: "leaf")
+                                .font(.system(size: 11))
+                                .foregroundColor(.sageGreen.opacity(0.7))
+                            Text(item)
+                                .font(.echoCaption)
+                                .foregroundColor(.textPrimary)
+                                .fixedSize()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.softTaupe.opacity(0.22))
+                        )
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.softTaupe.opacity(0.22))
-                    )
                 }
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(Theme.Spacing.xl)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.warmIvory)
     }
 }
 

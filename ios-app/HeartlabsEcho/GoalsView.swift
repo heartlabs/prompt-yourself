@@ -9,6 +9,9 @@ struct GoalsView: View {
     @Query(sort: [SortDescriptor(\Goal.lastUpdatedAt, order: .reverse)])
     var allGoals: [Goal]
 
+    /// The goal whose detail sheet is open (nil = none).
+    @State private var selected: SelectedGoal?
+
     private var openGoals: [Goal] {
         allGoals.filter { !$0.isComplete }
     }
@@ -30,6 +33,11 @@ struct GoalsView: View {
             }
         }
         .preferredColorScheme(.light)
+        .sheet(item: $selected) { sel in
+            GoalDetailSheet(goal: sel.goal)
+                .presentationDetents([.height(320), .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Content
@@ -45,7 +53,12 @@ struct GoalsView: View {
                     GroupLabel(text: "Active")
                     LazyVStack(spacing: Theme.Spacing.m) {
                         ForEach(openGoals, id: \.id) { goal in
-                            GoalCardView(goal: goal)
+                            Button {
+                                selected = SelectedGoal(goal: goal)
+                            } label: {
+                                GoalCardView(goal: goal)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -57,7 +70,12 @@ struct GoalsView: View {
                     GroupLabel(text: "Completed")
                     LazyVStack(spacing: Theme.Spacing.m) {
                         ForEach(completedGoals, id: \.id) { goal in
-                            GoalCardView(goal: goal)
+                            Button {
+                                selected = SelectedGoal(goal: goal)
+                            } label: {
+                                GoalCardView(goal: goal)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }

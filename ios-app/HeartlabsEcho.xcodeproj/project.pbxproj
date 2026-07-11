@@ -38,6 +38,8 @@
 		AAA0040F /* GoalTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0040E /* GoalTools.swift */; };
 		AAA00411 /* GoalCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00410 /* GoalCardView.swift */; };
 		AAA00413 /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00412 /* GoalsView.swift */; };
+		AAA00415 /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00414 /* DetailView.swift */; };
+		AAA00417 /* GoalDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00416 /* GoalDetailSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -76,6 +78,8 @@
 		AAA0040E /* GoalTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalTools.swift; sourceTree = "<group>"; };
 		AAA00410 /* GoalCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCardView.swift; sourceTree = "<group>"; };
 		AAA00412 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
+		AAA00414 /* DetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailView.swift; sourceTree = "<group>"; };
+		AAA00416 /* GoalDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalDetailSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -122,6 +126,8 @@
 				AAA0040E /* GoalTools.swift */,
 				AAA00410 /* GoalCardView.swift */,
 				AAA00412 /* GoalsView.swift */,
+				AAA00414 /* DetailView.swift */,
+				AAA00416 /* GoalDetailSheet.swift */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 			);
@@ -234,6 +240,8 @@
 				AAA0040F /* GoalTools.swift in Sources */,
 				AAA00411 /* GoalCardView.swift in Sources */,
 				AAA00413 /* GoalsView.swift in Sources */,
+				AAA00415 /* DetailView.swift in Sources */,
+				AAA00417 /* GoalDetailSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
