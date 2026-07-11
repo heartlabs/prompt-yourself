@@ -44,6 +44,7 @@
 		AAA00134 /* de.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AAA00131 /* de */; };
 		AAA00135 /* ru.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AAA00132 /* ru */; };
 		AAA00137 /* LocalizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00136 /* LocalizationService.swift */; };
+		AAA00418 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00419 /* EditProfileView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -88,6 +89,7 @@
 		AAA00131 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
 		AAA00132 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
 		AAA00136 /* LocalizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationService.swift; sourceTree = "<group>"; };
+		AAA00419 /* EditProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProfileView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -139,6 +141,7 @@
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
 				AAA00136 /* LocalizationService.swift */,
+				AAA00419 /* EditProfileView.swift */,
 				AAA00130 /* en */,
 				AAA00131 /* de */,
 				AAA00132 /* ru */,
@@ -260,6 +263,7 @@
 				AAA00415 /* DetailView.swift in Sources */,
 				AAA00417 /* GoalDetailSheet.swift in Sources */,
 				AAA00137 /* LocalizationService.swift in Sources */,
+				AAA00418 /* EditProfileView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

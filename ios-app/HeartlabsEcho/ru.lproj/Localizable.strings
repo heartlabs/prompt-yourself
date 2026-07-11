@@ -4,6 +4,8 @@
 "name_prompt" = "Как мне к вам обращаться?";
 "name_placeholder" = "Ваше имя";
 "get_started" = "Начать";
+"save" = "Сохранить";
+"edit_profile_title" = "Редактировать профиль";
 
 // MARK: - Tab Bar
 "today_tab" = "Сегодня";

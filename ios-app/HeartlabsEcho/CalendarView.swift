@@ -12,6 +12,7 @@ struct CalendarView: View {
     /// Called when the user taps a daily preview card to switch to the
     /// appropriate conversation view and load the selected day's entries.
     var onSelectConversation: ((_ dateKey: String, _ kind: ConversationKind) -> Void)?
+    @State private var showEditProfile = false
 
     var body: some View {
         ZStack {
@@ -42,15 +43,30 @@ struct CalendarView: View {
         .task {
             viewModel.setup(with: modelContext)
         }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView()
+        }
     }
 
     // MARK: - Header Section
 
-    /// Shows the user's name as a personalised heading, if set.
+    /// Shows the user's name as a personalised heading, if set, with an
+    /// edit button (pencil icon) to the right that opens the profile editor.
     @ViewBuilder
     private var headerSection: some View {
         if let name = UserName.current, !name.isEmpty {
-            ScreenTitle(text: name, centered: true)
+            HStack(spacing: Theme.Spacing.s) {
+                ScreenTitle(text: name, centered: true)
+
+                Button {
+                    showEditProfile = true
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 34, weight: .medium))
+                        .foregroundColor(.sageGreen)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 

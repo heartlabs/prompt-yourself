@@ -4,6 +4,8 @@
 "name_prompt" = "What should I call you?";
 "name_placeholder" = "Your name";
 "get_started" = "Get Started";
+"save" = "Save";
+"edit_profile_title" = "Edit your Profile";
 
 // MARK: - Tab Bar
 "today_tab" = "Today";

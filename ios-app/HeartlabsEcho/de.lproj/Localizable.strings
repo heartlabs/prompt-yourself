@@ -4,6 +4,8 @@
 "name_prompt" = "Wie soll ich dich nennen?";
 "name_placeholder" = "Dein Name";
 "get_started" = "Los Geht's!";
+"save" = "Speichern";
+"edit_profile_title" = "Profil bearbeiten";
 
 // MARK: - Tab Bar
 "today_tab" = "Heute";
