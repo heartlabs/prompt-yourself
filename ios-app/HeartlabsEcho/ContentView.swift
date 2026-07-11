@@ -140,11 +140,11 @@ extension ContentView {
             Spacer()
 
             // Greeting Header
-            VStack(spacing: 6) {
-                HStack(spacing: 10) {
+            VStack(spacing: Theme.Spacing.xs) {
+                HStack(spacing: Theme.Spacing.s) {
                     Text(timeAwareGreeting())
-                        .font(.system(size: 34, weight: .medium, design: .serif))
-                        .foregroundColor(.taupeText)
+                        .font(.echoLargeTitle)
+                        .foregroundColor(.textPrimary)
                     Image(systemName: "leaf.fill")
                         .font(.system(size: 22))
                         .foregroundColor(.sageGreen)
@@ -152,8 +152,8 @@ extension ContentView {
                 }
 
                 Text("How are you feeling today?")
-                    .font(.system(size: 16, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.65))
+                    .font(.echoBody)
+                    .foregroundColor(.textSecondary)
             }
 
             Spacer()
@@ -161,9 +161,9 @@ extension ContentView {
             if viewModel.isShowingPastConversation {
                 // Past conversation — read-only, no mic
                 Text("Past entry")
-                    .font(.system(size: 15, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.4))
-                    .padding(.top, 20)
+                    .font(.echoSubheadline)
+                    .foregroundColor(.textTertiary)
+                    .padding(.top, Theme.Spacing.l)
 
                 Spacer()
             } else {
@@ -177,9 +177,9 @@ extension ContentView {
 
                 // Instruction Text
                 Text("Tap to speak")
-                    .font(.system(size: 15, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.55))
-                    .padding(.top, 20)
+                    .font(.echoSubheadline)
+                    .foregroundColor(.textSecondary)
+                    .padding(.top, Theme.Spacing.l)
 
                 Spacer()
                 Spacer()
@@ -207,13 +207,13 @@ extension ContentView {
             if viewModel.isShowingPastConversation {
                 // Past conversation — no mic, just a subtle hint
                 Text("Past entry — read only")
-                    .font(.system(size: 12, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.35))
-                    .padding(.vertical, 12)
+                    .font(.echoMicroLabel)
+                    .foregroundColor(.textTertiary)
+                    .padding(.vertical, Theme.Spacing.m)
             } else {
                 // Bottom bar: photo button + compact mic
-                VStack(spacing: 6) {
-                    HStack(spacing: 16) {
+                VStack(spacing: Theme.Spacing.xs) {
+                    HStack(spacing: Theme.Spacing.l) {
                         // Photo picker button — only visible after first message
                         if !viewModel.messages.isEmpty {
                             PhotoButton(

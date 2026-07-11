@@ -6,45 +6,50 @@ import SwiftUI
 struct GoalCardView: View {
     let goal: Goal
 
+    private var progressRatio: String {
+        "\(goal.currentProgress)/\(goal.targetProgress) \(goal.unit)"
+    }
+
+    private var percentText: String {
+        "\(Int(goal.progressPercent * 100))%"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             // Title row with right-aligned progress text
-            HStack(alignment: .top) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(goal.title)
-                    .font(.system(size: 17, weight: .semibold, design: .default))
-                    .foregroundColor(.taupeText)
+                    .font(.echoCardTitle)
+                    .foregroundColor(.textPrimary)
                     .lineLimit(1)
 
                 Spacer()
 
-                Text("\(goal.currentProgress)/\(goal.targetProgress) \(goal.unit)")
-                    .font(.system(size: 14, weight: .medium, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.6))
+                Text(progressRatio)
+                    .font(.echoSubheadline)
+                    .foregroundColor(.textSecondary)
                     .lineLimit(1)
             }
 
             // Description (truncated)
             if !goal.desc.isEmpty {
                 Text(goal.desc)
-                    .font(.system(size: 13, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.5))
+                    .font(.echoCaption)
+                    .foregroundColor(.textSecondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
             }
 
             // Progress bar + percentage
-            HStack(spacing: 8) {
+            HStack(spacing: Theme.Spacing.s) {
                 GoalProgressBar(progress: goal.progressPercent)
-                Text("\(Int(goal.progressPercent * 100))%")
-                    .font(.system(size: 12, weight: .medium, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.55))
-                    .frame(width: 36, alignment: .trailing)
+                Text(percentText)
+                    .font(.echoMicroLabel)
+                    .foregroundColor(.textSecondary)
+                    .frame(width: 40, alignment: .trailing)
             }
         }
-        .padding(16)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: Color.black.opacity(0.04), radius: 4, y: 2)
+        .echoCard()
     }
 }
 
@@ -58,7 +63,7 @@ struct GoalProgressBar: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.softTaupe.opacity(0.45))
+                    .fill(Color.softTaupe.opacity(0.4))
                 Capsule()
                     .fill(Color.sageGreen)
                     .frame(width: max(0, geo.size.width * CGFloat(progress)))

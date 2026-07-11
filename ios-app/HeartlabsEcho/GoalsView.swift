@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - Goals View
 
-/// Displays all goals in two sections: Active (open) and Completed.
+/// Displays all goals in two groups: Active (open) and Completed.
 /// Cards are ordered by most recently updated first.
 struct GoalsView: View {
     @Query(sort: [SortDescriptor(\Goal.lastUpdatedAt, order: .reverse)])
@@ -18,7 +18,9 @@ struct GoalsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        ZStack {
+            Color.warmIvory.ignoresSafeArea()
+
             ScrollView {
                 if allGoals.isEmpty {
                     emptyState
@@ -26,64 +28,72 @@ struct GoalsView: View {
                     content
                 }
             }
-            .background(Color.warmIvory)
-            .navigationTitle("Goals")
         }
+        .preferredColorScheme(.light)
     }
 
     // MARK: - Content
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Active goals section
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            ScreenTitle(text: "Goals")
+                .padding(.top, Theme.Spacing.s)
+
+            // Active goals group
             if !openGoals.isEmpty {
-                LazyVStack(spacing: 12) {
-                    ForEach(openGoals, id: \.id) { goal in
-                        GoalCardView(goal: goal)
+                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                    GroupLabel(text: "Active")
+                    LazyVStack(spacing: Theme.Spacing.m) {
+                        ForEach(openGoals, id: \.id) { goal in
+                            GoalCardView(goal: goal)
+                        }
                     }
                 }
             }
 
-            // Completed goals section
+            // Completed goals group
             if !completedGoals.isEmpty {
-                Text("Completed")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.taupeText.opacity(0.4))
-                    .padding(.top, openGoals.isEmpty ? 0 : 8)
-
-                LazyVStack(spacing: 12) {
-                    ForEach(completedGoals, id: \.id) { goal in
-                        GoalCardView(goal: goal)
+                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                    GroupLabel(text: "Completed")
+                    LazyVStack(spacing: Theme.Spacing.m) {
+                        ForEach(completedGoals, id: \.id) { goal in
+                            GoalCardView(goal: goal)
+                        }
                     }
                 }
             }
         }
-        .padding()
+        .padding(.horizontal, Theme.Spacing.l)
+        .padding(.bottom, Theme.Spacing.xxl)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Spacer()
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            ScreenTitle(text: "Goals")
+                .padding(.top, Theme.Spacing.s)
 
-            Image(systemName: "target")
-                .font(.system(size: 48))
-                .foregroundColor(.sageGreen.opacity(0.4))
+            VStack(spacing: Theme.Spacing.l) {
+                Image(systemName: "target")
+                    .font(.system(size: 44))
+                    .foregroundColor(.sageGreen.opacity(0.4))
 
-            Text("No goals yet")
-                .font(.title3.weight(.medium))
-                .foregroundColor(.taupeText)
+                Text("No goals yet")
+                    .font(.echoSectionTitle)
+                    .foregroundColor(.textPrimary)
 
-            Text("Tap the mic and ask Echo to help you set one.")
-                .font(.subheadline)
-                .foregroundColor(.taupeText.opacity(0.5))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-
-            Spacer()
+                Text("Tap the mic and ask Echo to help you set one.")
+                    .font(.echoSubheadline)
+                    .foregroundColor(.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Theme.Spacing.xl)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 80)
         }
-        .frame(maxWidth: .infinity, minHeight: 300)
+        .padding(.horizontal, Theme.Spacing.l)
     }
 }
 

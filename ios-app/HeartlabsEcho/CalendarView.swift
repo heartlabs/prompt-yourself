@@ -49,10 +49,7 @@ struct CalendarView: View {
     @ViewBuilder
     private var headerSection: some View {
         if let name = UserName.current, !name.isEmpty {
-            Text(name)
-                .font(.system(size: 34, weight: .medium, design: .serif))
-                .foregroundColor(.taupeText)
-                .frame(maxWidth: .infinity, alignment: .center)
+            ScreenTitle(text: name, centered: true)
         }
     }
 
@@ -90,15 +87,7 @@ struct CalendarView: View {
                 label: viewModel.goalsCompletedCount == 1 ? "Goal Done" : "Goals Done"
             )
         }
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.softTaupe.opacity(0.3), lineWidth: 1)
-        )
+        .echoCard(padding: Theme.Spacing.l)
     }
 
     /// A single statistic cell inside the statistics row.
@@ -106,19 +95,19 @@ struct CalendarView: View {
     private func statisticCell(icon: String, value: Int, label: String) -> some View {
         VStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.system(size: 28))
+                .font(.system(size: 26))
                 .foregroundColor(.sageGreen.opacity(0.6))
                 .frame(height: 34)
                 .padding(.bottom, 6)
 
             Text("\(value)")
-                .font(.system(size: 32, weight: .medium, design: .serif))
+                .font(.echoNumber)
                 .foregroundColor(.sageGreen)
                 .frame(height: 36)
 
             Text(label)
-                .font(.system(size: 12, weight: .regular, design: .default))
-                .foregroundColor(.taupeText.opacity(0.55))
+                .font(.echoMicroLabel)
+                .foregroundColor(.textSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(height: 34)
@@ -160,8 +149,8 @@ struct CalendarView: View {
             Spacer()
 
             Text(CalendarViewModel.monthYearString(for: viewModel.currentMonth))
-                .font(.system(size: 26, weight: .medium, design: .serif))
-                .foregroundColor(.taupeText)
+                .font(.echoTitle)
+                .foregroundColor(.textPrimary)
 
             Spacer()
 
@@ -180,8 +169,8 @@ struct CalendarView: View {
         HStack(spacing: 0) {
             ForEach(CalendarViewModel.weekdayLabels, id: \.self) { label in
                 Text(label)
-                    .font(.system(size: 13, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.45))
+                    .font(.echoCaption)
+                    .foregroundColor(.textTertiary)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -224,10 +213,8 @@ struct CalendarView: View {
         switch viewModel.previewState {
         case .loaded(let previews):
             if let preview = previews.first {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(preview.dateLabel)
-                        .font(.system(size: 20, weight: .semibold, design: .default))
-                        .foregroundColor(.taupeText)
+                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                    SectionTitle(text: preview.dateLabel)
 
                     Button(action: {
                         onSelectConversation?(preview.dateKey, .journal)
@@ -239,47 +226,33 @@ struct CalendarView: View {
             }
 
         case .generating:
-            VStack(alignment: .leading, spacing: 10) {
-                Text(previewDateLabel)
-                    .font(.system(size: 20, weight: .semibold, design: .default))
-                    .foregroundColor(.taupeText)
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                SectionTitle(text: previewDateLabel)
 
                 // Loading card with animated circles
                 HStack {
                     Spacer()
                     LoadingCirclesIndicator()
-                        .padding(.vertical, 32)
+                        .padding(.vertical, Theme.Spacing.l)
                     Spacer()
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.5))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.softTaupe.opacity(0.3), lineWidth: 1)
-                )
+                .echoCard()
             }
 
         case .empty:
             // Muted empty state when no day is selected or no entry exists
-            VStack(alignment: .leading, spacing: 10) {
-                Text(emptyDateLabel)
-                    .font(.system(size: 20, weight: .semibold, design: .default))
-                    .foregroundColor(.taupeText)
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                SectionTitle(text: emptyDateLabel)
 
                 HStack {
                     Spacer()
                     Text("Tap a day to view its entry")
-                        .font(.system(size: 14, weight: .regular, design: .default))
-                        .foregroundColor(.taupeText.opacity(0.35))
-                        .padding(.vertical, 32)
+                        .font(.echoSubheadline)
+                        .foregroundColor(.textTertiary)
+                        .padding(.vertical, Theme.Spacing.l)
                     Spacer()
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.softTaupe.opacity(0.25))
-                )
+                .echoCard()
             }
         }
     }
@@ -304,24 +277,24 @@ struct CalendarView: View {
     // MARK: Preview Card
 
     private func previewCard(preview: ConversationPreview) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: Theme.Spacing.l) {
             // Left side: Text content.
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 Text(preview.timestamp)
-                    .font(.system(size: 13, weight: .regular, design: .default))
-                    .foregroundColor(.taupeText.opacity(0.5))
+                    .font(.echoCaption)
+                    .foregroundColor(.textSecondary)
 
                 Text(preview.isToday ? "Today's Journal" : "Journal Entry")
-                    .font(.system(size: 16, weight: .semibold, design: .default))
-                    .foregroundColor(.taupeText)
+                    .font(.echoCardTitle)
+                    .foregroundColor(.textPrimary)
 
                 // Scrollable summary — uses fixedSize so the ScrollView reports its
                 // content's natural height for short summaries, with a max cap so
                 // long summaries get a scroll bar instead of expanding the card.
                 ScrollView(.vertical) {
                     Text(preview.snippet)
-                        .font(.system(size: 14, weight: .regular, design: .default))
-                        .foregroundColor(.taupeText.opacity(0.65))
+                        .font(.echoSubheadline)
+                        .foregroundColor(.textSecondary)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -329,10 +302,10 @@ struct CalendarView: View {
                 .frame(maxHeight: 250)
             }
 
-            Spacer(minLength: 12)
+            Spacer(minLength: Theme.Spacing.m)
 
             // Right side: Journal icon
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
                 .fill(Color.sageGreen.opacity(0.15))
                 .frame(width: 64, height: 80)
                 .overlay(
@@ -341,15 +314,7 @@ struct CalendarView: View {
                         .foregroundColor(.sageGreen.opacity(0.5))
                 )
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.sageGreen.opacity(0.25), lineWidth: 1)
-        )
+        .echoCard()
     }
 
     // MARK: - Calendar Day Model
@@ -453,14 +418,19 @@ private struct CalendarDayCell: View {
             }
             .frame(height: 44)
 
-            // Indicator for days with entries
-            if hasEntry {
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.sageGreen.opacity(isSelected ? 1.0 : 0.55))
-                    .frame(height: 10)
-                    .offset(y: -2)
+            // Entry indicator — always occupies the same height so rows with and
+            // without a leaf stay perfectly aligned.
+            Group {
+                if hasEntry {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.sageGreen.opacity(isSelected ? 1.0 : 0.55))
+                } else {
+                    Color.clear
+                }
             }
+            .frame(height: 12)
+            .offset(y: -2)
         }
     }
 
