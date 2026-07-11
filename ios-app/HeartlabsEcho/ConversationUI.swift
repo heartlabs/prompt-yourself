@@ -160,6 +160,8 @@ private struct OrbPressStyle: ButtonStyle {
 struct MessageBubbleView: View {
     let message: ChatMessage
     let style: ConversationStyle
+    /// Called when the user taps an image in this bubble.
+    var onTapPhoto: ((String) -> Void)?
 
     var body: some View {
         HStack {
@@ -181,11 +183,16 @@ struct MessageBubbleView: View {
             case .image(let path):
                 Group {
                     if let uiImage = ImageUtils.loadImage(relativePath: path) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 240)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        Button {
+                            onTapPhoto?(path)
+                        } label: {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: 240)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
                     } else {
                         Text("📷")
                             .font(.system(size: 32))
@@ -316,13 +323,20 @@ struct ConversationTranscriptView: View {
     let scrollToBottomCount: Int
     let style: ConversationStyle
 
+    @State private var fullscreenPhotoPath: String? = nil
+
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 12) {
+        ZStack {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 12) {
                     ForEach(messages) { message in
-                        MessageBubbleView(message: message, style: style)
-                            .id(message.id)
+                        MessageBubbleView(
+                            message: message,
+                            style: style,
+                            onTapPhoto: { path in fullscreenPhotoPath = path }
+                        )
+                        .id(message.id)
                     }
 
                     if isRecording {
@@ -368,7 +382,17 @@ struct ConversationTranscriptView: View {
                 scrollToBottom(proxy)
             }
         }
-    }
+
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { fullscreenPhotoPath != nil },
+            set: { if !$0 { fullscreenPhotoPath = nil } }
+        )) {
+            if let path = fullscreenPhotoPath {
+                FullScreenPhotoView(path: path)
+            }
+        }
+}
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.easeOut(duration: 0.2)) {
@@ -379,6 +403,47 @@ struct ConversationTranscriptView: View {
             } else {
                 proxy.scrollTo("scroll_bottom", anchor: .bottom)
             }
+        }
+    }
+}
+
+// MARK: - Full-Screen Photo Viewer
+
+/// A full-screen view that displays a photo on a black background with a
+/// close button in the top-trailing corner. Tapping anywhere also dismisses.
+private struct FullScreenPhotoView: View {
+    let path: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let uiImage = ImageUtils.loadImage(relativePath: path) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(40)
+            }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(.white.opacity(0.7))
+                            .shadow(color: .black.opacity(0.3), radius: 4)
+                    }
+                    .padding(Theme.Spacing.l)
+                }
+                Spacer()
+            }
+        }
+        .onTapGesture {
+            dismiss()
         }
     }
 }
