@@ -45,7 +45,7 @@ struct TreeView: View {
         }
         .sheet(item: $selected) { sel in
             CategoryDetailSheet(category: sel.category, score: sel.score)
-                .presentationDetents([.height(430), .large])
+                .presentationDetents([.height(360), .large])
                 .presentationDragIndicator(.visible)
         }
         #if DEBUG
@@ -309,7 +309,6 @@ struct CategoryDetailSheet: View {
     let score: Int
 
     private var band: ScoreBand { ScoreBand.of(score) }
-    private let chipColumns = [GridItem(.adaptive(minimum: 104), spacing: 8)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
@@ -353,7 +352,7 @@ struct CategoryDetailSheet: View {
                 .foregroundColor(.textTertiary)
                 .padding(.top, Theme.Spacing.xs)
 
-            LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
+            FlowLayout(spacing: 8) {
                 ForEach(category.subItems, id: \.self) { item in
                     HStack(spacing: 6) {
                         Image(systemName: "leaf")
@@ -362,7 +361,7 @@ struct CategoryDetailSheet: View {
                         Text(item)
                             .font(.echoCaption)
                             .foregroundColor(.textPrimary)
-                            .lineLimit(1)
+                            .fixedSize()
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -378,6 +377,52 @@ struct CategoryDetailSheet: View {
         .padding(Theme.Spacing.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.warmIvory)
+    }
+}
+
+// MARK: - Flow Layout
+
+/// A simple wrapping layout: lays children left-to-right, wrapping to the next
+/// line when they don't fit. Each child keeps its natural width, so chip text
+/// is never truncated.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                totalHeight += rowHeight + spacing
+                x = 0
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        totalHeight += rowHeight
+        let width = (maxWidth == .infinity) ? x : maxWidth
+        return CGSize(width: width, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX, x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            sub.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 

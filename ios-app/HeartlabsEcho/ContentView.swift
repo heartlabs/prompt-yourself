@@ -220,7 +220,19 @@ extension ContentView {
     /// photo picker as a smaller secondary control on the left. A hairline
     /// separator distinguishes it from the transcript above.
     private var inputBar: some View {
-        ZStack {
+        // Photo (secondary) clustered directly beside the mic (primary), the
+        // pair centered together so neither control floats alone.
+        HStack(spacing: Theme.Spacing.l) {
+            if !viewModel.messages.isEmpty {
+                PhotoButton(
+                    isEnabled: !viewModel.isThinking
+                ) { image in
+                    if let path = ImageUtils.saveImage(image) {
+                        viewModel.sendImage(relativePath: path)
+                    }
+                }
+            }
+
             MicButton(
                 style: style,
                 size: .compact,
@@ -228,21 +240,8 @@ extension ContentView {
                 isEnabled: !viewModel.isThinking,
                 action: { viewModel.toggleRecording() }
             )
-
-            HStack {
-                if !viewModel.messages.isEmpty {
-                    PhotoButton(
-                        isEnabled: !viewModel.isThinking
-                    ) { image in
-                        if let path = ImageUtils.saveImage(image) {
-                            viewModel.sendImage(relativePath: path)
-                        }
-                    }
-                }
-                Spacer()
-            }
         }
-        .padding(.horizontal, Theme.Spacing.xl)
+        .frame(maxWidth: .infinity)
         .padding(.top, Theme.Spacing.m)
         .padding(.bottom, Theme.Spacing.s)
         .background(
