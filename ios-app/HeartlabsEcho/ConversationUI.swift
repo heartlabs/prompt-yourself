@@ -411,7 +411,7 @@ struct ConversationTranscriptView: View {
 
 /// A full-screen view that displays a photo on a black background with a
 /// close button in the top-trailing corner. Tapping anywhere also dismisses.
-private struct FullScreenPhotoView: View {
+struct FullScreenPhotoView: View {
     let path: String
     @Environment(\.dismiss) private var dismiss
 

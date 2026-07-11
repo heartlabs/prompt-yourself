@@ -13,14 +13,18 @@ struct CalendarView: View {
     /// appropriate conversation view and load the selected day's entries.
     var onSelectConversation: ((_ dateKey: String, _ kind: ConversationKind) -> Void)?
     @State private var showEditProfile = false
+    @State private var selectedMemoryPath: String?
+    @State private var showGallery = false
+    @State private var scrollProxy: ScrollViewProxy?
 
     var body: some View {
         ZStack {
             Color.warmIvory.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    headerSection
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        headerSection
                         .padding(.horizontal, 16)
                         .padding(.top, 32)
                         .padding(.bottom, 20)
@@ -35,9 +39,16 @@ struct CalendarView: View {
                     dailyPreviewSection
                         .padding(.horizontal, 16)
                         .padding(.top, 20)
+                        .padding(.bottom, 12)
+
+                    recentMemoriesSection
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 32)
+                        .id("recent_memories")
                 }
             }
+            .onAppear { scrollProxy = proxy }
+        }
         }
         .preferredColorScheme(.light)
         .task {
@@ -45,6 +56,17 @@ struct CalendarView: View {
         }
         .sheet(isPresented: $showEditProfile) {
             EditProfileView()
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { selectedMemoryPath != nil },
+            set: { if !$0 { selectedMemoryPath = nil } }
+        )) {
+            if let path = selectedMemoryPath {
+                FullScreenPhotoView(path: path)
+            }
+        }
+        .fullScreenCover(isPresented: $showGallery) {
+            RecentMemoriesGalleryView()
         }
     }
 
@@ -94,7 +116,12 @@ struct CalendarView: View {
             statisticCell(
                 icon: "photo.fill",
                 value: viewModel.photosCount,
-                label: viewModel.photosCount == 1 ? loc.localized("photo") : loc.localized("photos")
+                label: viewModel.photosCount == 1 ? loc.localized("photo") : loc.localized("photos"),
+                onTap: {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        scrollProxy?.scrollTo("recent_memories", anchor: .top)
+                    }
+                }
             )
 
             divider
@@ -110,7 +137,8 @@ struct CalendarView: View {
 
     /// A single statistic cell inside the statistics row.
     /// Uses fixed heights for icon, number, and label so all cells stay aligned.
-    private func statisticCell(icon: String, value: Int, label: String) -> some View {
+    /// Pass `onTap` to make the cell tappable (e.g. photos → scroll to memories).
+    private func statisticCell(icon: String, value: Int, label: String, onTap: (() -> Void)? = nil) -> some View {
         VStack(spacing: 3) {
             Image(systemName: icon)
                 .font(.system(size: 26))
@@ -131,6 +159,8 @@ struct CalendarView: View {
                 .frame(height: 34)
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap?() }
     }
 
     /// A thin vertical separator between statistic cells.
@@ -336,6 +366,57 @@ struct CalendarView: View {
         .echoCard()
     }
 
+    // MARK: - Recent Memories
+
+    /// A horizontal gallery of the most recent photos shared in conversations.
+    /// Tapping the title opens the full gallery; tapping a thumbnail opens
+    /// that photo fullscreen.
+    @ViewBuilder
+    private var recentMemoriesSection: some View {
+        if !viewModel.recentPhotos.isEmpty {
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                Button {
+                    showGallery = true
+                } label: {
+                    HStack(spacing: Theme.Spacing.s) {
+                        SectionTitle(text: loc.localized("recent_memories"))
+                        Spacer(minLength: 0)
+                        HStack(spacing: 4) {
+                            Text(loc.localized("see_all"))
+                                .font(.echoSubheadline)
+                                .foregroundColor(.sageGreen)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.sageGreen)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: Theme.Spacing.s) {
+                        ForEach(viewModel.recentPhotos) { photo in
+                            Button {
+                                selectedMemoryPath = photo.path
+                            } label: {
+                                if let uiImage = ImageUtils.loadImage(relativePath: photo.path) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 100, height: 100)
+                                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .frame(height: 108)
+            }
+        }
+    }
+
     // MARK: - Calendar Day Model
 
     /// A single cell in the calendar grid.
@@ -484,6 +565,85 @@ private struct LoadingCirclesIndicator: View {
         }
         .onReceive(timer) { _ in
             activeIndex = (activeIndex + 1) % 3
+        }
+    }
+}
+
+// MARK: - Recent Memories Gallery
+
+/// A full-screen gallery showing all photo memories in a vertical grid with
+/// lazy loading. Tapping a thumbnail opens it fullscreen.
+struct RecentMemoriesGalleryView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @State private var allPhotos: [MemoryPhoto] = []
+    @State private var selectedPhotoPath: String?
+
+    /// Three columns for the grid.
+    private let columns = [
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 2) {
+                    ForEach(allPhotos) { photo in
+                        Button {
+                            selectedPhotoPath = photo.path
+                        } label: {
+                            if let uiImage = ImageUtils.loadImage(relativePath: photo.path) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(height: 130)
+                                    .clipped()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .background(Color.warmIvory)
+            .navigationTitle("All Memories")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .foregroundColor(.taupeText)
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.light)
+        .task {
+            loadPhotos()
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { selectedPhotoPath != nil },
+            set: { if !$0 { selectedPhotoPath = nil } }
+        )) {
+            if let path = selectedPhotoPath {
+                FullScreenPhotoView(path: path)
+            }
+        }
+    }
+
+    private func loadPhotos() {
+        let predicate = #Predicate<Message> { $0.contentType == "image" }
+        let descriptor = FetchDescriptor<Message>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        let messages = (try? modelContext.fetch(descriptor)) ?? []
+        allPhotos = messages.compactMap { msg in
+            guard let conv = msg.conversation else { return nil }
+            return MemoryPhoto(path: msg.content, dateKey: conv.dateKey, timestamp: msg.timestamp)
         }
     }
 }

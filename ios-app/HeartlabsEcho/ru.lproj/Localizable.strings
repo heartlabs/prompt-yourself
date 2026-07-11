@@ -52,6 +52,8 @@
 
 // MARK: - Calendar / Profile
 "tap_day_to_view" = "Нажмите на день, чтобы просмотреть запись";
+"recent_memories" = "Недавние воспоминания";
+"see_all" = "Все";
 "journal_day" = "День журнала";
 "journal_days" = "Дней журнала";
 "voice_memo" = "Голосовая заметка";

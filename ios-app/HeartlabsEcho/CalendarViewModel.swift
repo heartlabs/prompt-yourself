@@ -14,6 +14,16 @@ enum PreviewState: Equatable {
     case generating
 }
 
+// MARK: - MemoryPhoto
+
+/// A photo attached to a conversation message, used in the recent memories gallery.
+struct MemoryPhoto: Identifiable, Equatable {
+    let id = UUID()
+    let path: String
+    let dateKey: String
+    let timestamp: Date
+}
+
 // MARK: - CalendarViewModel
 
 /// Manages the calendar grid state: current month, selected date,
@@ -62,6 +72,40 @@ final class CalendarViewModel: ObservableObject {
         goalService?.closedGoals().count ?? 0
     }
 
+    /// Recent photo memories, sorted newest-first.
+    @Published var recentPhotos: [MemoryPhoto] = []
+
+    /// Maximum number of recent photos to show.
+    private static let maxRecentPhotos = 10
+
+    /// Loads the most recent image messages from all conversations.
+    func loadRecentPhotos() {
+        guard let context = modelContext else { return }
+        let predicate = #Predicate<Message> { $0.contentType == "image" }
+        var descriptor = FetchDescriptor<Message>(predicate: predicate, sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        descriptor.fetchLimit = Self.maxRecentPhotos
+        let messages = (try? context.fetch(descriptor)) ?? []
+        recentPhotos = messages.compactMap { msg in
+            guard let conv = msg.conversation else { return nil }
+            return MemoryPhoto(path: msg.content, dateKey: conv.dateKey, timestamp: msg.timestamp)
+        }
+    }
+
+    /// Loads all image messages from all conversations, sorted newest-first.
+    func loadAllPhotos() -> [MemoryPhoto] {
+        guard let context = modelContext else { return [] }
+        let predicate = #Predicate<Message> { $0.contentType == "image" }
+        let descriptor = FetchDescriptor<Message>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        let messages = (try? context.fetch(descriptor)) ?? []
+        return messages.compactMap { msg in
+            guard let conv = msg.conversation else { return nil }
+            return MemoryPhoto(path: msg.content, dateKey: conv.dateKey, timestamp: msg.timestamp)
+        }
+    }
+
     // MARK: - Private State
 
     private var modelContext: ModelContext?
@@ -98,6 +142,7 @@ final class CalendarViewModel: ObservableObject {
         goalService = GoalService(modelContext: modelContext)
 
         loadDatesWithEntries()
+        loadRecentPhotos()
 
         // Auto-select today so the preview card appears immediately.
         selectDate(Date())

@@ -52,6 +52,8 @@
 
 // MARK: - Calendar / Profile
 "tap_day_to_view" = "Tap a day to view its entry";
+"recent_memories" = "Recent Memories";
+"see_all" = "See all";
 "journal_day" = "Journal Day";
 "journal_days" = "Journal Days";
 "voice_memo" = "Voice Memo";
