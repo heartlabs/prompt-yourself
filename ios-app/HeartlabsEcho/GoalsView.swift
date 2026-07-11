@@ -6,6 +6,7 @@ import SwiftUI
 /// Displays all goals in two groups: Active (open) and Completed.
 /// Cards are ordered by most recently updated first.
 struct GoalsView: View {
+    @ObservedObject private var loc = LocalizationService.shared
     @Query(sort: [SortDescriptor(\Goal.lastUpdatedAt, order: .reverse)])
     var allGoals: [Goal]
 
@@ -44,13 +45,13 @@ struct GoalsView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            ScreenTitle(text: "Goals")
+            ScreenTitle(text: loc.localized("goals_screen_title"))
                 .padding(.top, Theme.Spacing.s)
 
             // Active goals group
             if !openGoals.isEmpty {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                    GroupLabel(text: "Active")
+                    GroupLabel(text: loc.localized("active_label"))
                     LazyVStack(spacing: Theme.Spacing.m) {
                         ForEach(openGoals, id: \.id) { goal in
                             Button {
@@ -67,7 +68,7 @@ struct GoalsView: View {
             // Completed goals group
             if !completedGoals.isEmpty {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                    GroupLabel(text: "Completed")
+                    GroupLabel(text: loc.localized("completed_label"))
                     LazyVStack(spacing: Theme.Spacing.m) {
                         ForEach(completedGoals, id: \.id) { goal in
                             Button {
@@ -90,7 +91,7 @@ struct GoalsView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            ScreenTitle(text: "Goals")
+            ScreenTitle(text: loc.localized("goals_screen_title"))
                 .padding(.top, Theme.Spacing.s)
 
             VStack(spacing: Theme.Spacing.l) {
@@ -98,11 +99,11 @@ struct GoalsView: View {
                     .font(.system(size: 44))
                     .foregroundColor(.sageGreen.opacity(0.4))
 
-                Text("No goals yet")
+                Text(loc.localized("no_goals_yet"))
                     .font(.echoSectionTitle)
                     .foregroundColor(.textPrimary)
 
-                Text("Tap the mic and ask Echo to help you set one.")
+                Text(loc.localized("tap_mic_to_set_goal"))
                     .font(.echoSubheadline)
                     .foregroundColor(.textSecondary)
                     .multilineTextAlignment(.center)

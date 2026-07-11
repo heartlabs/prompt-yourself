@@ -10,6 +10,7 @@ import SwiftUI
 struct TreeView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = TreeViewModel()
+    @ObservedObject private var loc = LocalizationService.shared
 
     /// The category whose detail sheet is open (nil = none).
     @State private var selected: SelectedCategory?
@@ -84,11 +85,11 @@ struct TreeView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("Your Life")
+                Text(loc.localized("your_life"))
                     .font(.echoLargeTitle)
                     .foregroundColor(.textPrimary)
 
-                Text("Every reflection helps your tree grow.")
+                Text(loc.localized("tree_subtitle"))
                     .font(.echoSubheadline)
                     .foregroundColor(.textSecondary)
             }
@@ -114,7 +115,7 @@ struct TreeView: View {
         VStack(spacing: Theme.Spacing.l) {
             Spacer()
             ProgressView().tint(.sageGreen)
-            Text("Growing your tree…")
+            Text(loc.localized("growing_tree"))
                 .font(.system(size: 15, design: .serif))
                 .foregroundColor(.textSecondary)
             Spacer()
@@ -133,7 +134,7 @@ struct TreeView: View {
                 .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
             Button { Task { await viewModel.refresh() } } label: {
-                Text("Try again")
+                Text(loc.localized("try_again"))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
                     .padding(.horizontal, Theme.Spacing.xl)
@@ -245,6 +246,25 @@ struct TreeView: View {
                 debugPresetButton("Mixed", [72, 45, 20, 10])
                 debugPresetButton("Thriving", [92, 96, 88, 94])
             }
+
+            Divider().padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Language (STT + LLM)")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.taupeText)
+
+                Picker("Language", selection: Binding(
+                    get: { LocalizationService.shared.currentLanguage },
+                    set: { LocalizationService.shared.setLanguage($0) }
+                )) {
+                    ForEach(AppLanguage.allCases, id: \.self) { lang in
+                        Text(lang.displayName).tag(lang)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
             Spacer()
         }
         .padding(20)
@@ -305,6 +325,7 @@ private struct SelectedCategory: Identifiable {
 /// Deliberately holds no cross-category "focus" advice — that lives in the
 /// single reflection card on the overview.
 struct CategoryDetailSheet: View {
+    @ObservedObject private var loc = LocalizationService.shared
     let category: LifeCategory
     let score: Int
 
@@ -338,7 +359,7 @@ struct CategoryDetailSheet: View {
 
             // Sub-items
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                Text("What this branch holds")
+                Text(loc.localized("what_branch_holds"))
                     .font(.echoGroupLabel)
                     .foregroundColor(.textTertiary)
 
@@ -434,6 +455,7 @@ struct ProgressBar: View {
 
 /// The single cross-category reflection: names where to focus next.
 struct FocusLineCard: View {
+    @ObservedObject private var loc = LocalizationService.shared
     let text: String
 
     var body: some View {
@@ -449,7 +471,7 @@ struct FocusLineCard: View {
                     .font(.system(size: 15, weight: .medium, design: .serif))
                     .foregroundColor(.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Balance grows with awareness.")
+                Text(loc.localized("balance_grows"))
                     .font(.echoCaption)
                     .foregroundColor(.textSecondary)
             }

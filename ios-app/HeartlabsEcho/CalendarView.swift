@@ -5,6 +5,7 @@ import SwiftUI
 
 /// The calendar tab view containing the month grid and daily preview section.
 struct CalendarView: View {
+    @ObservedObject private var loc = LocalizationService.shared
     @StateObject private var viewModel = CalendarViewModel()
     @Environment(\.modelContext) private var modelContext
 
@@ -60,7 +61,7 @@ struct CalendarView: View {
             statisticCell(
                 icon: "leaf.fill",
                 value: viewModel.conversationDaysCount,
-                label: viewModel.conversationDaysCount == 1 ? "Journal Day" : "Journal Days"
+                label: viewModel.conversationDaysCount == 1 ? loc.localized("journal_day") : loc.localized("journal_days")
             )
 
             divider
@@ -68,7 +69,7 @@ struct CalendarView: View {
             statisticCell(
                 icon: "waveform",
                 value: viewModel.voiceMemoriesCount,
-                label: viewModel.voiceMemoriesCount == 1 ? "Voice Memo" : "Voice Memories"
+                label: viewModel.voiceMemoriesCount == 1 ? loc.localized("voice_memo") : loc.localized("voice_memos")
             )
 
             divider
@@ -76,7 +77,7 @@ struct CalendarView: View {
             statisticCell(
                 icon: "photo.fill",
                 value: viewModel.photosCount,
-                label: viewModel.photosCount == 1 ? "Photo" : "Photos"
+                label: viewModel.photosCount == 1 ? loc.localized("photo") : loc.localized("photos")
             )
 
             divider
@@ -84,7 +85,7 @@ struct CalendarView: View {
             statisticCell(
                 icon: "target",
                 value: viewModel.goalsCompletedCount,
-                label: viewModel.goalsCompletedCount == 1 ? "Goal Done" : "Goals Done"
+                label: viewModel.goalsCompletedCount == 1 ? loc.localized("goal_done") : loc.localized("goals_done")
             )
         }
         .echoCard(padding: Theme.Spacing.l)
@@ -246,7 +247,7 @@ struct CalendarView: View {
 
                 HStack {
                     Spacer()
-                    Text("Tap a day to view its entry")
+                    Text(loc.localized("tap_day_to_view"))
                         .font(.echoSubheadline)
                         .foregroundColor(.textTertiary)
                         .padding(.vertical, Theme.Spacing.l)
@@ -284,7 +285,7 @@ struct CalendarView: View {
                     .font(.echoCaption)
                     .foregroundColor(.textSecondary)
 
-                Text(preview.isToday ? "Today's Journal" : "Journal Entry")
+                Text(preview.isToday ? loc.localized("todays_journal") : loc.localized("journal_entry"))
                     .font(.echoCardTitle)
                     .foregroundColor(.textPrimary)
 

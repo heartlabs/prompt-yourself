@@ -57,11 +57,12 @@ enum ScoreBand {
         return .needsAttention
     }
 
+    @MainActor
     var label: String {
         switch self {
-        case .thriving: return "Thriving"
-        case .growing: return "Growing"
-        case .needsAttention: return "Needs attention"
+        case .thriving: return LocalizationService.shared.localized("band_thriving")
+        case .growing: return LocalizationService.shared.localized("band_growing")
+        case .needsAttention: return LocalizationService.shared.localized("band_needs_attention")
         }
     }
 
@@ -87,46 +88,50 @@ enum ScoreBand {
 
 /// One life category. Data-driven so labels/sub-items can change without touching
 /// the renderer or scoring logic. `id` doubles as the JSON key the LLM returns.
+/// Titles, subtitles and sub-items are localized via `LocalizationService`.
 struct LifeCategory: Identifiable {
     let id: String
     let zone: TreeZone
-    let title: String
-    let subtitle: String
-    let subItems: [String]
     let systemIcon: String  // SF Symbol name
+
+    /// Localized title.
+    @MainActor
+    var title: String {
+        LocalizationService.shared.localized("cat_\(id)_title")
+    }
+
+    /// Localized subtitle.
+    @MainActor
+    var subtitle: String {
+        LocalizationService.shared.localized("cat_\(id)_subtitle")
+    }
+
+    /// Localized sub-items.
+    @MainActor
+    var subItems: [String] {
+        (1...5).map { LocalizationService.shared.localized("cat_\(id)_item_\($0)") }
+    }
 
     /// The four v1 categories, in display order (mirrors the mockup quadrants).
     static let all: [LifeCategory] = [
         LifeCategory(
             id: "about_me",
             zone: .UL,
-            title: "About Me",
-            subtitle: "Self-growth & well-being",
-            subItems: ["Health", "Mindfulness", "Hobbies", "Personal growth", "Rest & reflection"],
             systemIcon: "person.crop.circle"
         ),
         LifeCategory(
             id: "work_goals",
             zone: .UR,
-            title: "Work & Goals",
-            subtitle: "Career & purpose",
-            subItems: ["Career", "Projects", "Finances", "Learning", "Goals"],
             systemIcon: "briefcase"
         ),
         LifeCategory(
             id: "family_relationships",
             zone: .LL,
-            title: "Family & Relationships",
-            subtitle: "Love & connections",
-            subItems: ["Partner", "Children", "Family time", "Home", "Support"],
             systemIcon: "person.2"
         ),
         LifeCategory(
             id: "social_life",
             zone: .LR,
-            title: "Social Life",
-            subtitle: "Friends & experiences",
-            subItems: ["Friends", "Fun & leisure", "Events", "Community", "Adventures"],
             systemIcon: "person.3"
         ),
     ]

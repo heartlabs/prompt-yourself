@@ -7,6 +7,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = ConversationEngine(configuration: .journal)
+    @ObservedObject private var loc = LocalizationService.shared
     @State private var selectedTab = 0
     /// Prevents `resetToToday` from overriding a conversation that was just
     /// loaded from the calendar preview.
@@ -65,14 +66,14 @@ struct ContentView: View {
             // Tab 0: Today's conversation
             conversationTab
                 .tabItem {
-                    Label("Today", systemImage: "leaf.fill")
+                    Label(loc.localized("today_tab"), systemImage: "leaf.fill")
                 }
                 .tag(0)
 
             // Tab 1: Goals overview
             GoalsView()
                 .tabItem {
-                    Label("Goals", systemImage: "target")
+                    Label(loc.localized("goals_tab"), systemImage: "target")
                 }
                 .tag(1)
 
@@ -85,14 +86,14 @@ struct ContentView: View {
                 }
             )
             .tabItem {
-                Label("Profile", systemImage: "person")
+                Label(loc.localized("profile_tab"), systemImage: "person")
             }
                 .tag(2)
 
             // Tab 3: "Your Life" tree
             TreeView()
                 .tabItem {
-                    Label("Tree", image: "TreeGlyph")
+                    Label(loc.localized("tree_tab"), image: "TreeGlyph")
                 }
                 .tag(3)
         }
@@ -146,11 +147,11 @@ struct ContentView: View {
             let service = ConversationService(modelContext: modelContext)
             service.deleteAllDreamConversations()
         }
-        .alert("Speech Recognition", isPresented: Binding(
+        .alert(loc.localized("speech_recognition_alert"), isPresented: Binding(
             get: { viewModel.recognizer.recognitionError != nil },
             set: { presented in if !presented { viewModel.recognizer.recognitionError = nil } }
         )) {
-            Button("OK", role: .cancel) { }
+            Button(loc.localized("ok_button"), role: .cancel) { }
         } message: {
             Text(viewModel.recognizer.recognitionError ?? "")
         }
@@ -176,7 +177,7 @@ extension ContentView {
                         .offset(y: 2)
                 }
 
-                Text("How are you feeling today?")
+                Text(loc.localized("how_are_you"))
                     .font(.echoBody)
                     .foregroundColor(.textSecondary)
             }
@@ -185,7 +186,7 @@ extension ContentView {
 
             if viewModel.isShowingPastConversation {
                 // Past conversation — read-only, no mic
-                Text("Past entry")
+                Text(loc.localized("past_entry"))
                     .font(.echoSubheadline)
                     .foregroundColor(.textTertiary)
                     .padding(.top, Theme.Spacing.l)
@@ -201,7 +202,7 @@ extension ContentView {
                 )
 
                 // Instruction Text
-                Text("Tap to talk")
+                Text(loc.localized("tap_to_talk"))
                     .font(.echoSubheadline)
                     .foregroundColor(.textSecondary)
 
@@ -229,7 +230,7 @@ extension ContentView {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if viewModel.isShowingPastConversation {
                 // Past conversation — no orb, just a subtle hint
-                Text("Past entry — read only")
+                Text(loc.localized("past_entry_readonly"))
                     .font(.echoMicroLabel)
                     .foregroundColor(.textTertiary)
                     .padding(.vertical, Theme.Spacing.m)
@@ -260,7 +261,7 @@ extension ContentView {
                     )
 
                     if !OrbCoachmark.isLearned {
-                        Text("Tap to talk")
+                        Text(loc.localized("tap_to_talk"))
                             .font(.echoMicroLabel)
                             .foregroundColor(.textTertiary)
                     }
@@ -287,9 +288,12 @@ extension ContentView {
 
 // MARK: - Onboarding View
 
-/// Shown on first launch to capture the user's name for personalisation.
+/// Shown on first launch to capture the user's name for personalisation
+/// and the preferred language.
 struct OnboardingView: View {
+    @ObservedObject private var loc = LocalizationService.shared
     @State private var name = ""
+    @State private var selectedLanguage = AppLanguage.current
     let onComplete: () -> Void
 
     var body: some View {
@@ -300,21 +304,36 @@ struct OnboardingView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.sageGreen)
 
-            Text("Welcome to Heartlabs Echo")
+            Text(loc.localized("welcome_title"))
                 .font(.title2.weight(.semibold))
                 .foregroundColor(.taupeText)
 
-            Text("What should I call you?")
+            // Language picker
+            VStack(spacing: 8) {
+                Text(loc.localized("select_language"))
+                    .font(.body)
+                    .foregroundColor(.taupeText.opacity(0.65))
+
+                Picker("", selection: $selectedLanguage) {
+                    ForEach(AppLanguage.allCases, id: \.self) { lang in
+                        Text(lang.displayName).tag(lang)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.sageGreen)
+            }
+
+            Text(loc.localized("name_prompt"))
                 .font(.body)
                 .foregroundColor(.taupeText.opacity(0.65))
 
-            TextField("Your name", text: $name)
+            TextField(loc.localized("name_placeholder"), text: $name)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 240)
                 .onSubmit(submit)
 
-            Button("Get Started") {
+            Button(loc.localized("get_started")) {
                 submit()
             }
             .buttonStyle(.borderedProminent)
@@ -332,6 +351,8 @@ struct OnboardingView: View {
     private func submit() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        // Save the chosen language before the name
+        AppLanguage.save(selectedLanguage)
         UserName.save(trimmed)
         onComplete()
     }

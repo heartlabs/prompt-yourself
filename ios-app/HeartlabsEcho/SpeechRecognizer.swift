@@ -67,14 +67,15 @@ final class SpeechRecognizer: ObservableObject {
         case unavailable
         case engineError(String)
 
+        @MainActor
         var errorDescription: String? {
             switch self {
             case .notAuthorized:
-                return "Speech recognition is not authorized. Please grant access in Settings."
+                return LocalizationService.shared.localized("speech_not_authorized")
             case .unavailable:
-                return "Speech recognition is not available on this device."
+                return LocalizationService.shared.localized("speech_unavailable")
             case .engineError(let detail):
-                return "Recognition error: \(detail)"
+                return String(format: LocalizationService.shared.localized("speech_recognition_error"), detail)
             }
         }
     }
@@ -82,7 +83,7 @@ final class SpeechRecognizer: ObservableObject {
     // MARK: - Private State
 
     private let speechRecognizer: SFSpeechRecognizer? = {
-        let r = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+        let r = SFSpeechRecognizer(locale: Locale(identifier: AppLanguage.current.sttLocaleIdentifier))
         r?.queue = .main
         return r
     }()
@@ -153,7 +154,7 @@ final class SpeechRecognizer: ObservableObject {
                 guard let self else { return }
                 guard status == .authorized else {
                     self.diag("not authorized (status=\(status.rawValue))")
-                    self.surfaceError("Speech recognition permission is off. Enable it in Settings › Privacy & Security › Speech Recognition.")
+                    self.surfaceError(LocalizationService.shared.localized("speech_permission_off"))
                     return
                 }
                 self.attemptStart(retriesRemaining: 5)
@@ -235,9 +236,9 @@ final class SpeechRecognizer: ObservableObject {
     /// to a real device instead of surfacing a cryptic asset error.
     private func unavailableMessage() -> String {
         #if targetEnvironment(simulator)
-        return "Speech recognition isn’t available in the iOS Simulator — the on-device speech model isn’t provided here. Please run Heartlabs Echo on a physical device to use voice journaling."
+        return LocalizationService.shared.localized("speech_unavailable_simulator")
         #else
-        return "Speech recognition is currently unavailable. Check your internet connection and try again in a moment."
+        return LocalizationService.shared.localized("speech_unavailable_network")
         #endif
     }
 
@@ -254,7 +255,7 @@ final class SpeechRecognizer: ObservableObject {
         #if targetEnvironment(simulator)
         return unavailableMessage()
         #else
-        return "Speech recognition failed: \(ns.localizedDescription)"
+        return String(format: LocalizationService.shared.localized("speech_recognition_failed"), ns.localizedDescription)
         #endif
     }
 
@@ -292,7 +293,7 @@ final class SpeechRecognizer: ObservableObject {
             UIApplication.shared.isIdleTimerDisabled = true
         } catch {
             diag("audio session config failed: \(describe(error))")
-            surfaceError("Couldn’t start recording: \(error.localizedDescription)")
+            surfaceError(String(format: LocalizationService.shared.localized("speech_recording_failed"), error.localizedDescription))
             return
         }
 
@@ -323,7 +324,7 @@ final class SpeechRecognizer: ObservableObject {
             try audioEngine.start()
         } catch {
             diag("audioEngine.start() failed: \(describe(error))")
-            surfaceError("Couldn’t start the microphone: \(error.localizedDescription)")
+            surfaceError(String(format: LocalizationService.shared.localized("speech_microphone_failed"), error.localizedDescription))
             return
         }
 

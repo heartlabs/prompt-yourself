@@ -355,6 +355,12 @@ class ConversationEngine: ObservableObject {
         }
         var prompt = content.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // Prepend the language instruction so the LLM responds in the right language.
+        let langInstruction = AppLanguage.current.languageInstruction
+        if !langInstruction.isEmpty {
+            prompt = langInstruction + prompt
+        }
+
         // Prepend the user's name so the LLM can address them personally.
         if let name = UserName.current, !name.isEmpty {
             prompt = "The user's name is \(name). Always address them by name.\n\n" + prompt

@@ -207,6 +207,7 @@ struct MessageBubbleView: View {
 // MARK: - Live Recording Bubble
 
 struct LiveRecordingBubbleView: View {
+    @ObservedObject private var loc = LocalizationService.shared
     let transcript: String
     let style: ConversationStyle
 
@@ -219,13 +220,13 @@ struct LiveRecordingBubbleView: View {
                     Circle()
                         .fill(style.accent)
                         .frame(width: 6, height: 6)
-                    Text("Recording...")
+                    Text(loc.localized("recording_label"))
                         .font(.caption2)
                         .foregroundColor(.white.opacity(0.8))
                 }
 
                 if transcript.isEmpty {
-                    Text("Listening...")
+                    Text(loc.localized("listening_placeholder"))
                         .font(.system(size: 16, weight: .regular, design: .default))
                         .foregroundColor(.white.opacity(0.5))
                         .italic()
@@ -246,6 +247,7 @@ struct LiveRecordingBubbleView: View {
 // MARK: - Typing Indicator
 
 struct TypingIndicatorView: View {
+    @ObservedObject private var loc = LocalizationService.shared
     let style: ConversationStyle
     var isRemembering: Bool = false
 
@@ -277,7 +279,7 @@ struct TypingIndicatorView: View {
 
             // "remembering…" fades in/out during tool calls (journal only).
             if style.showsRememberingIndicator && isRemembering {
-                Text("remembering…")
+                Text(loc.localized("remembering_label"))
                     .font(.caption2)
                     .foregroundColor(.taupeText.opacity(0.55))
                     .transition(.opacity)

@@ -22,6 +22,7 @@ import SwiftUI
 /// alone (when nothing was said) — see `ConversationEngine.sendComposition`.
 struct ConversationModeView: View {
     @ObservedObject var viewModel: ConversationEngine
+    @ObservedObject private var loc = LocalizationService.shared
     let style: ConversationStyle
     /// Closes the overlay. Any sending has already been kicked off by then.
     let dismiss: () -> Void
@@ -46,7 +47,7 @@ struct ConversationModeView: View {
                 orbArea
                     .padding(.bottom, Theme.Spacing.xl)
 
-                Text("tap to send · swipe down to cancel")
+                Text(loc.localized("tap_to_send_cancel"))
                     .font(.echoCaption)
                     .foregroundColor(.textTertiary)
                     .padding(.bottom, Theme.Spacing.m)
@@ -154,7 +155,7 @@ struct ConversationModeView: View {
     }
 
     private var displayTranscript: String {
-        hasTranscript ? viewModel.recognizer.transcript : "Listening…"
+        hasTranscript ? viewModel.recognizer.transcript : loc.localized("listening_placeholder")
     }
 
     // MARK: - Exit Paths

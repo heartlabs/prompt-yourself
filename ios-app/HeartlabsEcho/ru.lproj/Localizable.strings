@@ -1,0 +1,116 @@
+// MARK: - Onboarding
+"welcome_title" = "Добро пожаловать в Heartlabs Echo";
+"select_language" = "Выберите язык";
+"name_prompt" = "Как мне к вам обращаться?";
+"name_placeholder" = "Ваше имя";
+"get_started" = "Начать";
+
+// MARK: - Tab Bar
+"today_tab" = "Сегодня";
+"goals_tab" = "Цели";
+"profile_tab" = "Профиль";
+"tree_tab" = "Дерево";
+
+// MARK: - Moodboard / Empty State
+"how_are_you" = "Как вы себя чувствуете сегодня?";
+"past_entry" = "Прошлая запись";
+"past_entry_readonly" = "Прошлая запись — только чтение";
+"tap_to_talk" = "Нажмите, чтобы говорить";
+
+// MARK: - Conversation Mode
+"listening_placeholder" = "Слушаю…";
+"tap_to_send_cancel" = "нажмите для отправки · проведите вниз для отмены";
+
+// MARK: - Recording Bubble
+"recording_label" = "Запись…";
+
+// MARK: - Typing Indicator
+"remembering_label" = "вспоминаю…";
+
+// MARK: - Greetings
+"greeting_morning" = "Доброе утро";
+"greeting_afternoon" = "Добрый день";
+"greeting_evening" = "Добрый вечер";
+
+// MARK: - Speech Recognition Errors
+"speech_not_authorized" = "Распознавание речи не авторизовано. Пожалуйста, предоставьте доступ в Настройках.";
+"speech_unavailable" = "Распознавание речи недоступно на этом устройстве.";
+"speech_recognition_error" = "Ошибка распознавания: %@";
+"speech_permission_off" = "Разрешение на распознавание речи отключено. Включите его в Настройках › Конфиденциальность и безопасность › Распознавание речи.";
+"speech_unavailable_simulator" = "Распознавание речи недоступно в симуляторе iOS — встроенная модель речи здесь не предоставляется. Пожалуйста, запустите Heartlabs Echo на физическом устройстве для использования голосового дневника.";
+"speech_unavailable_network" = "Распознавание речи временно недоступно. Проверьте подключение к интернету и повторите попытку.";
+"speech_recognition_failed" = "Ошибка распознавания речи: %@";
+"speech_microphone_failed" = "Не удалось запустить микрофон: %@";
+"speech_recording_failed" = "Не удалось начать запись: %@";
+
+// MARK: - Alert Titles
+"speech_recognition_alert" = "Распознавание речи";
+"ok_button" = "OK";
+
+// MARK: - Calendar / Profile
+"tap_day_to_view" = "Нажмите на день, чтобы просмотреть запись";
+"journal_day" = "День журнала";
+"journal_days" = "Дней журнала";
+"voice_memo" = "Голосовая заметка";
+"voice_memos" = "Голосовых заметок";
+"photo" = "Фото";
+"photos" = "Фотографий";
+"goal_done" = "Цель достигнута";
+"goals_done" = "Целей достигнуто";
+"todays_journal" = "Сегодняшний журнал";
+"journal_entry" = "Запись в журнале";
+
+// MARK: - Goals
+"goals_screen_title" = "Цели";
+"active_label" = "Активные";
+"completed_label" = "Завершённые";
+"no_goals_yet" = "Пока нет целей";
+"tap_mic_to_set_goal" = "Нажмите на микрофон и попросите Echo помочь вам установить цель.";
+"about_this_goal" = "Об этой цели";
+
+// MARK: - Score Bands
+"band_thriving" = "Процветающий";
+"band_growing" = "Растущий";
+"band_needs_attention" = "Требует внимания";
+
+// MARK: - Life Categories
+"cat_about_me_title" = "Обо мне";
+"cat_about_me_subtitle" = "Саморазвитие и благополучие";
+"cat_about_me_item_1" = "Здоровье";
+"cat_about_me_item_2" = "Осознанность";
+"cat_about_me_item_3" = "Хобби";
+"cat_about_me_item_4" = "Личностный рост";
+"cat_about_me_item_5" = "Отдых и рефлексия";
+
+"cat_work_goals_title" = "Работа и цели";
+"cat_work_goals_subtitle" = "Карьера и предназначение";
+"cat_work_goals_item_1" = "Карьера";
+"cat_work_goals_item_2" = "Проекты";
+"cat_work_goals_item_3" = "Финансы";
+"cat_work_goals_item_4" = "Обучение";
+"cat_work_goals_item_5" = "Цели";
+
+"cat_family_relationships_title" = "Семья и отношения";
+"cat_family_relationships_subtitle" = "Любовь и связи";
+"cat_family_relationships_item_1" = "Партнёр";
+"cat_family_relationships_item_2" = "Дети";
+"cat_family_relationships_item_3" = "Время с семьёй";
+"cat_family_relationships_item_4" = "Дом";
+"cat_family_relationships_item_5" = "Поддержка";
+
+"cat_social_life_title" = "Социальная жизнь";
+"cat_social_life_subtitle" = "Друзья и впечатления";
+"cat_social_life_item_1" = "Друзья";
+"cat_social_life_item_2" = "Веселье и досуг";
+"cat_social_life_item_3" = "События";
+"cat_social_life_item_4" = "Сообщество";
+"cat_social_life_item_5" = "Приключения";
+
+// MARK: - Tree
+"your_life" = "Ваша жизнь";
+"tree_subtitle" = "Каждое размышление помогает вашему дереву расти.";
+"growing_tree" = "Ваше дерево растёт…";
+"try_again" = "Попробовать снова";
+"what_branch_holds" = "Что содержит эта ветвь";
+"balance_grows" = "Баланс растёт с осознанностью.";
+"focus_line_format" = "Немного больше внимания к %@ может помочь вашему дереву процветать.";

@@ -8,6 +8,7 @@ import SwiftUI
 /// the full, untruncated description — no progress bar or status badge, which
 /// belong to the tree's scoring model, not to a goal.
 struct GoalDetailSheet: View {
+    @ObservedObject private var loc = LocalizationService.shared
     let goal: Goal
 
     private var percent: Int { Int(goal.progressPercent * 100) }
@@ -32,7 +33,7 @@ struct GoalDetailSheet: View {
         } content: {
             if !goal.desc.isEmpty {
                 VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                    Text("About this goal")
+                    Text(loc.localized("about_this_goal"))
                         .font(.echoGroupLabel)
                         .foregroundColor(.textTertiary)
                     Text(goal.desc)

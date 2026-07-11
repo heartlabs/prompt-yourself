@@ -321,12 +321,23 @@ final class CalendarViewModel: ObservableObject {
     /// Human-readable month and year string, e.g. `"April 2025"`.
     static func monthYearString(for date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = AppLanguage.current.locale
         formatter.dateFormat = "MMMM yyyy"
         return formatter.string(from: date)
     }
 
-    /// All weekday abbreviation strings (Mon–Sun).
-    static let weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    /// All weekday abbreviation strings, localised (Mon–Sun / Mo–So / Пн–Вс).
+    static var weekdayLabels: [String] {
+        let formatter = DateFormatter()
+        formatter.locale = AppLanguage.current.locale
+        let symbols = formatter.veryShortStandaloneWeekdaySymbols ?? []
+        // Gregorian calendar: weekday 1 = Sunday, so reorder to Monday-first.
+        // symbols indices: [0]=Sun, [1]=Mon, [2]=Tue, [3]=Wed, [4]=Thu, [5]=Fri, [6]=Sat
+        if symbols.count == 7 {
+            return [symbols[1], symbols[2], symbols[3], symbols[4], symbols[5], symbols[6], symbols[0]]
+        }
+        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    }
 }
 
 // MARK: - ConversationPreview

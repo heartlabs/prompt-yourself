@@ -77,6 +77,6 @@ final class TreeViewModel: ObservableObject {
         } else {
             names = lowest.cat.title.lowercased()
         }
-        return "A little more attention on \(names) could help your tree flourish."
+        return String(format: LocalizationService.shared.localized("focus_line_format"), names)
     }
 }

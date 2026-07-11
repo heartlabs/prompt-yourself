@@ -40,6 +40,10 @@
 		AAA00413 /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00412 /* GoalsView.swift */; };
 		AAA00415 /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00414 /* DetailView.swift */; };
 		AAA00417 /* GoalDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00416 /* GoalDetailSheet.swift */; };
+		AAA00133 /* en.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AAA00130 /* en */; };
+		AAA00134 /* de.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AAA00131 /* de */; };
+		AAA00135 /* ru.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AAA00132 /* ru */; };
+		AAA00137 /* LocalizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00136 /* LocalizationService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -80,6 +84,10 @@
 		AAA00412 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		AAA00414 /* DetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailView.swift; sourceTree = "<group>"; };
 		AAA00416 /* GoalDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalDetailSheet.swift; sourceTree = "<group>"; };
+		AAA00130 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		AAA00131 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
+		AAA00132 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
+		AAA00136 /* LocalizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -130,6 +138,10 @@
 				AAA00416 /* GoalDetailSheet.swift */,
 				AAA00007 /* Info.plist */,
 				AAA00008 /* Assets.xcassets */,
+				AAA00136 /* LocalizationService.swift */,
+				AAA00130 /* en */,
+				AAA00131 /* de */,
+				AAA00132 /* ru */,
 			);
 			path = HeartlabsEcho;
 			sourceTree = "<group>";
@@ -183,6 +195,8 @@
 			knownRegions = (
 				en,
 				Base,
+				de,
+				ru,
 			);
 			mainGroup = AAA00009;
 			productRefGroup = AAA0000D /* Products */;
@@ -203,6 +217,9 @@
 				AAA00030 /* Assets.xcassets in Resources */,
 				AAA00106 /* anchors.json in Resources */,
 				AAA00206 /* dream-system-prompt.md in Resources */,
+				AAA00133 /* en.lproj/Localizable.strings in Resources */,
+				AAA00134 /* de.lproj/Localizable.strings in Resources */,
+				AAA00135 /* ru.lproj/Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,6 +259,7 @@
 				AAA00413 /* GoalsView.swift in Sources */,
 				AAA00415 /* DetailView.swift in Sources */,
 				AAA00417 /* GoalDetailSheet.swift in Sources */,
+				AAA00137 /* LocalizationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
