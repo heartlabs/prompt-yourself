@@ -400,30 +400,49 @@ class ConversationEngine: ObservableObject {
         persistMessage(role: role, content: .text(content), id: id, timestamp: timestamp)
     }
 
-    // MARK: - Public: Send Image
+    // MARK: - Public: Send Composition
 
-    /// Creates an image message and sends it to the LLM.
-    func sendImage(relativePath: String) {
-        let userMessage = ChatMessage(role: .user, content: .image(relativePath: relativePath))
-        messages.append(userMessage)
+    /// Sends what the voice composer produced: the current transcript (if any)
+    /// as a text bubble, then the picked image (if any) as an image bubble —
+    /// followed by ONE LLM exchange for the whole composition.
+    ///
+    /// Speech-only, photo-only, and speech-then-photo all flow through here.
+    /// Does nothing — and returns `false` — when there is neither speech nor
+    /// an image (e.g. the user opened conversation mode and cancelled the
+    /// picker without a word).
+    @discardableResult
+    func sendComposition(imagePath: String?) -> Bool {
+        // Tripwire: the transcript must be FINAL before composing. Sending
+        // mid-recording would post partial text and leave the microphone hot.
+        // Await `recognizer.stopTranscribingAsync()` (or call
+        // `stopTranscribing()`) before calling this.
+        assert(!recognizer.isRecording, "sendComposition called while recording — finalize first.")
+
+        var userMessages: [ChatMessage] = []
+
+        let transcript = recognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !transcript.isEmpty {
+            userMessages.append(ChatMessage(role: .user, content: transcript))
+        }
+        if let imagePath {
+            userMessages.append(ChatMessage(role: .user, content: .image(relativePath: imagePath)))
+        }
+        guard !userMessages.isEmpty else { return false }
+
+        for message in userMessages {
+            messages.append(message)
+            persistMessage(role: "user", content: message.content, id: message.id, timestamp: message.timestamp)
+        }
         shouldAutoScroll = true
-        persistMessage(role: "user", content: userMessage.content, id: userMessage.id, timestamp: userMessage.timestamp)
 
         Task { await sendToLLM() }
+        return true
     }
 
     // MARK: - LLM Communication
 
     private func sendTranscript() async {
-        let transcript = recognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !transcript.isEmpty else { return }
-
-        let userMessage = ChatMessage(role: .user, content: transcript)
-        messages.append(userMessage)
-        shouldAutoScroll = true
-        persistMessage(role: "user", content: userMessage.content, id: userMessage.id, timestamp: userMessage.timestamp)
-
-        await sendToLLM()
+        sendComposition(imagePath: nil)
     }
 
     /// Shared send loop: builds context, calls the LLM (with tool loop),

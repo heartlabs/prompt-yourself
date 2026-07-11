@@ -1,4 +1,3 @@
-import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -14,6 +13,8 @@ struct ContentView: View {
     @State private var isNavigatingFromCalendar = false
     /// Whether to show the onboarding sheet (first launch).
     @State private var showOnboarding = !UserName.isSet
+    /// Whether the immersive voice composer is presented over the app.
+    @State private var isConversing = false
 
     /// Shared visual style for the daily conversation screen.
     private let style = ConversationStyle.journal
@@ -38,6 +39,28 @@ struct ContentView: View {
     }
 
     var body: some View {
+        ZStack {
+            tabs
+
+            // Conversation mode covers everything, tab bar included — while
+            // composing, the companion is the whole interface.
+            if isConversing {
+                ConversationModeView(viewModel: viewModel, style: style) {
+                    withAnimation(.easeInOut(duration: 0.3)) { isConversing = false }
+                }
+                .transition(.opacity.combined(with: .scale(scale: 1.03)))
+                .zIndex(1)
+            }
+        }
+    }
+
+    /// Presents conversation mode. The composer owns its recording lifecycle:
+    /// it starts listening on appear and stops on every exit path.
+    private func startConversation() {
+        withAnimation(.easeInOut(duration: 0.3)) { isConversing = true }
+    }
+
+    private var tabs: some View {
         TabView(selection: tabBinding) {
             // Tab 0: Today's conversation
             conversationTab
@@ -94,8 +117,10 @@ struct ContentView: View {
                 }
             case .background:
                 // Stop recording and send partial transcript when app goes to background
-                // (lock button, app switcher, phone call, etc.).
+                // (lock button, app switcher, phone call, etc.). The composer
+                // closes too — its content has been sent.
                 viewModel.stopRecordingOnBackground()
+                isConversing = false
             default:
                 break
             }
@@ -167,19 +192,18 @@ extension ContentView {
 
                 Spacer()
             } else {
-                MicButton(
+                CompanionOrbView(
                     style: style,
-                    size: .large,
-                    isRecording: viewModel.recognizer.isRecording,
+                    diameter: Theme.Orb.moodboardDiameter,
                     isEnabled: !viewModel.isThinking,
-                    action: { viewModel.toggleRecording() }
+                    showsMicGlyph: true,
+                    action: startConversation
                 )
 
                 // Instruction Text
-                Text("Tap to speak")
+                Text("Tap to talk")
                     .font(.echoSubheadline)
                     .foregroundColor(.textSecondary)
-                    .padding(.top, Theme.Spacing.l)
 
                 Spacer()
                 Spacer()
@@ -192,64 +216,72 @@ extension ContentView {
 
 extension ContentView {
     private var chatView: some View {
-        VStack(spacing: 0) {
-            ConversationTranscriptView(
-                messages: viewModel.messages,
-                isRecording: viewModel.recognizer.isRecording,
-                transcript: viewModel.recognizer.transcript,
-                isThinking: viewModel.isThinking,
-                isRemembering: viewModel.isRemembering,
-                shouldAutoScroll: viewModel.shouldAutoScroll,
-                scrollToBottomCount: viewModel.scrollToBottomCount,
-                style: style
-            )
-
+        ConversationTranscriptView(
+            messages: viewModel.messages,
+            isRecording: viewModel.recognizer.isRecording,
+            transcript: viewModel.recognizer.transcript,
+            isThinking: viewModel.isThinking,
+            isRemembering: viewModel.isRemembering,
+            shouldAutoScroll: viewModel.shouldAutoScroll,
+            scrollToBottomCount: viewModel.scrollToBottomCount,
+            style: style
+        )
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if viewModel.isShowingPastConversation {
-                // Past conversation — no mic, just a subtle hint
+                // Past conversation — no orb, just a subtle hint
                 Text("Past entry — read only")
                     .font(.echoMicroLabel)
                     .foregroundColor(.textTertiary)
                     .padding(.vertical, Theme.Spacing.m)
             } else {
-                inputBar
+                orbBar
             }
         }
     }
 
-    /// A defined input bar: the mic is the centered primary action, with the
-    /// photo picker as a smaller secondary control on the left. A hairline
-    /// separator distinguishes it from the transcript above.
-    private var inputBar: some View {
-        // Photo (secondary) clustered directly beside the mic (primary), the
-        // pair centered together so neither control floats alone.
-        HStack(spacing: Theme.Spacing.l) {
-            if !viewModel.messages.isEmpty {
-                PhotoButton(
-                    isEnabled: !viewModel.isThinking
-                ) { image in
-                    if let path = ImageUtils.saveImage(image) {
-                        viewModel.sendImage(relativePath: path)
+    /// The chat's single control: the resting companion orb, dead-center on
+    /// the screen's axis. Only a short band is reserved at the bottom — the
+    /// orb overflows above it, floating over the tail of the conversation, so
+    /// the chat keeps the vertical space. The band's surface is solid ivory
+    /// dissolving upward, so scrolled bubbles fade out softly underneath the
+    /// orb instead of colliding with it. Until the orb is learned
+    /// (`OrbCoachmark`), a small "Tap to talk" label sits beneath it.
+    private var orbBar: some View {
+        Color.clear
+            .frame(height: Theme.Orb.bandHeight)
+            .overlay(alignment: .bottom) {
+                VStack(spacing: Theme.Spacing.xs) {
+                    CompanionOrbView(
+                        style: style,
+                        diameter: Theme.Orb.chatDiameter,
+                        isEnabled: !viewModel.isThinking,
+                        showsMicGlyph: true,
+                        action: startConversation
+                    )
+
+                    if !OrbCoachmark.isLearned {
+                        Text("Tap to talk")
+                            .font(.echoMicroLabel)
+                            .foregroundColor(.textTertiary)
                     }
                 }
+                .padding(.bottom, Theme.Spacing.xs)
             }
+            .background {
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [Color.warmIvory.opacity(0), .warmIvory],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: Theme.Orb.bandFade)
 
-            MicButton(
-                style: style,
-                size: .compact,
-                isRecording: viewModel.recognizer.isRecording,
-                isEnabled: !viewModel.isThinking,
-                action: { viewModel.toggleRecording() }
-            )
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, Theme.Spacing.m)
-        .padding(.bottom, Theme.Spacing.s)
-        .background(
-            Color.warmIvory
-                .overlay(alignment: .top) {
-                    Rectangle().fill(Color.cardBorder).frame(height: 1)
+                    Color.warmIvory
                 }
-        )
+                // Let the fade reach above the band, over the conversation.
+                .padding(.top, -Theme.Orb.bandFade)
+                .allowsHitTesting(false)
+            }
     }
 }
 

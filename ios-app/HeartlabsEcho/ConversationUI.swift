@@ -47,68 +47,103 @@ struct ConversationStyle {
 
 }
 
-// MARK: - Mic Button
+// MARK: - Companion Orb
 
-/// The record button, in a large (moodboard) and compact (chat) size.
-struct MicButton: View {
-    enum Size { case large, compact }
-
+/// The single control of the voice-first conversation: a soft, breathing
+/// sphere with no glyph — a presence, not a toolbar button.
+///
+/// The orb is the ONE tap target for talking. At rest (chat + moodboard) it
+/// slowly breathes; inside conversation mode `isListening` adds expanding
+/// ripple rings while audio is being captured.
+struct CompanionOrbView: View {
     let style: ConversationStyle
-    let size: Size
-    let isRecording: Bool
+    var diameter: CGFloat = 72
+    var isListening: Bool = false
     var isEnabled: Bool = true
+    /// Shows a subtle mic glyph — the "tap to talk" affordance for the orb at
+    /// rest. Conversation mode leaves it off: while listening, the ripples and
+    /// the live transcript are the state.
+    var showsMicGlyph: Bool = false
     let action: () -> Void
+
+    /// Drives the idle breathing loop (started once on appear).
+    @State private var isBreathing = false
+    /// Drives the listening ripple loop.
+    @State private var isRippling = false
 
     var body: some View {
         Button(action: action) {
-            switch size {
-            case .large: largeBody
-            case .compact: compactBody
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-    }
+            ZStack {
+                if isListening {
+                    rippleRing(delay: 0)
+                    rippleRing(delay: 0.9)
+                }
 
-    private var largeBody: some View {
-        ZStack {
-            // Outermost faint ring
-            Circle()
-                .stroke(style.ringFaint, lineWidth: 2)
-                .frame(width: 130, height: 130)
-
-            // Middle ring (pulses while recording)
-            Circle()
-                .stroke(style.ringSemibright, lineWidth: 2)
-                .frame(width: 108, height: 108)
-                .scaleEffect(isRecording ? 1.08 : 1.0)
-                .opacity(isRecording ? 0.8 : 1.0)
+                // Sphere and glyph breathe together as one body.
+                ZStack {
+                    sphere
+                    if showsMicGlyph {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: diameter * 0.28, weight: .medium))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                }
+                .scaleEffect(isBreathing ? 1.05 : 1.0)
                 .animation(
-                    .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
-                    value: isRecording
+                    .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
+                    value: isBreathing
                 )
-
-            // Inner solid circle
-            Circle()
-                .fill(style.accent)
-                .frame(width: 72, height: 72)
-
-            Image(systemName: "mic.fill")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundColor(.white)
+            }
+            // The layout footprint is the sphere itself; ripples overflow
+            // decoratively without pushing surrounding layout around.
+            .frame(width: diameter, height: diameter)
         }
+        .buttonStyle(OrbPressStyle())
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.45)
+        .onAppear { isBreathing = true }
     }
 
-    private var compactBody: some View {
-        ZStack {
-            Circle()
-                .fill(isRecording ? style.accent.opacity(0.85) : style.accent)
-                .frame(width: 56, height: 56)
+    private var sphere: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [style.accent.opacity(0.72), style.accent],
+                    center: UnitPoint(x: 0.38, y: 0.3),
+                    startRadius: 0,
+                    endRadius: diameter * 0.85
+                )
+            )
+            .frame(width: diameter, height: diameter)
+            .shadow(color: style.accent.opacity(0.35), radius: diameter * 0.2, y: diameter * 0.06)
+    }
 
-            Image(systemName: isRecording ? "mic.slash.fill" : "mic.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.white)
-        }
+    private func rippleRing(delay: Double) -> some View {
+        Circle()
+            .stroke(style.ringSemibright, lineWidth: 1.5)
+            .frame(width: diameter, height: diameter)
+            .scaleEffect(isRippling ? 1.85 : 1.0)
+            .opacity(isRippling ? 0 : 0.8)
+            .animation(
+                .easeOut(duration: 1.8).repeatForever(autoreverses: false).delay(delay),
+                value: isRippling
+            )
+            .onAppear { isRippling = true }
+    }
+}
+
+// MARK: - Orb Press Style
+
+/// Press feedback for the orb: a light haptic tick the moment the finger
+/// lands, plus a gentle squeeze — the orb responds like something alive.
+private struct OrbPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .animation(.easeOut(duration: 0.18), value: configuration.isPressed)
+            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in
+                pressed
+            }
     }
 }
 

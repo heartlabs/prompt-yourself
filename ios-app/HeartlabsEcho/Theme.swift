@@ -53,6 +53,28 @@ enum UserName {
     }
 }
 
+// MARK: - Orb Coachmark
+
+/// Tracks how many voice compositions the user has sent, so the "Tap to talk"
+/// coach label under the chat orb can retire once the orb is learned.
+enum OrbCoachmark {
+    private static let key = "orb_compositions_sent"
+    /// After this many successful sends the label disappears for good.
+    private static let learnedThreshold = 3
+
+    /// Whether the user has sent enough compositions to drop the label.
+    static var isLearned: Bool {
+        UserDefaults.standard.integer(forKey: key) >= learnedThreshold
+    }
+
+    /// Records one successful composition send.
+    static func recordCompositionSent() {
+        guard !isLearned else { return }
+        let count = UserDefaults.standard.integer(forKey: key)
+        UserDefaults.standard.set(count + 1, forKey: key)
+    }
+}
+
 // MARK: - Greeting Helper
 
 /// Returns a warm time-appropriate greeting string, optionally personalised.
@@ -106,6 +128,9 @@ extension Font {
     static let echoTitle = Font.system(size: 28, weight: .medium, design: .serif)
     /// Serif statistic number. 32 / medium.
     static let echoNumber = Font.system(size: 32, weight: .medium, design: .serif)
+    /// Serif live transcription in conversation mode — spoken words rendered
+    /// like a journal entry, not terminal output. 30 / medium.
+    static let echoLiveTranscript = Font.system(size: 30, weight: .medium, design: .serif)
 
     /// Section title within a screen, e.g. "Today, July 11". 20 / semibold.
     static let echoSectionTitle = Font.system(size: 20, weight: .semibold)
@@ -150,6 +175,36 @@ enum Theme {
         static let radius: CGFloat = 8
         static let x: CGFloat = 0
         static let y: CGFloat = 3
+    }
+
+    /// Every size the companion-orb system uses, in one place. These values
+    /// are INTERDEPENDENT — the chat band must be shorter than the chat orb
+    /// (that's the pop-out), the fade must cover the overlap, and the photo
+    /// chip hangs off the composer orb's lower-right — so change them here,
+    /// together. Never inline orb-related sizes at a call site.
+    enum Orb {
+        /// The resting orb at the bottom of the chat.
+        static let chatDiameter: CGFloat = 64
+        /// The larger orb on the empty-day moodboard.
+        static let moodboardDiameter: CGFloat = 96
+        /// The hero orb inside conversation mode.
+        static let composerDiameter: CGFloat = 130
+
+        /// Fraction of the chat orb's height reserved as the chat's bottom
+        /// band; the remainder of the orb pops out above it.
+        static let bandFraction: CGFloat = 0.75
+        /// How far the band's ivory fade dissolves upward over the chat.
+        static let bandFade: CGFloat = 32
+
+        /// Reserved band height at the bottom of the chat.
+        static var bandHeight: CGFloat { chatDiameter * bandFraction }
+
+        /// The photo chip's offset from the composer orb's center — derived
+        /// from the orb size so the chip stays attached to the orb's
+        /// lower-right if the diameter ever changes.
+        static var chipOffset: CGSize {
+            CGSize(width: composerDiameter * 0.71, height: composerDiameter * 0.35)
+        }
     }
 }
 
