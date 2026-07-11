@@ -26,7 +26,7 @@ struct ConversationStyle {
     let typingBubble: Color
 
     /// Whether the "remembering…" indicator may appear under the typing dots.
-    /// Journal uses tool calls (memory lookups); Dreams (v1) does not.
+    /// Journal uses tool calls (memory lookups).
     let showsRememberingIndicator: Bool
 
     /// Journal / daily conversation — sage green.

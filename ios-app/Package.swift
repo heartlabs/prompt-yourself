@@ -20,7 +20,6 @@ let package = Package(
             resources: [
                 .process("Assets.xcassets"),
                 .process("system-prompt.md"),
-                .process("dream-system-prompt.md"),
             ]
         ),
     ]

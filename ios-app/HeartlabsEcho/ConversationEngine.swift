@@ -113,10 +113,7 @@ struct ConversationConfiguration {
 /// scroll/UI state the view binds to.
 ///
 /// Feature-specific behaviour comes entirely from the injected
-/// `ConversationConfiguration`. Both features compose this engine directly:
-/// the Journal screen uses `ConversationEngine(configuration: .journal)` and
-/// the Dream screen uses `ConversationEngine(configuration: .dream)` — no
-/// subclassing.
+/// `ConversationConfiguration`.
 @MainActor
 class ConversationEngine: ObservableObject {
     // MARK: - Published State

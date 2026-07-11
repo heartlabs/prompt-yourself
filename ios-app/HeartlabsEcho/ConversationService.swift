@@ -162,22 +162,6 @@ final class ConversationService {
         saveChanges()
     }
 
-    /// Deletes all dream conversations (stale data from a removed feature).
-    func deleteAllDreamConversations() {
-        let predicate = #Predicate<Conversation> { $0.kind == "dream" }
-        let descriptor = FetchDescriptor<Conversation>(predicate: predicate)
-        do {
-            let dreams = try modelContext.fetch(descriptor)
-            for dream in dreams {
-                modelContext.delete(dream)
-            }
-            saveChanges()
-            print("[ConversationService] Deleted \(dreams.count) dream conversation(s)")
-        } catch {
-            print("[ConversationService] Failed to delete dream conversations: \(error)")
-        }
-    }
-
     /// Persists any pending changes to the store.
     func saveChanges() {
         do {

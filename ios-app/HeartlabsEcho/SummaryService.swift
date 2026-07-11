@@ -23,8 +23,7 @@ final class SummaryService {
     private let conversationService: ConversationService
     private let router: ModelRouter
 
-    /// Which conversation kind this service summarizes. All store queries are
-    /// scoped to this kind so journal and dream summaries never cross-pollinate.
+    /// Which conversation kind this service summarizes.
     private let kind: ConversationKind
 
     // MARK: - Dedup
@@ -203,10 +202,6 @@ final class SummaryService {
             return nil
         }
 
-        // NOTE: The summary prompt is intentionally shared/generic across kinds
-        // (journal + dream) for now. When a dream-specific summary is needed,
-        // branch on `kind` here to select an alternate prompt — dream summaries
-        // currently have no consumer, so this is groundwork only.
         let summarySystemPrompt = """
         You are a summarizer. Summarize the following conversation in 2-3 sentences.
         Focus on what the user talked about, how they felt, and any key events or decisions.

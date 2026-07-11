@@ -12,8 +12,7 @@ final class Conversation {
     /// Calendar-date key, e.g. "2026-06-13".
     var dateKey: String
 
-    /// Which feature this conversation belongs to ("journal" or "dream"),
-    /// stored as the raw value of `ConversationKind`.
+    /// Which feature this conversation belongs to, stored as the raw value of `ConversationKind`.
     ///
     /// Defaulted so SwiftData performs an automatic lightweight migration:
     /// existing rows created before this property are preserved and tagged

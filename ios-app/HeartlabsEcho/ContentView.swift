@@ -143,9 +143,6 @@ struct ContentView: View {
         .preferredColorScheme(.light)
         .task {
             viewModel.setupPersistence(with: modelContext)
-            // Remove stale dream data from a removed feature.
-            let service = ConversationService(modelContext: modelContext)
-            service.deleteAllDreamConversations()
         }
         .alert(loc.localized("speech_recognition_alert"), isPresented: Binding(
             get: { viewModel.recognizer.recognitionError != nil },
