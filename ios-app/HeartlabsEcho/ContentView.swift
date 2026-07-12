@@ -81,7 +81,7 @@ struct ContentView: View {
                     .zIndex(1)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: viewModel.activeComposition == nil)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.phase)
     }
 
     private var tabs: some View {

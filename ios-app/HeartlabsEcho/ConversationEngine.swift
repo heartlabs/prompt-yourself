@@ -121,21 +121,57 @@ struct ConversationConfiguration {
 /// `ConversationConfiguration`.
 @MainActor
 class ConversationEngine: ObservableObject {
-    // MARK: - Published State
+    // MARK: - Phase
+
+    /// Where the engine is in its lifecycle — the single source of truth.
+    /// Every intent method performs a total switch over this enum; adding a
+    /// case refuses to compile until every intent decides what it means.
+    enum Phase: Equatable {
+        /// No composition in progress, no LLM call in flight — ready.
+        case idle
+        /// The voice composer overlay is open; the associated session owns the
+        /// entire recording lifecycle (mic, photo, exits).
+        case composing(VoiceComposerSession)
+        /// The LLM is generating a text response. The captured conversation ID
+        /// pins the response to the conversation that triggered it (P0.1).
+        case thinking(conversationID: UUID)
+        /// A tool call is being executed ("remembering…" indicator). Same
+        /// conversation-ID pin as `.thinking`.
+        case callingTool(conversationID: UUID)
+    }
+
+    /// The engine's current phase. Views derive their booleans from this;
+    /// they never read internal flags directly.
+    @Published private(set) var phase: Phase = .idle
+
+    // MARK: - Published State (derived / independent)
 
     /// All messages in the current conversation (excluding the system prompt).
     @Published private(set) var messages: [ChatMessage] = []
 
-    /// Whether the LLM is currently generating a response.
-    @Published private(set) var isThinking = false
+    /// `true` while the LLM is generating a response or executing a tool call.
+    /// Derived from `phase` — views read this, not the enum directly.
+    var isThinking: Bool {
+        switch phase {
+        case .thinking, .callingTool: return true
+        default: return false
+        }
+    }
 
-    /// Whether the LLM is retrieving a past conversation (tool call in progress).
-    @Published private(set) var isRemembering = false
+    /// `true` only during tool-call execution ("remembering…" indicator).
+    /// Derived from `phase`.
+    var isRemembering: Bool {
+        if case .callingTool = phase { return true }
+        return false
+    }
 
     /// The live voice-composer session, if one is open. The overlay is
-    /// presented exactly while this is non-nil, and it is cleared ONLY by
-    /// `compositionDidFinish` — there is no other dismissal path.
-    @Published private(set) var activeComposition: VoiceComposerSession?
+    /// presented exactly while this is non-nil, and the session terminates
+    /// only via `compositionDidFinish` — there is no other dismissal path.
+    var activeComposition: VoiceComposerSession? {
+        if case .composing(let session) = phase { return session }
+        return nil
+    }
 
     /// Alert text for a composition that failed before capturing anything
     /// (e.g. permission denied). Presented by the chat screen after the
@@ -231,8 +267,9 @@ class ConversationEngine: ObservableObject {
     // MARK: - Public API
 
     /// Resets the chat to today's conversation (today, else active yesterday,
-    /// else the empty start screen).
+    /// else the empty start screen). No-op while the engine is busy.
     func resetToToday() {
+        guard phase == .idle else { return }
         if let conversation = conversationService.loadTodayConversation(kind: configuration.kind) {
             adopt(conversation)
             finishReset()
@@ -266,7 +303,9 @@ class ConversationEngine: ObservableObject {
     }
 
     /// Loads a past conversation by its date key (read-only; no auto-scroll).
+    /// No-op while the engine is busy (composing, thinking, or calling a tool).
     func loadConversation(for dateKey: String) {
+        guard phase == .idle else { return }
         guard let conversation = conversationService.loadConversation(dateKey: dateKey, kind: configuration.kind) else { return }
 
         currentConversation = conversation
@@ -283,32 +322,48 @@ class ConversationEngine: ObservableObject {
     /// Opens the voice composer. The returned session owns the ENTIRE
     /// recording lifecycle (mic, photo, exits); this engine only consumes
     /// the outcome in `compositionDidFinish`.
+    ///
+    /// No-op while the engine is not idle or a past conversation is shown.
     func beginComposition() {
-        guard activeComposition == nil, !isShowingPastConversation else { return }
+        guard phase == .idle, !isShowingPastConversation else { return }
         shouldAutoScroll = true
-        activeComposition = VoiceComposerSession { [weak self] outcome in
+        let session = VoiceComposerSession { [weak self] outcome in
             self?.compositionDidFinish(outcome)
         }
+        phase = .composing(session)
     }
 
     /// Forwards backgrounding to the live session, which applies the
     /// send-what-exists policy. No-op when no composer is open.
     func handleAppBackground() {
-        activeComposition?.appDidEnterBackground()
+        if case .composing(let session) = phase {
+            session.appDidEnterBackground()
+        }
     }
 
-    /// The single exit funnel: consumes the session's outcome and unmounts
-    /// the overlay by clearing `activeComposition` — nothing else may.
+    /// The single exit funnel: consumes the session's outcome, transitions
+    /// the phase, and — for `.sent` — starts the LLM pipeline pinned to
+    /// the current conversation's identity.
     private func compositionDidFinish(_ outcome: VoiceComposerSession.Outcome) {
+        guard case .composing = phase else { return }
         switch outcome {
         case .sent(let composition):
-            send(composition)
+            guard let conversation = ensureConversation(),
+                  sendUserMessages(from: composition) else {
+                phase = .idle
+                return
+            }
+            // A real composition went out — the orb is being learned.
+            OrbCoachmark.recordCompositionSent()
+            let targetID = conversation.id
+            phase = .thinking(conversationID: targetID)
+            Task { await sendToLLM(on: conversation, targetID: targetID) }
         case .cancelled:
-            break
+            phase = .idle
         case .failed(let message):
             compositionError = message
+            phase = .idle
         }
-        activeComposition = nil
     }
 
     // MARK: - Private Helpers
@@ -372,15 +427,10 @@ class ConversationEngine: ObservableObject {
 
     // MARK: - Send Composition
 
-    /// Sends a finished composition: the transcript (if any) as a text
-    /// bubble, then the photo (if any) as an image bubble — followed by
-    /// exactly ONE LLM exchange for the whole composition. Do not "fix"
-    /// this into one exchange per bubble.
-    ///
-    /// A `Composition` can only be produced by a terminating
-    /// `VoiceComposerSession`, so the transcript here is final by
-    /// construction and is never empty together with a nil photo.
-    private func send(_ composition: Composition) {
+    /// Appends the user messages from a composition to the conversation.
+    /// Returns `false` if the composition contains no messages (should not
+    /// happen — a terminating session always has content).
+    private func sendUserMessages(from composition: Composition) -> Bool {
         var userMessages: [ChatMessage] = []
         if !composition.transcript.isEmpty {
             userMessages.append(ChatMessage(role: .user, content: composition.transcript))
@@ -388,29 +438,26 @@ class ConversationEngine: ObservableObject {
         if let photoPath = composition.photoPath {
             userMessages.append(ChatMessage(role: .user, content: .image(relativePath: photoPath)))
         }
-        guard !userMessages.isEmpty else { return }
+        guard !userMessages.isEmpty else { return false }
 
         for message in userMessages {
             messages.append(message)
             persistMessage(role: "user", content: message.content, id: message.id, timestamp: message.timestamp)
         }
         shouldAutoScroll = true
-
-        // A real composition went out — the orb is being learned.
-        OrbCoachmark.recordCompositionSent()
-
-        Task { await sendToLLM() }
+        return true
     }
 
     // MARK: - LLM Communication
 
     /// Shared send loop: builds context, calls the LLM (with tool loop),
-    /// appends the assistant response, and persists it.
+    /// appends the assistant response, and persists it to the conversation
+    /// whose identity was captured at send time.
     ///
-    /// The caller is responsible for appending the user message to `messages`
-    /// and persisting it before calling this method.
-    private func sendToLLM() async {
-        isThinking = true
+    /// After every `await`, re-validates that the phase still matches the
+    /// captured identity — a stale result from a superseded conversation
+    /// can never write messages or phase transitions (P0.1).
+    private func sendToLLM(on conversation: Conversation, targetID: UUID) async {
         shouldAutoScroll = true
 
         // Pre-load image data for any image messages in the history.
@@ -437,9 +484,13 @@ class ConversationEngine: ObservableObject {
 
             let tools = configuration.toolRegistry.definitions
             var finalResponse: String?
+            var didAttemptToolCall = false
 
         toolLoop:
             for _ in 0..<maxToolCallIterations {
+                // Re-validate phase before every LLM call.
+                guard case .thinking(let id) = phase, id == targetID else { return }
+
                 let response = try await chat.sendMessages(
                     fullHistory,
                     tier: configuration.tier,
@@ -448,13 +499,17 @@ class ConversationEngine: ObservableObject {
                     imageData: imageData
                 )
 
+                // Re-validate after the await — the world changes.
+                guard case .thinking(let id) = phase, id == targetID else { return }
+
                 switch response {
                 case .text(let text):
                     finalResponse = text
                     break toolLoop
 
                 case .toolCalls(let toolCalls):
-                    isRemembering = true
+                    didAttemptToolCall = true
+                    phase = .callingTool(conversationID: targetID)
                     let toolCallStart = Date()
 
                     // Append assistant tool-call message to LLM history (OpenAI spec).
@@ -476,34 +531,63 @@ class ConversationEngine: ObservableObject {
                     if elapsed < minDisplay {
                         try? await Task.sleep(nanoseconds: UInt64((minDisplay - elapsed) * 1_000_000_000))
                     }
-                    isRemembering = false
+
+                    // Re-validate after tool execution — the world changes.
+                    guard case .callingTool(let id) = phase, id == targetID else { return }
+                    phase = .thinking(conversationID: targetID)
                 }
             }
 
+            // Re-validate before persisting the final result.
+            guard case .thinking(let id) = phase, id == targetID else { return }
+
+            let assistantContent: String
             if let response = finalResponse {
-                let assistantMessage = ChatMessage(role: .assistant, content: response)
-                messages.append(assistantMessage)
-                persistMessage(
-                    role: "assistant",
-                    content: .text(response),
-                    id: assistantMessage.id,
-                    timestamp: assistantMessage.timestamp
-                )
+                assistantContent = response
+            } else if didAttemptToolCall {
+                // P0.6 — tool-loop exhaustion: the LLM returned only
+                // tool calls across all iterations without ever producing
+                // a text response. Append an explicit fallback so the
+                // conversation doesn't dead-end silently.
+                assistantContent = "I've gathered the relevant information. How can I help you further?"
+            } else {
+                // No tool calls and no text — shouldn't happen, but don't
+                // leave the conversation hanging.
+                assistantContent = "I'm here to help. What would you like to talk about?"
             }
+
+            let assistantMessage = ChatMessage(role: .assistant, content: assistantContent)
+            messages.append(assistantMessage)
+            conversationService.addMessage(
+                to: conversation,
+                id: assistantMessage.id,
+                role: "assistant",
+                contentType: "text",
+                content: assistantContent,
+                timestamp: assistantMessage.timestamp
+            )
         } catch {
+            // Re-validate before showing the error.
+            guard case .thinking(let id) = phase, id == targetID else { return }
+
             #if DEBUG
             print("[ConversationEngine] LLM error: \(error.localizedDescription) \(router.diagnostics(for: configuration.tier))")
             #endif
             let errorMessage = ChatMessage(role: .assistant, content: "⚠️ \(error.localizedDescription)")
             messages.append(errorMessage)
-            persistMessage(
-                role: "assistant",
-                content: errorMessage.content,
+            conversationService.addMessage(
+                to: conversation,
                 id: errorMessage.id,
+                role: "assistant",
+                contentType: "text",
+                content: errorMessage.content.persistable.1,
                 timestamp: errorMessage.timestamp
             )
         }
 
-        isThinking = false
+        // Only clear the phase if it still belongs to this conversation.
+        if case .thinking(let id) = phase, id == targetID {
+            phase = .idle
+        }
     }
 }

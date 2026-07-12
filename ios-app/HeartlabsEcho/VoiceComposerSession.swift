@@ -44,7 +44,10 @@ struct Composition: Equatable {
 // MARK: - VoiceComposerSession
 
 @MainActor
-final class VoiceComposerSession: ObservableObject {
+final class VoiceComposerSession: ObservableObject, Equatable {
+    nonisolated static func == (lhs: VoiceComposerSession, rhs: VoiceComposerSession) -> Bool {
+        lhs === rhs
+    }
 
     // MARK: Phase
 
