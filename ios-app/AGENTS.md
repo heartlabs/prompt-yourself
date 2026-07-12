@@ -106,6 +106,30 @@ file means removing all four entries.
     the component owns, does, and deliberately never does. Warnings live at
     the exact site where a future edit would go wrong, not in a distant
     document.
+15. **Every error site has a decided policy.** Use `os.Logger` (never `print`)
+    for all diagnostics — `print` ships in release builds; `os.Logger` is
+    stripped. The shared loggers live in `UserSettings.swift` (subsystem
+    `com.heartlabsecho`). Per-call-site decisions:
+    - **Journal-save failures** (`ConversationService.saveChanges`): log an
+      error AND fire `assertionFailure` in DEBUG builds — a failed save
+      silently loses the app's core data, so crashing in dev is the correct
+      tradeoff. In release, the error is logged and the app continues (the
+      user's entry may be lost, but the app stays usable).
+    - **Goal fetch errors**: log and return `[]`/`nil` — goals are secondary;
+      a failed fetch should not block the conversation.
+    - **Image I/O errors**: log and return `nil` — missing images degrade to
+      the fallback emoji, which is an acceptable UX fallback.
+    - **LLM errors**: log and surface a user-visible error message in the
+      chat (see `ConversationEngine.sendToLLM`).
+    - **Speech recognition diag**: `Logger.speech.debug` — these are
+      development traces, not errors.
+    - **ModelRouter fallback**: `Logger.llm.warning` — a planned degradation.
+    - **ChatMessage role fallback**: `Logger.chat.warning` — a corrupted
+      store, not a normal path.
+16. **Edit sheets are drafts with explicit commit/discard.** No global state
+    changes before Save; every picked/created resource has an owner on both
+    the save path and the cancel path (e.g. saved photos are deleted only on
+    commit, picked-then-discarded photos are cleaned up on cancel).
 
 ## Definition of done
 

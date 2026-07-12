@@ -37,17 +37,12 @@ struct ToolRegistry {
 
 // MARK: - ConversationLookupTool
 
-/// Fetches a past conversation of a specific `kind` by dateKey (yyyy-MM-dd).
-/// Reused for same-kind lookups and cross-kind lookups.
+/// Fetches a past journal conversation by dateKey (yyyy-MM-dd).
 struct ConversationLookupTool: ConversationTool {
-    let targetKind: ConversationKind
-    let toolName: String
-    let toolDescription: String
-
     var definition: LLMTool {
         LLMTool(
-            name: toolName,
-            description: toolDescription,
+            name: "get_conversation",
+            description: "Retrieve a past journal entry for a specific date for detailed context.",
             parameters: [
                 "type": "object",
                 "properties": [
@@ -62,15 +57,26 @@ struct ConversationLookupTool: ConversationTool {
     }
 
     @MainActor func run(arguments: String, context: ToolContext) -> String {
-        guard let data = arguments.data(using: .utf8),
-              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dateKey = args["dateKey"] as? String
+        guard let args: DateKeyArgs = decodeToolArgs(arguments),
+              let dateKey = args.dateKey
         else {
-            return "Failed to parse arguments for \(toolName)"
+            return "Failed to parse arguments for get_conversation"
         }
-        guard let text = context.conversationService.fetchFullConversationText(kind: targetKind, dateKey: dateKey) else {
-            return "No \(targetKind.rawValue) entry found for date \(dateKey)"
+        guard let text = context.conversationService.fetchFullConversationText(kind: .journal, dateKey: dateKey) else {
+            return "No journal entry found for date \(dateKey)"
         }
         return text
     }
+}
+
+/// Shared argument struct for tools that accept a dateKey string.
+private struct DateKeyArgs: Decodable {
+    let dateKey: String?
+}
+
+/// Shared helper: decodes a tool's JSON argument string into a `Decodable` type.
+/// Returns `nil` if parsing fails.
+func decodeToolArgs<T: Decodable>(_ arguments: String) -> T? {
+    guard let data = arguments.data(using: .utf8) else { return nil }
+    return try? JSONDecoder().decode(T.self, from: data)
 }

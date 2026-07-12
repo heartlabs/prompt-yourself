@@ -8,11 +8,18 @@ import Foundation
 // MARK: - Model Tier Definitions
 
 /// Which model tier to use for a given operation.
-enum ModelTier {
+enum ModelTier: CustomStringConvertible {
     /// Low-cost model for non-chat tasks (summaries, scoring, etc.).
     case cheap
     /// High-performance model for interactive chat.
     case performant
+
+    var description: String {
+        switch self {
+        case .cheap: "cheap"
+        case .performant: "performant"
+        }
+    }
 }
 
 extension LLMConfiguration {
@@ -22,14 +29,16 @@ extension LLMConfiguration {
         apiKey: Bundle.main.infoDictionary?["DeepSeekAPIKey"] as? String ?? "",
         baseURL: "https://api.deepseek.com",
         model: "deepseek-chat",
+        supportsImages: false,
         source: "LLMConfigs.cheap"
     )
 
-    /// Performant tier — Mistral.
+    /// Performant tier — Mistral. This model supports image inputs.
     static let performant = LLMConfiguration(
         apiKey: Bundle.main.infoDictionary?["MistralAPIKey"] as? String ?? "",
         baseURL: "https://api.mistral.ai/v1",
         model: "mistral-large-latest",
+        supportsImages: true,
         source: "LLMConfigs.performant"
     )
 }

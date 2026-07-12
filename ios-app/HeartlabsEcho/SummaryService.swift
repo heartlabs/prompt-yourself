@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftData
 
 // MARK: - SummaryService
@@ -205,7 +206,8 @@ final class SummaryService {
             return nil
         }
 
-        let summarySystemPrompt = """
+        let langInstruction = AppLanguage.current.languageInstruction
+        let summarySystemPrompt = langInstruction + """
         You are a summarizer. Summarize the following conversation in 2-3 sentences.
         Focus on what the user talked about, how they felt, and any key events or decisions.
         Be concise and factual. Talk in the first person from user perspective ("I ..."). 
@@ -222,11 +224,11 @@ final class SummaryService {
             let response = try await router.sendMessages(summaryRequest, tier: .cheap)
             if case .text(let summary) = response {
                 conversationService.updateSummary(kind: kind, dateKey: dateKey, summary: summary, version: Self.currentVersion)
-                print("[SummaryService] Summary saved for \(dateKey): \(summary.prefix(80))...")
+                Logger.summary.debug("Summary saved for \(dateKey): \(summary.prefix(80))...")
                 return summary
             }
         } catch {
-            print("[SummaryService] Failed to generate summary for \(dateKey): \(error)")
+            Logger.summary.error("Failed to generate summary for \(dateKey): \(error)")
         }
         return nil
     }

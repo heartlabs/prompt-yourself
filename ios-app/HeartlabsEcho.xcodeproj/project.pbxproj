@@ -50,6 +50,7 @@
 		AAA00440 /* CalendarDayCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00443 /* CalendarDayCell.swift */; };
 		AAA00441 /* LoadingCirclesIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00444 /* LoadingCirclesIndicator.swift */; };
 		AAA00442 /* RecentMemoriesGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00445 /* RecentMemoriesGalleryView.swift */; };
+		AAA00446 /* UserSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00447 /* UserSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -100,6 +101,7 @@
 		AAA00443 /* CalendarDayCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayCell.swift; sourceTree = "<group>"; };
 		AAA00444 /* LoadingCirclesIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingCirclesIndicator.swift; sourceTree = "<group>"; };
 		AAA00445 /* RecentMemoriesGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentMemoriesGalleryView.swift; sourceTree = "<group>"; };
+		AAA00447 /* UserSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -130,6 +132,7 @@
 				AAA0001F /* LLMService.swift */,
 				AAA00021 /* system-prompt.md */,
 				AAA00025 /* Theme.swift */,
+				AAA00447 /* UserSettings.swift */,
 				AAA00028 /* Models.swift */,
 				AAA0002A /* ConversationService.swift */,
 				AAA0002D /* CalendarView.swift */,
@@ -284,6 +287,7 @@
 				AAA00417 /* GoalDetailSheet.swift in Sources */,
 				AAA00137 /* LocalizationService.swift in Sources */,
 				AAA00418 /* EditProfileView.swift in Sources */,
+				AAA00446 /* UserSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

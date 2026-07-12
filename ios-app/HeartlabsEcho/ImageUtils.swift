@@ -1,3 +1,4 @@
+import os
 import UIKit
 
 // MARK: - Image Utilities
@@ -34,7 +35,7 @@ enum ImageUtils {
             try data.write(to: fileURL)
             return "\(attachmentsDir)/\(filename)"
         } catch {
-            print("[ImageUtils] Failed to write image: \(error)")
+            Logger.images.error("Failed to write image: \(error)")
             return nil
         }
     }

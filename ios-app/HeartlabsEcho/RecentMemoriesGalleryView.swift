@@ -8,6 +8,7 @@ import SwiftUI
 /// (`CalendarView`) gets photos from `CalendarViewModel.loadAllPhotos()` at
 /// intent time (when "See All" is tapped).
 struct RecentMemoriesGalleryView: View {
+    @ObservedObject private var loc = LocalizationService.shared
     let photos: [MemoryPhoto]
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPhotoPath: String?
@@ -40,7 +41,7 @@ struct RecentMemoriesGalleryView: View {
                 }
             }
             .background(Color.warmIvory)
-            .navigationTitle("All Memories")
+            .navigationTitle(loc.localized("all_memories"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - LLM Tool Types
 
@@ -69,21 +70,14 @@ struct LLMConfiguration {
     let apiKey: String
     let baseURL: String  // e.g. "https://api.deepseek.com"
     let model: String
+    /// Whether this model supports image inputs via content parts.
+    let supportsImages: Bool
     /// Human-readable diagnostics — where the config came from.
     let source: String
 
     var diagnostics: String {
         let keyPreview = apiKey.isEmpty ? "(empty)" : "\(apiKey.prefix(8))..."
         return "[src:\(source) | url:\(baseURL) | model:\(model) | key:\(keyPreview)]"
-    }
-
-    /// Whether this model supports image inputs via content parts.
-    var supportsImages: Bool {
-        // Vision-capable models (known list — extend as needed).
-        let visionModels: Set<String> = [
-            "mistral-large-latest",
-        ]
-        return visionModels.contains(model)
     }
 }
 
@@ -134,7 +128,7 @@ final class LLMService {
         }
 
         #if DEBUG
-        print("[LLMService] \(configuration.diagnostics) → POST \(url.absoluteString)")
+        Logger.llm.debug("\(self.configuration.diagnostics) → POST \(url.absoluteString)")
         #endif
 
         let supportsImages = configuration.supportsImages

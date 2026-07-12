@@ -1,5 +1,14 @@
 import Foundation
 
+// MARK: - Shared Date Formatter
+
+/// One formatter for consistent goal timestamps across all goal tools.
+private func formatGoalDate(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd HH:mm"
+    return formatter.string(from: date)
+}
+
 // MARK: - Goal Tools
 
 /// Tools for managing user goals via LLM tool calls.
@@ -49,8 +58,7 @@ struct CreateGoalTool: ConversationTool {
             let unit: String
         }
 
-        guard let data = arguments.data(using: .utf8),
-              let args = try? JSONDecoder().decode(Args.self, from: data) else {
+        guard let args: Args = decodeToolArgs(arguments) else {
             return "⚠️ Could not parse goal arguments."
         }
 
@@ -95,15 +103,9 @@ struct ListOpenGoalsTool: ConversationTool {
         var lines = ["📋 \(goals.count) open goal(s):"]
         for goal in goals {
             let pct = Int(goal.progressPercent * 100)
-            lines.append("- id: \(goal.id.uuidString), title: \"\(goal.title)\", progress: \(goal.currentProgress)/\(goal.targetProgress) \(goal.unit) (\(pct)%), description: \"\(goal.desc)\", last updated: \(formatDate(goal.lastUpdatedAt))")
+            lines.append("- id: \(goal.id.uuidString), title: \"\(goal.title)\", progress: \(goal.currentProgress)/\(goal.targetProgress) \(goal.unit) (\(pct)%), description: \"\(goal.desc)\", last updated: \(formatGoalDate(goal.lastUpdatedAt))")
         }
         return lines.joined(separator: "\n")
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.string(from: date)
     }
 }
 
@@ -142,8 +144,7 @@ struct FindGoalTool: ConversationTool {
             let title: String?
         }
 
-        guard let data = arguments.data(using: .utf8),
-              let args = try? JSONDecoder().decode(Args.self, from: data) else {
+        guard let args: Args = decodeToolArgs(arguments) else {
             return "⚠️ Could not parse search arguments."
         }
 
@@ -167,13 +168,7 @@ struct FindGoalTool: ConversationTool {
 
         let status = found.isComplete ? "completed" : "open"
         let pct = Int(found.progressPercent * 100)
-        return "📭 Goal: \"\(found.title)\" (\(status)) — \(found.currentProgress)/\(found.targetProgress) \(found.unit) (\(pct)%), description: \"\(found.desc)\", last updated: \(formatDate(found.lastUpdatedAt))"
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.string(from: date)
+        return "📭 Goal: \"\(found.title)\" (\(status)) — \(found.currentProgress)/\(found.targetProgress) \(found.unit) (\(pct)%), description: \"\(found.desc)\", last updated: \(formatGoalDate(found.lastUpdatedAt))"
     }
 }
 
@@ -229,8 +224,7 @@ struct UpdateGoalTool: ConversationTool {
             let unit: String?
         }
 
-        guard let data = arguments.data(using: .utf8),
-              let args = try? JSONDecoder().decode(Args.self, from: data) else {
+        guard let args: Args = decodeToolArgs(arguments) else {
             return "⚠️ Could not parse update arguments."
         }
 
@@ -288,8 +282,7 @@ struct DeleteGoalTool: ConversationTool {
             let goalId: String
         }
 
-        guard let data = arguments.data(using: .utf8),
-              let args = try? JSONDecoder().decode(Args.self, from: data) else {
+        guard let args: Args = decodeToolArgs(arguments) else {
             return "⚠️ Could not parse delete arguments."
         }
 

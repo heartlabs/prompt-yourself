@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import os
 import Speech
 import UIKit
 
@@ -344,9 +345,9 @@ final class SFSpeechEngine: TranscriptionEngine {
         #endif
     }
 
-    /// Filter the Xcode console by "[SFSpeechEngine]" to trace the pipeline.
+    /// Log a debug message for the speech pipeline.
     private func diag(_ message: String) {
-        print("[SFSpeechEngine] \(message)")
+        Logger.speech.debug("\(message)")
     }
 
     private func describe(_ error: Error) -> String {

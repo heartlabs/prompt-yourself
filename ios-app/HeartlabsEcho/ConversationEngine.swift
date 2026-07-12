@@ -1,11 +1,19 @@
 import Combine
 import Foundation
+import os
 import SwiftData
 
 // MARK: - ConversationKind
 
-/// Identifies which feature a conversation belongs to. Currently only journal
-/// is supported.
+/// Identifies which feature a conversation belongs to.
+///
+/// Currently only `.journal` is live, but the single-case enum + persisted
+/// `kind` column are deliberately retained: a second conversation kind was
+/// previously added (8a7b4c5) and removed (2342ae8), and the team expects
+/// it will return. The lightweight migration default on `Conversation.kind`
+/// depends on this enum existing. Collapsing to concrete journal code now
+/// would make re-adding the second kind a schema migration instead of a
+/// one-line enum case.
 enum ConversationKind: String {
     case journal
 }
@@ -57,23 +65,16 @@ struct ConversationConfiguration {
     /// recent-day summaries) given the current store.
     /// Runs on the main actor because it reads the (main-actor-isolated) store.
     let makeContext: @MainActor (_ systemPrompt: String, _ store: ConversationService?) -> String
-    /// System prompt used when the bundled `systemPromptResource` cannot be
-    /// loaded. Each feature keeps its own sensible default so behaviour matches
-    /// the pre-composition view models exactly.
-    let fallbackSystemPrompt: String
-
     init(kind: ConversationKind,
          systemPromptResource: String,
          tier: ModelTier,
          toolRegistry: ToolRegistry,
-         makeContext: @escaping @MainActor (_ systemPrompt: String, _ store: ConversationService?) -> String,
-         fallbackSystemPrompt: String = "You are a helpful assistant.") {
+         makeContext: @escaping @MainActor (_ systemPrompt: String, _ store: ConversationService?) -> String) {
         self.kind = kind
         self.systemPromptResource = systemPromptResource
         self.tier = tier
         self.toolRegistry = toolRegistry
         self.makeContext = makeContext
-        self.fallbackSystemPrompt = fallbackSystemPrompt
     }
 
     // MARK: Journal configuration
@@ -85,11 +86,7 @@ struct ConversationConfiguration {
         systemPromptResource: "system-prompt",
         tier: .performant,
         toolRegistry: ToolRegistry(tools: [
-            ConversationLookupTool(
-                targetKind: .journal,
-                toolName: "get_conversation",
-                toolDescription: "Retrieve a past JOURNAL entry for a specific date for detailed context."
-            ),
+            ConversationLookupTool(),
             CreateGoalTool(),
             ListOpenGoalsTool(),
             FindGoalTool(),
@@ -111,8 +108,7 @@ struct ConversationConfiguration {
             }
 
             return parts.joined(separator: "\n")
-        },
-        fallbackSystemPrompt: "You are a helpful assistant."
+        }
     )
 }
 
@@ -225,7 +221,6 @@ class ConversationEngine: ObservableObject {
     let configuration: ConversationConfiguration
     private let router: ModelRouter
     private let chat: ChatCompleting
-    private var systemPrompt: String = ""
 
     // MARK: - Persistence
 
@@ -251,7 +246,6 @@ class ConversationEngine: ObservableObject {
         self.goalService = goalService
         self.router = router
         self.chat = chat ?? router
-        loadSystemPrompt()
 
         loadPersistedConversation()
         Task { await summaryService.backfillOldVersions() }
@@ -412,12 +406,14 @@ class ConversationEngine: ObservableObject {
 
     // MARK: - Private Helpers
 
-    private func loadSystemPrompt() {
+    /// Builds the system prompt fresh on every send so name/language edits
+    /// reach the LLM immediately (rule 1: the prompt is derived from facts
+    /// whose home is UserDefaults, not a baked copy).
+    private func buildSystemPrompt() -> String {
         guard let url = Bundle.main.url(forResource: configuration.systemPromptResource, withExtension: "md"),
               let content = try? String(contentsOf: url, encoding: .utf8)
         else {
-            systemPrompt = configuration.fallbackSystemPrompt
-            return
+            fatalError("System prompt '\(configuration.systemPromptResource).md' is missing from the bundle. The app cannot function without its core prompt.")
         }
         var prompt = content.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -432,7 +428,7 @@ class ConversationEngine: ObservableObject {
             prompt = "The user's name is \(name). Always address them by name.\n\n" + prompt
         }
 
-        systemPrompt = prompt
+        return prompt
     }
 
     /// Ensures there is an active conversation, creating one for today if needed.
@@ -514,7 +510,7 @@ class ConversationEngine: ObservableObject {
         }
 
         do {
-            let contextPrompt = configuration.makeContext(systemPrompt, conversationService)
+            let contextPrompt = configuration.makeContext(buildSystemPrompt(), conversationService)
             var fullHistory: ChatHistory = []
             if !contextPrompt.isEmpty {
                 fullHistory.append(ChatMessage(role: .system, content: contextPrompt))
@@ -619,7 +615,7 @@ class ConversationEngine: ObservableObject {
             guard case .thinking(let id) = phase, id == targetID else { return }
 
             #if DEBUG
-            print("[ConversationEngine] LLM error: \(error.localizedDescription) \(router.diagnostics(for: configuration.tier))")
+            Logger.chat.error("LLM error: \(error.localizedDescription) \(self.router.diagnostics(for: self.configuration.tier))")
             #endif
             let errorMessage = ChatMessage(role: .assistant, content: "⚠️ \(error.localizedDescription)")
             messages.append(errorMessage)

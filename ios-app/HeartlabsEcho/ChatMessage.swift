@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - MessageContent
 
@@ -144,7 +145,7 @@ extension ChatMessage {
             self.role = parsed
         } else {
             #if DEBUG
-            print("[ChatMessage] Unknown role '\(model.role)' for message \(model.id) — falling back to .user")
+            Logger.chat.warning("Unknown role '\(model.role)' for message \(model.id) — falling back to .user")
             #endif
             self.role = .user
         }

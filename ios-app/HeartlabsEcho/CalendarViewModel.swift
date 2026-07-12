@@ -9,7 +9,7 @@ enum PreviewState: Equatable {
     /// No conversation exists for the selected date.
     case empty
     /// A preview is ready to display.
-    case loaded([ConversationPreview])
+    case loaded(ConversationPreview)
     /// A summary is being generated for the selected date.
     case generating
 }
@@ -192,7 +192,7 @@ final class CalendarViewModel: ObservableObject {
         guard !Task.isCancelled else { return }
 
         if let preview = result {
-            previewState = .loaded([preview])
+            previewState = .loaded(preview)
         } else {
             previewState = .empty
         }
@@ -304,21 +304,25 @@ final class CalendarViewModel: ObservableObject {
 
 
     /// Formats a date for the preview label.
-    ///     Today → `"Today, June 14"`
-    ///     Other → `"Monday, June 14"`
+    ///     Today → `"Today, June 14"` (localised "Today" + pinned-locale month day)
+    ///     Other → `"Monday, June 14"` (pinned-locale weekday + month day)
     static func dateLabel(for date: Date) -> String {
+        let locale = AppLanguage.current.locale
         let monthDay: String = {
             let f = DateFormatter()
+            f.locale = locale
             f.dateFormat = "MMMM d"
             return f.string(from: date)
         }()
 
         if calendar.isDateInToday(date) {
-            return "Today, \(monthDay)"
+            let todayLabel = LocalizationService.shared.localized("today_label")
+            return "\(todayLabel), \(monthDay)"
         }
 
         let weekday: String = {
             let f = DateFormatter()
+            f.locale = locale
             f.dateFormat = "EEEE"
             return f.string(from: date)
         }()

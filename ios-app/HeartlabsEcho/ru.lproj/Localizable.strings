@@ -62,8 +62,10 @@
 "photos" = "Фотографий";
 "goal_done" = "Цель достигнута";
 "goals_done" = "Целей достигнуто";
+"today_label" = "Сегодня";
 "todays_journal" = "Сегодняшний журнал";
 "journal_entry" = "Запись в журнале";
+"all_memories" = "Все воспоминания";
 
 // MARK: - Goals
 "goals_screen_title" = "Цели";

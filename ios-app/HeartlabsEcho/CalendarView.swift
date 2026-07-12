@@ -268,23 +268,21 @@ struct CalendarView: View {
     @ViewBuilder
     private var dailyPreviewSection: some View {
         switch viewModel.previewState {
-        case .loaded(let previews):
-            if let preview = previews.first {
-                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                    SectionTitle(text: preview.dateLabel)
+        case .loaded(let preview):
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                SectionTitle(text: preview.dateLabel)
 
-                    Button(action: {
-                        onSelectConversation?(preview.dateKey)
-                    }) {
-                        previewCard(preview: preview)
-                    }
-                    .buttonStyle(.plain)
+                Button(action: {
+                    onSelectConversation?(preview.dateKey)
+                }) {
+                    previewCard(preview: preview)
                 }
+                .buttonStyle(.plain)
             }
 
         case .generating:
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                SectionTitle(text: previewDateLabel)
+                SectionTitle(text: dateLabelForState)
 
                 // Loading card with animated circles
                 HStack {
@@ -299,7 +297,7 @@ struct CalendarView: View {
         case .empty:
             // Muted empty state when no day is selected or no entry exists
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                SectionTitle(text: emptyDateLabel)
+                SectionTitle(text: dateLabelForState)
 
                 HStack {
                     Spacer()
@@ -314,17 +312,8 @@ struct CalendarView: View {
         }
     }
 
-    /// The date label shown while a summary is being generated.
-    private var previewDateLabel: String {
-        if let selected = viewModel.selectedDate {
-            return CalendarViewModel.dateLabel(for: selected)
-        }
-        return CalendarViewModel.dateLabel(for: Date())
-    }
-
-    /// The date label for the empty state — shows the selected date's label
-    /// if one is selected, otherwise today's.
-    private var emptyDateLabel: String {
+    /// Returns the date label for the selected date, falling back to today.
+    private var dateLabelForState: String {
         if let selected = viewModel.selectedDate {
             return CalendarViewModel.dateLabel(for: selected)
         }

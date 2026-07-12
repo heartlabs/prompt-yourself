@@ -62,8 +62,10 @@
 "photos" = "Fotos";
 "goal_done" = "Ziel erreicht";
 "goals_done" = "Ziele erreicht";
+"today_label" = "Heute";
 "todays_journal" = "Heutiger Eintrag";
 "journal_entry" = "Eintrag";
+"all_memories" = "Alle Erinnerungen";
 
 // MARK: - Goals
 "goals_screen_title" = "Ziele";

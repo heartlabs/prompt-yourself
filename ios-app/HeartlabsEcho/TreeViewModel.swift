@@ -7,13 +7,6 @@ import SwiftUI
 final class TreeViewModel: ObservableObject {
     @Published private(set) var state: TreeState = .loading
 
-    /// Cosmetic month label (rolling 30-day window in v1; the dropdown is decorative).
-    let monthLabel: String = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: Date())
-    }()
-
     private let service: TreeScoreService
     private var reloadTask: Task<Void, Never>?
 

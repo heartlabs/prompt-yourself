@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftData
 
 // MARK: - Goal Model
@@ -84,7 +85,7 @@ final class GoalService {
         do {
             return try modelContext.fetch(descriptor)
         } catch {
-            print("[GoalService] Failed to fetch open goals: \(error)")
+            Logger.goals.error("Failed to fetch open goals: \(error)")
             return []
         }
     }
@@ -96,7 +97,7 @@ final class GoalService {
         do {
             return try modelContext.fetch(descriptor)
         } catch {
-            print("[GoalService] Failed to fetch closed goals: \(error)")
+            Logger.goals.error("Failed to fetch closed goals: \(error)")
             return []
         }
     }
@@ -108,7 +109,7 @@ final class GoalService {
         do {
             return try modelContext.fetch(descriptor).first
         } catch {
-            print("[GoalService] Failed to find goal: \(error)")
+            Logger.goals.error("Failed to find goal by id: \(error)")
             return nil
         }
     }
@@ -120,7 +121,7 @@ final class GoalService {
             let goals = try modelContext.fetch(descriptor)
             return goals.first { $0.title.lowercased() == title.lowercased() }
         } catch {
-            print("[GoalService] Failed to find goal: \(error)")
+            Logger.goals.error("Failed to find goal by title: \(error)")
             return nil
         }
     }

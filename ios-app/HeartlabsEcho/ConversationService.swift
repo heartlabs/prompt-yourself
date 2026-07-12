@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftData
 
 // MARK: - ConversationService
@@ -32,7 +33,7 @@ final class ConversationService {
             let keys = Set(conversations.map(\.dateKey))
             return keys.sorted()
         } catch {
-            print("[ConversationService] Failed to fetch all date keys: \(error)")
+            Logger.storage.error("Failed to fetch all date keys: \(error)")
             return []
         }
     }
@@ -51,7 +52,7 @@ final class ConversationService {
             let results = try modelContext.fetch(descriptor)
             return results.first
         } catch {
-            print("[ConversationService] Failed to load conversation for \(dateKey): \(error)")
+            Logger.storage.error("Failed to load conversation for \(dateKey): \(error)")
             return nil
         }
     }
@@ -70,7 +71,7 @@ final class ConversationService {
             let results = try modelContext.fetch(descriptor)
             return results.first
         } catch {
-            print("[ConversationService] Failed to fetch today's conversation: \(error)")
+            Logger.storage.error("Failed to fetch today's conversation: \(error)")
             return nil
         }
     }
@@ -203,7 +204,10 @@ final class ConversationService {
         do {
             try modelContext.save()
         } catch {
-            print("[ConversationService] Failed to save: \(error)")
+            Logger.storage.error("Failed to save: \(error)")
+            #if DEBUG
+            assertionFailure("ConversationService save failed — journal data may be lost: \(error)")
+            #endif
         }
     }
 }
