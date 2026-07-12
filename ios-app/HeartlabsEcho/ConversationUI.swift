@@ -15,11 +15,10 @@ struct ConversationStyle {
     let assistantText: Color
     let systemBubble: Color
 
-    // Mic + live-recording accents
+    // Mic accents
     let accent: Color
     let ringSemibright: Color
     let ringFaint: Color
-    let liveBubble: Color
 
     // Typing indicator
     let typingDot: Color
@@ -39,7 +38,6 @@ struct ConversationStyle {
         accent: .sageGreen,
         ringSemibright: .sageGreenSemibright,
         ringFaint: .sageGreenFaint,
-        liveBubble: Color.sageGreen.opacity(0.8),
         typingDot: .softTaupe,
         typingBubble: Color.softTaupe.opacity(0.4),
         showsRememberingIndicator: true
@@ -219,46 +217,6 @@ struct MessageBubbleView: View {
     }
 }
 
-// MARK: - Live Recording Bubble
-
-struct LiveRecordingBubbleView: View {
-    @ObservedObject private var loc = LocalizationService.shared
-    let transcript: String
-    let style: ConversationStyle
-
-    var body: some View {
-        HStack {
-            Spacer(minLength: 40)
-
-            VStack(alignment: .trailing, spacing: 4) {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(style.accent)
-                        .frame(width: 6, height: 6)
-                    Text(loc.localized("recording_label"))
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.8))
-                }
-
-                if transcript.isEmpty {
-                    Text(loc.localized("listening_placeholder"))
-                        .font(.system(size: 16, weight: .regular, design: .default))
-                        .foregroundColor(.white.opacity(0.5))
-                        .italic()
-                } else {
-                    Text(transcript)
-                        .font(.system(size: 16, weight: .regular, design: .default))
-                        .foregroundColor(.white)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(style.liveBubble)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        }
-    }
-}
-
 // MARK: - Typing Indicator
 
 struct TypingIndicatorView: View {
@@ -306,17 +264,17 @@ struct TypingIndicatorView: View {
 
 // MARK: - Conversation Transcript
 
-/// The scrollable message list shared by both conversation screens: renders the
-/// message bubbles, the live-recording bubble, the typing indicator, and the
-/// invisible bottom anchor, and reproduces the auto-scroll behaviour.
+/// The scrollable message list of a conversation screen: renders the message
+/// bubbles, the typing indicator, and the invisible bottom anchor, and
+/// reproduces the auto-scroll behaviour. (The LIVE transcript is not shown
+/// here — recording happens exclusively in the composer overlay, which
+/// covers this view.)
 ///
 /// It takes plain values (not the view model) so it stays decoupled; the parent
 /// screen re-renders when its observable state changes, feeding fresh values in
 /// and triggering the `onChange` handlers here.
 struct ConversationTranscriptView: View {
     let messages: [ChatMessage]
-    let isRecording: Bool
-    let transcript: String
     let isThinking: Bool
     let isRemembering: Bool
     let shouldAutoScroll: Bool
@@ -337,11 +295,6 @@ struct ConversationTranscriptView: View {
                             onTapPhoto: { path in fullscreenPhotoPath = path }
                         )
                         .id(message.id)
-                    }
-
-                    if isRecording {
-                        LiveRecordingBubbleView(transcript: transcript, style: style)
-                            .id("live")
                     }
 
                     if isThinking {
@@ -365,12 +318,6 @@ struct ConversationTranscriptView: View {
             .frame(maxHeight: .infinity)
             .onChange(of: messages.count) { _, _ in
                 if shouldAutoScroll { scrollToBottom(proxy) }
-            }
-            .onChange(of: isRecording) { _, _ in
-                scrollToBottom(proxy)
-            }
-            .onChange(of: transcript) { _, _ in
-                if isRecording { scrollToBottom(proxy) }
             }
             .onChange(of: isThinking) { _, _ in
                 if isThinking { scrollToBottom(proxy) }
@@ -396,9 +343,7 @@ struct ConversationTranscriptView: View {
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.easeOut(duration: 0.2)) {
-            if isRecording {
-                proxy.scrollTo("live", anchor: .bottom)
-            } else if isThinking {
+            if isThinking {
                 proxy.scrollTo("typing", anchor: .bottom)
             } else {
                 proxy.scrollTo("scroll_bottom", anchor: .bottom)

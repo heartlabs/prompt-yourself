@@ -13,7 +13,6 @@
 		AAA00420 /* ConversationModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00421 /* ConversationModeView.swift */; };
 		AAA00403 /* ConversationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00404 /* ConversationEngine.swift */; };
 		AAA00405 /* ConversationTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00406 /* ConversationTools.swift */; };
-		AAA00003 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00006 /* SpeechRecognizer.swift */; };
 		AAA0001A /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001E /* ChatMessage.swift */; };
 		AAA0001B /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001F /* LLMService.swift */; };
 		AAA0001D /* system-prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = AAA00021 /* system-prompt.md */; };
@@ -44,9 +43,10 @@
 		AAA00135 /* ru.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AAA00132 /* ru */; };
 		AAA00137 /* LocalizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00136 /* LocalizationService.swift */; };
 		AAA00418 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00419 /* EditProfileView.swift */; };
-		AAA00425 /* SpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00422 /* SpeechTranscriber.swift */; };
-		AAA00426 /* SFSpeechRecognizerImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00423 /* SFSpeechRecognizerImpl.swift */; };
-		AAA00427 /* SpeechAnalyzerImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00424 /* SpeechAnalyzerImpl.swift */; };
+		AAA00430 /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00434 /* TranscriptionEngine.swift */; };
+		AAA00431 /* SFSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00435 /* SFSpeechEngine.swift */; };
+		AAA00432 /* SpeechAnalyzerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00436 /* SpeechAnalyzerEngine.swift */; };
+		AAA00433 /* VoiceComposerSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00437 /* VoiceComposerSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,7 +56,6 @@
 		AAA00421 /* ConversationModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationModeView.swift; sourceTree = "<group>"; };
 		AAA00404 /* ConversationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationEngine.swift; sourceTree = "<group>"; };
 		AAA00406 /* ConversationTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationTools.swift; sourceTree = "<group>"; };
-		AAA00006 /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
 		AAA00007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AAA00008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AAA0000E /* Heartlabs Echo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Heartlabs Echo.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -91,9 +90,10 @@
 		AAA00132 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
 		AAA00136 /* LocalizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationService.swift; sourceTree = "<group>"; };
 		AAA00419 /* EditProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProfileView.swift; sourceTree = "<group>"; };
-		AAA00422 /* SpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriber.swift; sourceTree = "<group>"; };
-		AAA00423 /* SFSpeechRecognizerImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFSpeechRecognizerImpl.swift; sourceTree = "<group>"; };
-		AAA00424 /* SpeechAnalyzerImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechAnalyzerImpl.swift; sourceTree = "<group>"; };
+		AAA00434 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
+		AAA00435 /* SFSpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFSpeechEngine.swift; sourceTree = "<group>"; };
+		AAA00436 /* SpeechAnalyzerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechAnalyzerEngine.swift; sourceTree = "<group>"; };
+		AAA00437 /* VoiceComposerSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceComposerSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -114,9 +114,12 @@
 				AAA00005 /* ContentView.swift */,
 				AAA00402 /* ConversationUI.swift */,
 				AAA00421 /* ConversationModeView.swift */,
+				AAA00434 /* TranscriptionEngine.swift */,
+				AAA00435 /* SFSpeechEngine.swift */,
+				AAA00436 /* SpeechAnalyzerEngine.swift */,
+				AAA00437 /* VoiceComposerSession.swift */,
 				AAA00404 /* ConversationEngine.swift */,
 				AAA00406 /* ConversationTools.swift */,
-				AAA00006 /* SpeechRecognizer.swift */,
 				AAA0001E /* ChatMessage.swift */,
 				AAA0001F /* LLMService.swift */,
 				AAA00021 /* system-prompt.md */,
@@ -145,9 +148,6 @@
 				AAA00008 /* Assets.xcassets */,
 				AAA00136 /* LocalizationService.swift */,
 				AAA00419 /* EditProfileView.swift */,
-				AAA00422 /* SpeechTranscriber.swift */,
-				AAA00423 /* SFSpeechRecognizerImpl.swift */,
-				AAA00424 /* SpeechAnalyzerImpl.swift */,
 				AAA00130 /* en */,
 				AAA00131 /* de */,
 				AAA00132 /* ru */,
@@ -242,9 +242,12 @@
 				AAA00002 /* ContentView.swift in Sources */,
 				AAA00401 /* ConversationUI.swift in Sources */,
 				AAA00420 /* ConversationModeView.swift in Sources */,
+				AAA00430 /* TranscriptionEngine.swift in Sources */,
+				AAA00431 /* SFSpeechEngine.swift in Sources */,
+				AAA00432 /* SpeechAnalyzerEngine.swift in Sources */,
+				AAA00433 /* VoiceComposerSession.swift in Sources */,
 				AAA00403 /* ConversationEngine.swift in Sources */,
 				AAA00405 /* ConversationTools.swift in Sources */,
-				AAA00003 /* SpeechRecognizer.swift in Sources */,
 				AAA0001A /* ChatMessage.swift in Sources */,
 				AAA0001B /* LLMService.swift in Sources */,
 				AAA00026 /* Theme.swift in Sources */,
@@ -269,9 +272,6 @@
 				AAA00417 /* GoalDetailSheet.swift in Sources */,
 				AAA00137 /* LocalizationService.swift in Sources */,
 				AAA00418 /* EditProfileView.swift in Sources */,
-				AAA00425 /* SpeechTranscriber.swift in Sources */,
-				AAA00426 /* SFSpeechRecognizerImpl.swift in Sources */,
-				AAA00427 /* SpeechAnalyzerImpl.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

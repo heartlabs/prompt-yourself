@@ -14,8 +14,6 @@ struct ContentView: View {
     @State private var isNavigatingFromCalendar = false
     /// Whether to show the onboarding sheet (first launch).
     @State private var showOnboarding = !UserName.isSet
-    /// Whether the immersive voice composer is presented over the app.
-    @State private var isConversing = false
 
     /// Shared visual style for the daily conversation screen.
     private let style = ConversationStyle.journal
@@ -44,21 +42,17 @@ struct ContentView: View {
             tabs
 
             // Conversation mode covers everything, tab bar included — while
-            // composing, the companion is the whole interface.
-            if isConversing {
-                ConversationModeView(viewModel: viewModel, style: style) {
-                    withAnimation(.easeInOut(duration: 0.3)) { isConversing = false }
-                }
-                .transition(.opacity.combined(with: .scale(scale: 1.03)))
-                .zIndex(1)
+            // composing, the companion is the whole interface. The overlay is
+            // visible exactly while a composer session exists; it unmounts
+            // when the session terminates and the engine clears it — this
+            // view has no way to dismiss it.
+            if let session = viewModel.activeComposition {
+                ConversationModeView(session: session, style: style)
+                    .transition(.opacity.combined(with: .scale(scale: 1.03)))
+                    .zIndex(1)
             }
         }
-    }
-
-    /// Presents conversation mode. The composer owns its recording lifecycle:
-    /// it starts listening on appear and stops on every exit path.
-    private func startConversation() {
-        withAnimation(.easeInOut(duration: 0.3)) { isConversing = true }
+        .animation(.easeInOut(duration: 0.3), value: viewModel.activeComposition == nil)
     }
 
     private var tabs: some View {
@@ -103,12 +97,6 @@ struct ContentView: View {
                 showOnboarding = false
             })
         }
-        .onChange(of: selectedTab) { _, newTab in
-            // Stop recording when navigating away from the conversation tab.
-            if newTab != 0 && viewModel.recognizer.isRecording {
-                viewModel.toggleRecording()
-            }
-        }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
@@ -117,11 +105,10 @@ struct ContentView: View {
                     viewModel.requestScrollToBottomIfActive()
                 }
             case .background:
-                // Stop recording and send partial transcript when app goes to background
-                // (lock button, app switcher, phone call, etc.). The composer
-                // closes too — its content has been sent.
-                viewModel.stopRecordingOnBackground()
-                isConversing = false
+                // Lock button, app switcher, phone call, etc. — the live
+                // composer session (if any) sends what exists and terminates,
+                // which also closes the overlay.
+                viewModel.handleAppBackground()
             default:
                 break
             }
@@ -134,7 +121,7 @@ struct ContentView: View {
         ZStack {
             Color.warmIvory.ignoresSafeArea()
 
-            if viewModel.messages.isEmpty && !viewModel.recognizer.isRecording {
+            if viewModel.messages.isEmpty {
                 moodboardView
             } else {
                 chatView
@@ -145,12 +132,12 @@ struct ContentView: View {
             viewModel.setupPersistence(with: modelContext)
         }
         .alert(loc.localized("speech_recognition_alert"), isPresented: Binding(
-            get: { viewModel.recognizer.recognitionError != nil },
-            set: { presented in if !presented { viewModel.recognizer.recognitionError = nil } }
+            get: { viewModel.compositionError != nil },
+            set: { presented in if !presented { viewModel.compositionError = nil } }
         )) {
             Button(loc.localized("ok_button"), role: .cancel) { }
         } message: {
-            Text(viewModel.recognizer.recognitionError ?? "")
+            Text(viewModel.compositionError ?? "")
         }
     }
 }
@@ -195,7 +182,7 @@ extension ContentView {
                     diameter: Theme.Orb.moodboardDiameter,
                     isEnabled: !viewModel.isThinking,
                     showsMicGlyph: true,
-                    action: startConversation
+                    action: { viewModel.beginComposition() }
                 )
 
                 // Instruction Text
@@ -216,8 +203,6 @@ extension ContentView {
     private var chatView: some View {
         ConversationTranscriptView(
             messages: viewModel.messages,
-            isRecording: viewModel.recognizer.isRecording,
-            transcript: viewModel.recognizer.transcript,
             isThinking: viewModel.isThinking,
             isRemembering: viewModel.isRemembering,
             shouldAutoScroll: viewModel.shouldAutoScroll,
@@ -244,6 +229,10 @@ extension ContentView {
     /// dissolving upward, so scrolled bubbles fade out softly underneath the
     /// orb instead of colliding with it. Until the orb is learned
     /// (`OrbCoachmark`), a small "Tap to talk" label sits beneath it.
+    ///
+    /// Contract: this band is applied as a `safeAreaInset` on the transcript
+    /// (see `chatView`) — never a VStack row. Scroll insets and the
+    /// scroll-behind-orb fade depend on that.
     private var orbBar: some View {
         Color.clear
             .frame(height: Theme.Orb.bandHeight)
@@ -254,7 +243,7 @@ extension ContentView {
                         diameter: Theme.Orb.chatDiameter,
                         isEnabled: !viewModel.isThinking,
                         showsMicGlyph: true,
-                        action: startConversation
+                        action: { viewModel.beginComposition() }
                     )
 
                     if !OrbCoachmark.isLearned {
@@ -262,13 +251,6 @@ extension ContentView {
                             .font(.echoMicroLabel)
                             .foregroundColor(.textTertiary)
                     }
-
-                    #if DEBUG
-                    Text(viewModel.recognizer.activeEngineName == "…"
-                         ? "" : "STT: \(viewModel.recognizer.activeEngineName)")
-                        .font(.system(size: 9, weight: .regular, design: .monospaced))
-                        .foregroundColor(.textTertiary.opacity(0.5))
-                    #endif
                 }
                 .padding(.bottom, Theme.Spacing.xs)
             }

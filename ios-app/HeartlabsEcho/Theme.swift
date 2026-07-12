@@ -180,7 +180,9 @@ enum OrbCoachmark {
         UserDefaults.standard.integer(forKey: key) >= learnedThreshold
     }
 
-    /// Records one successful composition send.
+    /// Records one successful composition send. Call ONLY when a composition
+    /// actually went out (a `.sent` outcome) — never for taps, cancels, or
+    /// failed attempts, or the label retires before the orb is learned.
     static func recordCompositionSent() {
         guard !isLearned else { return }
         let count = UserDefaults.standard.integer(forKey: key)

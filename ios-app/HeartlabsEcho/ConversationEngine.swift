@@ -107,10 +107,15 @@ struct ConversationConfiguration {
 
 // MARK: - ConversationEngine
 
-/// The shared pipeline behind a conversation screen: speech capture, LLM
-/// communication (with a bounded tool-call loop), per-day persistence, summary
-/// context, conversation resolution (today / active-yesterday / new) and the
+/// The pipeline behind a conversation screen: LLM communication (with a
+/// bounded tool-call loop), per-day persistence, summary context,
+/// conversation resolution (today / active-yesterday / new) and the
 /// scroll/UI state the view binds to.
+///
+/// Speech capture is NOT handled here: it lives entirely inside
+/// `VoiceComposerSession` (see `beginComposition()`). This engine only
+/// consumes the finished `Composition` value — it never reads live
+/// recording state.
 ///
 /// Feature-specific behaviour comes entirely from the injected
 /// `ConversationConfiguration`.
@@ -127,8 +132,15 @@ class ConversationEngine: ObservableObject {
     /// Whether the LLM is retrieving a past conversation (tool call in progress).
     @Published private(set) var isRemembering = false
 
-    /// The speech recognizer — owned here so state stays consistent.
-    let recognizer = SpeechRecognizer()
+    /// The live voice-composer session, if one is open. The overlay is
+    /// presented exactly while this is non-nil, and it is cleared ONLY by
+    /// `compositionDidFinish` — there is no other dismissal path.
+    @Published private(set) var activeComposition: VoiceComposerSession?
+
+    /// Alert text for a composition that failed before capturing anything
+    /// (e.g. permission denied). Presented by the chat screen after the
+    /// composer closes; cleared by the alert binding.
+    @Published var compositionError: String?
 
     /// Whether the currently displayed conversation belongs to a past date
     /// (and should therefore be treated as read-only).
@@ -146,7 +158,6 @@ class ConversationEngine: ObservableObject {
     private let router: ModelRouter
     private let chat: ChatCompleting
     private var systemPrompt: String = ""
-    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Persistence
 
@@ -168,41 +179,6 @@ class ConversationEngine: ObservableObject {
         self.router = router
         self.chat = chat ?? router
         loadSystemPrompt()
-
-        // Forward change notifications from the nested SpeechRecognizer
-        // so SwiftUI re-renders when recording state/transcript changes.
-        recognizer.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.objectWillChange.send()
-            }
-            .store(in: &cancellables)
-
-        // When the recognizer publishes a spontaneous transcript (error or
-        // system timeout without user action), send it to the LLM immediately.
-        recognizer.$pendingTranscript
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] pending in
-                guard let self, let pending, !pending.isEmpty else { return }
-                self.recognizer.pendingTranscript = nil
-                self.shouldAutoScroll = true
-                Task { await self.sendTranscript() }
-            }
-            .store(in: &cancellables)
-
-        // When the ~1-minute timeout fires, the recogniser publishes the
-        // accumulated text as a segment. Turn it into a separate user bubble
-        // so the timeout boundary is visible — no LLM call yet.
-        recognizer.$accumulatedSegment
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] segment in
-                guard let self, let segment, !segment.isEmpty else { return }
-                self.recognizer.accumulatedSegment = nil
-                self.shouldAutoScroll = true
-                let msg = ChatMessage(role: .user, content: segment)
-                self.messages.append(msg)
-            }
-            .store(in: &cancellables)
     }
 
     // MARK: - Helpers
@@ -320,25 +296,37 @@ class ConversationEngine: ObservableObject {
         // Past conversation — deliberately NOT scrolling.
     }
 
-    /// Stops recording immediately (synchronously) and sends the partial
-    /// transcript. Used when the app goes to background.
-    func stopRecordingOnBackground() {
-        guard recognizer.isRecording else { return }
-        recognizer.stopTranscribing()
-        Task { await sendTranscript() }
+    // MARK: - Voice Composition
+
+    /// Opens the voice composer. The returned session owns the ENTIRE
+    /// recording lifecycle (mic, photo, exits); this engine only consumes
+    /// the outcome in `compositionDidFinish`.
+    func beginComposition() {
+        guard activeComposition == nil, !isShowingPastConversation else { return }
+        shouldAutoScroll = true
+        activeComposition = VoiceComposerSession { [weak self] outcome in
+            self?.compositionDidFinish(outcome)
+        }
     }
 
-    /// Toggle recording; after stopping, send the transcript to the LLM.
-    func toggleRecording() {
-        if recognizer.isRecording {
-            Task {
-                await recognizer.stopTranscribingAsync()
-                await sendTranscript()
-            }
-        } else {
-            shouldAutoScroll = true
-            recognizer.startTranscribing()
+    /// Forwards backgrounding to the live session, which applies the
+    /// send-what-exists policy. No-op when no composer is open.
+    func handleAppBackground() {
+        activeComposition?.appDidEnterBackground()
+    }
+
+    /// The single exit funnel: consumes the session's outcome and unmounts
+    /// the overlay by clearing `activeComposition` — nothing else may.
+    private func compositionDidFinish(_ outcome: VoiceComposerSession.Outcome) {
+        switch outcome {
+        case .sent(let composition):
+            send(composition)
+        case .cancelled:
+            break
+        case .failed(let message):
+            compositionError = message
         }
+        activeComposition = nil
     }
 
     // MARK: - Private Helpers
@@ -403,34 +391,25 @@ class ConversationEngine: ObservableObject {
         persistMessage(role: role, content: .text(content), id: id, timestamp: timestamp)
     }
 
-    // MARK: - Public: Send Composition
+    // MARK: - Send Composition
 
-    /// Sends what the voice composer produced: the current transcript (if any)
-    /// as a text bubble, then the picked image (if any) as an image bubble —
-    /// followed by ONE LLM exchange for the whole composition.
+    /// Sends a finished composition: the transcript (if any) as a text
+    /// bubble, then the photo (if any) as an image bubble — followed by
+    /// exactly ONE LLM exchange for the whole composition. Do not "fix"
+    /// this into one exchange per bubble.
     ///
-    /// Speech-only, photo-only, and speech-then-photo all flow through here.
-    /// Does nothing — and returns `false` — when there is neither speech nor
-    /// an image (e.g. the user opened conversation mode and cancelled the
-    /// picker without a word).
-    @discardableResult
-    func sendComposition(imagePath: String?) -> Bool {
-        // Tripwire: the transcript must be FINAL before composing. Sending
-        // mid-recording would post partial text and leave the microphone hot.
-        // Await `recognizer.stopTranscribingAsync()` (or call
-        // `stopTranscribing()`) before calling this.
-        assert(!recognizer.isRecording, "sendComposition called while recording — finalize first.")
-
+    /// A `Composition` can only be produced by a terminating
+    /// `VoiceComposerSession`, so the transcript here is final by
+    /// construction and is never empty together with a nil photo.
+    private func send(_ composition: Composition) {
         var userMessages: [ChatMessage] = []
-
-        let transcript = recognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !transcript.isEmpty {
-            userMessages.append(ChatMessage(role: .user, content: transcript))
+        if !composition.transcript.isEmpty {
+            userMessages.append(ChatMessage(role: .user, content: composition.transcript))
         }
-        if let imagePath {
-            userMessages.append(ChatMessage(role: .user, content: .image(relativePath: imagePath)))
+        if let photoPath = composition.photoPath {
+            userMessages.append(ChatMessage(role: .user, content: .image(relativePath: photoPath)))
         }
-        guard !userMessages.isEmpty else { return false }
+        guard !userMessages.isEmpty else { return }
 
         for message in userMessages {
             messages.append(message)
@@ -438,15 +417,13 @@ class ConversationEngine: ObservableObject {
         }
         shouldAutoScroll = true
 
+        // A real composition went out — the orb is being learned.
+        OrbCoachmark.recordCompositionSent()
+
         Task { await sendToLLM() }
-        return true
     }
 
     // MARK: - LLM Communication
-
-    private func sendTranscript() async {
-        sendComposition(imagePath: nil)
-    }
 
     /// Shared send loop: builds context, calls the LLM (with tool loop),
     /// appends the assistant response, and persists it.
