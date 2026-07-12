@@ -94,6 +94,43 @@ final class ConversationService {
         return conversation
     }
 
+    // MARK: - Message queries
+
+    /// All messages across all conversations of the given kind, newest first.
+    private func allMessages(kind: ConversationKind) -> [Message] {
+        let conversations = fetchAllConversations(kind: kind)
+        return conversations
+            .flatMap { $0.messages }
+            .sorted { $0.timestamp > $1.timestamp }
+    }
+
+    /// Counts all user messages across all conversations of the given kind.
+    func countUserMessages(kind: ConversationKind) -> Int {
+        allMessages(kind: kind).filter { $0.role == Message.roleUser }.count
+    }
+
+    /// Counts all image messages across all conversations of the given kind.
+    func countImageMessages(kind: ConversationKind) -> Int {
+        allMessages(kind: kind).filter { $0.contentType == Message.contentTypeImage }.count
+    }
+
+    /// Loads the most recent image messages across all conversations of the given kind.
+    func fetchRecentPhotos(kind: ConversationKind, limit: Int) -> [Message] {
+        Array(allMessages(kind: kind).filter { $0.contentType == Message.contentTypeImage }.prefix(limit))
+    }
+
+    /// Loads all image messages across all conversations of the given kind, sorted newest-first.
+    func fetchAllPhotos(kind: ConversationKind) -> [Message] {
+        allMessages(kind: kind).filter { $0.contentType == Message.contentTypeImage }
+    }
+
+    /// Fetches all conversations of the given kind, sorted by date key descending.
+    private func fetchAllConversations(kind: ConversationKind) -> [Conversation] {
+        let kindRaw = kind.rawValue
+        let descriptor = FetchDescriptor<Conversation>(sortBy: [SortDescriptor(\.dateKey, order: .reverse)])
+        return ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.kind == kindRaw }
+    }
+
     /// Adds a message to the given conversation.
     ///
     /// - Parameters:
@@ -137,7 +174,13 @@ final class ConversationService {
     func fetchFullConversationText(kind: ConversationKind, dateKey: String) -> String? {
         guard let conversation = loadConversation(dateKey: dateKey, kind: kind) else { return nil }
         let sortedMessages = conversation.messages.sorted { $0.timestamp < $1.timestamp }
-        let lines = sortedMessages.map { "[\($0.role.capitalized)]: \($0.content)" }
+        let lines = sortedMessages.map { msg in
+            let prefix = msg.role.capitalized
+            if msg.contentType == "image" {
+                return "[\(prefix)]: (photo)"
+            }
+            return "[\(prefix)]: \(msg.content)"
+        }
         return "\(dateKey) conversation:\n" + lines.joined(separator: "\n")
     }
 

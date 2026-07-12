@@ -414,14 +414,14 @@ class ConversationEngine: ObservableObject {
 
     /// Persists a message with typed content.
     /// `MessageContent` is split into `(contentType, content)` for SwiftData.
-    private func persistMessage(role: String, content: MessageContent, id: UUID, timestamp: Date) {
+    private func persistMessage(role: ChatMessage.Role, content: MessageContent, id: UUID, timestamp: Date) {
         guard let conversation = ensureConversation() else { return }
         let (type, value) = content.persistable
-        conversationService.addMessage(to: conversation, id: id, role: role, contentType: type, content: value, timestamp: timestamp)
+        conversationService.addMessage(to: conversation, id: id, role: role.rawValue, contentType: type, content: value, timestamp: timestamp)
     }
 
     /// Convenience overload for text-only messages.
-    private func persistMessage(role: String, content: String, id: UUID, timestamp: Date) {
+    private func persistMessage(role: ChatMessage.Role, content: String, id: UUID, timestamp: Date) {
         persistMessage(role: role, content: .text(content), id: id, timestamp: timestamp)
     }
 
@@ -442,7 +442,7 @@ class ConversationEngine: ObservableObject {
 
         for message in userMessages {
             messages.append(message)
-            persistMessage(role: "user", content: message.content, id: message.id, timestamp: message.timestamp)
+            persistMessage(role: .user, content: message.content, id: message.id, timestamp: message.timestamp)
         }
         shouldAutoScroll = true
         return true
@@ -561,8 +561,8 @@ class ConversationEngine: ObservableObject {
             conversationService.addMessage(
                 to: conversation,
                 id: assistantMessage.id,
-                role: "assistant",
-                contentType: "text",
+                role: ChatMessage.Role.assistant.rawValue,
+                contentType: Message.contentTypeText,
                 content: assistantContent,
                 timestamp: assistantMessage.timestamp
             )
@@ -578,8 +578,8 @@ class ConversationEngine: ObservableObject {
             conversationService.addMessage(
                 to: conversation,
                 id: errorMessage.id,
-                role: "assistant",
-                contentType: "text",
+                role: ChatMessage.Role.assistant.rawValue,
+                contentType: Message.contentTypeText,
                 content: errorMessage.content.persistable.1,
                 timestamp: errorMessage.timestamp
             )

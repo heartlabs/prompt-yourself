@@ -53,16 +53,12 @@ final class CalendarViewModel: ObservableObject {
 
     /// Total number of user messages across all conversations.
     var voiceMemoriesCount: Int {
-        let predicate = #Predicate<Message> { $0.role == "user" }
-        let descriptor = FetchDescriptor<Message>(predicate: predicate)
-        return (try? modelContext.fetchCount(descriptor)) ?? 0
+        conversationService.countUserMessages(kind: .journal)
     }
 
     /// Total number of image messages across all conversations.
     var photosCount: Int {
-        let predicate = #Predicate<Message> { $0.contentType == "image" }
-        let descriptor = FetchDescriptor<Message>(predicate: predicate)
-        return (try? modelContext.fetchCount(descriptor)) ?? 0
+        conversationService.countImageMessages(kind: .journal)
     }
 
     /// Total number of completed goals (progress >= target).
@@ -78,10 +74,7 @@ final class CalendarViewModel: ObservableObject {
 
     /// Loads the most recent image messages from all conversations.
     func loadRecentPhotos() {
-        let predicate = #Predicate<Message> { $0.contentType == "image" }
-        var descriptor = FetchDescriptor<Message>(predicate: predicate, sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
-        descriptor.fetchLimit = Self.maxRecentPhotos
-        let messages = (try? modelContext.fetch(descriptor)) ?? []
+        let messages = conversationService.fetchRecentPhotos(kind: .journal, limit: Self.maxRecentPhotos)
         recentPhotos = messages.compactMap { msg in
             guard let conv = msg.conversation else { return nil }
             return MemoryPhoto(path: msg.content, dateKey: conv.dateKey, timestamp: msg.timestamp)
@@ -90,12 +83,7 @@ final class CalendarViewModel: ObservableObject {
 
     /// Loads all image messages from all conversations, sorted newest-first.
     func loadAllPhotos() -> [MemoryPhoto] {
-        let predicate = #Predicate<Message> { $0.contentType == "image" }
-        let descriptor = FetchDescriptor<Message>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-        let messages = (try? modelContext.fetch(descriptor)) ?? []
+        let messages = conversationService.fetchAllPhotos(kind: .journal)
         return messages.compactMap { msg in
             guard let conv = msg.conversation else { return nil }
             return MemoryPhoto(path: msg.content, dateKey: conv.dateKey, timestamp: msg.timestamp)
@@ -104,7 +92,6 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Services
 
-    private let modelContext: ModelContext
     private let conversationService: ConversationService
     private let summaryService: SummaryService
     private let goalService: GoalService
@@ -117,14 +104,12 @@ final class CalendarViewModel: ObservableObject {
 
     init(conversationService: ConversationService,
          summaryService: SummaryService,
-         goalService: GoalService,
-         modelContext: ModelContext) {
+         goalService: GoalService) {
         self.currentMonth = Self.startOfMonth(Date())
         self.selectedDate = nil
         self.conversationService = conversationService
         self.summaryService = summaryService
         self.goalService = goalService
-        self.modelContext = modelContext
 
         loadDatesWithEntries()
         loadRecentPhotos()
@@ -225,11 +210,11 @@ final class CalendarViewModel: ObservableObject {
         }
 
         let sortedMessages = conversation.messages.sorted(by: { $0.timestamp < $1.timestamp })
-        let firstMessage = sortedMessages.first(where: { $0.role == "user" }) ?? sortedMessages.first
+        let firstMessage = sortedMessages.first(where: { $0.role == Message.roleUser }) ?? sortedMessages.first
         let timestamp = firstMessage.map { Self.timeString(from: $0.timestamp) } ?? ""
         let snippetText: String = {
             guard let first = firstMessage else { return "" }
-            if first.contentType == "image" {
+            if first.contentType == Message.contentTypeImage {
                 return "[Image]"
             }
             return first.content

@@ -15,20 +15,17 @@ struct CalendarView: View {
     init(conversationService: ConversationService,
          summaryService: SummaryService,
          goalService: GoalService,
-         modelContext: ModelContext,
          onSelectConversation: ((String, ConversationKind) -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: CalendarViewModel(
             conversationService: conversationService,
             summaryService: summaryService,
-            goalService: goalService,
-            modelContext: modelContext
+            goalService: goalService
         ))
         self.onSelectConversation = onSelectConversation
     }
     @State private var showEditProfile = false
     @State private var selectedMemoryPath: String?
     @State private var showGallery = false
-    @State private var galleryPhotos: [MemoryPhoto] = []
     @State private var scrollProxy: ScrollViewProxy?
 
     var body: some View {
@@ -77,7 +74,7 @@ struct CalendarView: View {
             }
         }
         .fullScreenCover(isPresented: $showGallery) {
-            RecentMemoriesGalleryView(photos: galleryPhotos)
+            RecentMemoriesGalleryView(photos: viewModel.loadAllPhotos())
         }
     }
 
@@ -387,7 +384,6 @@ struct CalendarView: View {
         if !viewModel.recentPhotos.isEmpty {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                 Button {
-                    galleryPhotos = viewModel.loadAllPhotos()
                     showGallery = true
                 } label: {
                     HStack(spacing: Theme.Spacing.s) {
@@ -509,8 +505,7 @@ struct CalendarView: View {
     return CalendarView(
         conversationService: convService,
         summaryService: summService,
-        goalService: goalService,
-        modelContext: ctx
+        goalService: goalService
     )
     .modelContainer(container)
 }

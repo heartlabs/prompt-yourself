@@ -92,15 +92,28 @@ final class Conversation {
 /// A single message in a conversation.
 @Model
 final class Message {
+    // MARK: - Typed constants for predicates & comparisons
+
+    /// String constants for `role` so predicates never embed raw strings.
+    /// Use e.g. `$0.role == Message.roleUser` in SwiftData `#Predicate`.
+    static let roleUser = "user"
+    static let roleAssistant = "assistant"
+
+    /// String constants for `contentType` so predicates never embed raw strings.
+    static let contentTypeText = "text"
+    static let contentTypeImage = "image"
+
+    // MARK: - Stored properties
+
     /// Unique identifier (mirrors `ChatMessage.id`).
     @Attribute(.unique) var id: UUID
 
-    /// One of "system", "user", "assistant".
+    /// One of `roleUser` or `roleAssistant`.
     var role: String
 
-    /// The type of content — "text" or "image".
-    /// Old messages without this field get "text" automatically.
-    var contentType: String = "text"
+    /// One of `contentTypeText` or `contentTypeImage`.
+    /// Old messages without this field get `"text"` automatically.
+    var contentType: String = Message.contentTypeText
 
     /// The message content:
     /// - For text messages: the text itself.
@@ -113,7 +126,7 @@ final class Message {
     /// The conversation this message belongs to.
     var conversation: Conversation?
 
-    init(id: UUID, role: String, contentType: String = "text", content: String, timestamp: Date) {
+    init(id: UUID, role: String, contentType: String = Message.contentTypeText, content: String, timestamp: Date) {
         self.id = id
         self.role = role
         self.contentType = contentType

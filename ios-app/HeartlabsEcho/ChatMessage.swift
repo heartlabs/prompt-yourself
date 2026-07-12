@@ -51,8 +51,8 @@ enum MessageContent: Codable, Equatable {
     /// Splits this content into a `(type, value)` pair for SwiftData storage.
     var persistable: (type: String, value: String) {
         switch self {
-        case .text(let text):    return ("text", text)
-        case .image(let path):  return ("image", path)
+        case .text(let text):    return (Message.contentTypeText, text)
+        case .image(let path):  return (Message.contentTypeImage, path)
         }
     }
 }
@@ -118,6 +118,15 @@ struct ToolCallPayload: Codable, Equatable {
 /// The full conversation history sent with every LLM request.
 typealias ChatHistory = [ChatMessage]
 
+// MARK: - Deliberate non-persistence of tool-call fields
+//
+// `ChatMessage.toolCallId` and `.toolCalls` are deliberately NOT persisted in
+// the SwiftData `Message` model. If a conversation is restored mid-tool-exchange
+// (e.g. the user force-quits during a get_conversation lookup), the LLM history
+// would be missing the assistant tool-call message and the subsequent tool-result
+// message — which violates the OpenAI spec. The next message the user sends
+// restarts the exchange cleanly.
+
 // MARK: - SwiftData Conversion
 
 #if canImport(SwiftData)
@@ -128,11 +137,24 @@ extension ChatMessage {
     /// Creates a `ChatMessage` from a SwiftData `Message` model.
     init(from model: Message) {
         self.id = model.id
-        self.role = Role(rawValue: model.role) ?? .user
-        self.content = model.contentType == "image"
-            ? .image(relativePath: model.content)
-            : .text(model.content)
+        // Unknown role → fall back to `.user` rather than silently dropping the
+        // message. This only triggers for corrupted stores; production rows are
+        // always "user" or "assistant".
+        if let parsed = Role(rawValue: model.role) {
+            self.role = parsed
+        } else {
+            #if DEBUG
+            print("[ChatMessage] Unknown role '\(model.role)' for message \(model.id) — falling back to .user")
+            #endif
+            self.role = .user
+        }
+        if model.contentType == Message.contentTypeImage {
+            self.content = .image(relativePath: model.content)
+        } else {
+            self.content = .text(model.content)
+        }
         self.timestamp = model.timestamp
+        // toolCallId and toolCalls are deliberately NOT persisted (see comment below).
         self.toolCallId = nil
         self.toolCalls = nil
     }

@@ -23,20 +23,17 @@ struct ContentView: View {
     private let goalService: GoalService
     private let treeScoreService: TreeScoreService
     private let router: ModelRouter
-    private let modelContext: ModelContext
 
     init(conversationService: ConversationService,
          summaryService: SummaryService,
          goalService: GoalService,
          treeScoreService: TreeScoreService,
-         router: ModelRouter,
-         modelContext: ModelContext) {
+         router: ModelRouter) {
         self.conversationService = conversationService
         self.summaryService = summaryService
         self.goalService = goalService
         self.treeScoreService = treeScoreService
         self.router = router
-        self.modelContext = modelContext
 
         _viewModel = StateObject(wrappedValue: ConversationEngine(
             configuration: .journal,
@@ -105,7 +102,6 @@ struct ContentView: View {
                 conversationService: conversationService,
                 summaryService: summaryService,
                 goalService: goalService,
-                modelContext: modelContext,
                 onSelectConversation: { dateKey, _ in
                     isNavigatingFromCalendar = true
                     viewModel.loadConversation(for: dateKey)
@@ -393,7 +389,7 @@ struct OnboardingView: View {
         goalService: goalService,
         treeScoreService: treeService,
         router: ModelRouter(),
-        modelContext: ctx
+
     )
     .modelContainer(container)
 }

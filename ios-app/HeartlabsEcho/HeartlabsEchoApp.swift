@@ -52,8 +52,7 @@ struct HeartlabsEchoApp: App {
                 summaryService: services.summaryService,
                 goalService: services.goalService,
                 treeScoreService: services.treeScoreService,
-                router: services.router,
-                modelContext: services.modelContainer.mainContext
+                router: services.router
             )
         }
         .modelContainer(services.modelContainer)
