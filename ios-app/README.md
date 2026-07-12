@@ -112,43 +112,57 @@ calls will fail with a "No API key" error until you set them.
 
 ```
 ios-app/
-├── HeartlabsEcho.xcodeproj/     ← Xcode project (open this)
+├── HeartlabsEcho.xcodeproj/        ← Xcode project (open this)
 ├── HeartlabsEcho/
-│   ├── HeartlabsEchoApp.swift   ← @main entry point
-│   ├── ContentView.swift         ← Main UI (chat bubbles + mic button)
-│   ├── ChatMessage.swift         ← Message model & conversation history
-│   ├── ChatViewModel.swift       ← Orchestrates STT → LLM → UI flow
-│   ├── LLMService.swift          ← OpenAI-compatible API client
-│   ├── SpeechRecognizer.swift    ← SFSpeechRecognizer wrapper
-│   ├── system-prompt.md          ← Editable system prompt for the LLM
-│   ├── LLMConfigs.swift          ← Provider mapping (committed, secret-free)
-│   ├── Info.plist                ← Permissions & bundle config + API key refs
-│   └── Assets.xcassets/          ← Accent color & app icon
-├── Secrets.xcconfig.template     ← Template — copy to Secrets.xcconfig
-├── Secrets.xcconfig              ← API keys (gitignored — do not commit)
-├── Package.swift                 ← SPM manifest (for reference)
-├── Scripts/
-│   └── copy-to-host.sh           ← Helper to copy to macOS
-├── PLAN.md                       ← Integration plan & decisions
-└── README.md                     ← This file
-```
-
-## Phase 1 ✅ (Speech-to-text)
-
-- [x] SwiftUI app with microphone button
-- [x] Speech-to-text via `SFSpeechRecognizer`
-- [x] Toggle recording on/off
-- [x] Display transcribed text
-- [x] Proper permission prompts
-- [x] Xcode project ready to open & build
-
-## Phase 2 ✅ (LLM integration)
-
-- [x] DeepSeek / OpenAI-compatible API client (`LLMService.swift`)
-- [x] Chat UI with message bubbles (`ContentView.swift`)
-- [x] Conversation history sent with each request
-- [x] Editable system prompt (`system-prompt.md`)
-- [x] Configurable provider via `Secrets.xcconfig`
-- [x] Typing indicator while waiting for response
-- [x] Error handling with user-friendly messages
+│   ├── HeartlabsEchoApp.swift      ← @main entry point
+│   ├── ContentView.swift           ← Tab shell (Chat, Tree, Calendar, Goals, Settings)
+│   ├── ChatMessage.swift           ← Message & conversation data models
+│   ├── ConversationEngine.swift    ← Orchestrates recording → LLM → UI flow
+│   ├── ConversationService.swift   ← Persistence layer (SwiftData)
+│   ├── ConversationTools.swift     ← LLM tool-call handlers
+│   ├── ConversationUI.swift        ← Chat bubble views
+│   ├── ConversationModeView.swift  ← Conversation mode picker (reflection / coaching / journal)
+│   ├── LLMService.swift            ← OpenAI-compatible API client
+│   ├── LLMConfigs.swift            ← Provider mapping (committed, secret-free)
+│   ├── ModelRouter.swift           ← Routes requests to cheap vs performant tiers
+│   ├── Models.swift                ← Shared model types & DateKey
+│   ├── SummaryService.swift        ← Summary generation & version-based regeneration
+│   ├── Goal.swift                  ← Goal data model
+│   ├── GoalTools.swift             ← Goal CRUD tool definitions
+│   ├── GoalsView.swift             ← Goals list screen
+│   ├── GoalCardView.swift          ← Goal card UI component
+│   ├── GoalDetailSheet.swift       ← Goal detail / edit sheet
+│   ├── Theme.swift                 ← App colour palette & typography
+│   ├── SFSpeechEngine.swift        ← SFSpeechRecognizer wrapper
+│   ├── SpeechAnalyzerEngine.swift  ← Speech analysis & tone detection
+│   ├── TranscriptionEngine.swift   ← Transcription state machine
+│   ├── VoiceComposerSession.swift  ← Voice recording session coordinator
+│   ├── ImageUtils.swift            ← Image save/load helpers
+│   ├── ProfilePictureView.swift    ← Profile picture UI
+│   ├── LocalizationService.swift   ← I18n (en, de, ru)
+│   ├── CalendarView.swift          ← Calendar month grid
+│   ├── CalendarViewModel.swift     ← Calendar state & summary loading
+│   ├── CalendarDayCell.swift       ← Single day cell
+│   ├── LifeTreeModels.swift        ← Tree zone & scoring models
+│   ├── TreeScoreService.swift      ← Tree score computation
+│   ├── TreeView.swift              ← Tree screen with zone detail
+│   ├── TreeViewModel.swift         ← Tree score state
+│   ├── TreeRenderer.swift          ← Leaf rendering (SplitMix64 deterministic)
+│   ├── LoadingCirclesIndicator.swift ← Animated loading indicator
+│   ├── RecentMemoriesGalleryView.swift ← Recent summary gallery
+│   ├── DetailView.swift            ← Detail sheet for a single day
+│   ├── EditProfileView.swift       ← Edit profile settings sheet
+│   ├── anchors.json                ← Tree leaf anchors (manual-sync from tree-pipeline)
+│   ├── system-prompt.md            ← Editable system prompt for the LLM
+│   ├── Info.plist                  ← Permissions & bundle config
+│   ├── Assets.xcassets/            ← Accent colour, app icon, leaf & trunk sprites
+│   ├── de.lproj/                   ← German localization
+│   ├── en.lproj/                   ← English localization
+│   └── ru.lproj/                   ← Russian localization
+├── Secrets.xcconfig.template       ← Template — copy to Secrets.xcconfig
+├── Secrets.xcconfig                ← API keys (gitignored — do not commit)
+├── Package.swift                   ← SPM manifest (for reference)
+├── CONCEPT.md                      ← App concept & philosophy
+├── CROSS_COMPILE.md                ← Cross-compilation notes
+└── README.md                       ← This file
 

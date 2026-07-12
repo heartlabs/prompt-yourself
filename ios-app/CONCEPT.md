@@ -49,7 +49,6 @@ essentially just "calls an LLM API with a conversation history" — about
 
 ### Explicit non-goals (things we are NOT building)
 - Structured journal templates
-- Goal tracking or quest systems
 - Step-by-step coaching methodology
 - "Blank page" reflection prompts
 

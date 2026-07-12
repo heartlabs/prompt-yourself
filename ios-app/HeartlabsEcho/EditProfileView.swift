@@ -133,7 +133,10 @@ struct EditProfileView: View {
         if let path = profilePhotoPath {
             ProfilePicture.save(path)
         } else {
-            // User removed the photo — delete the file before clearing the reference.
+            // No photo was picked in this editing session — save() was called
+            // with profilePhotoPath == nil, which only happens when no photo
+            // was ever selected via the PhotosPicker. Clear the stored reference
+            // and delete the old file to avoid stale disk usage.
             if let oldPath = ProfilePicture.current {
                 ImageUtils.deleteImage(relativePath: oldPath)
             }

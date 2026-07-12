@@ -134,7 +134,7 @@ final class LLMService {
         }
 
         #if DEBUG
-        print("[LLMService] \(configuration.diagnostics) → GET \(url.absoluteString)")
+        print("[LLMService] \(configuration.diagnostics) → POST \(url.absoluteString)")
         #endif
 
         let supportsImages = configuration.supportsImages
