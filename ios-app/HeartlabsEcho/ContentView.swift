@@ -7,10 +7,6 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: ConversationEngine
     @ObservedObject private var loc = LocalizationService.shared
-    @State private var selectedTab = 0
-    /// Prevents `resetToToday` from overriding a conversation that was just
-    /// loaded from the calendar preview.
-    @State private var isNavigatingFromCalendar = false
     /// Whether to show the onboarding sheet (first launch).
     @State private var showOnboarding = !UserName.isSet
 
@@ -44,22 +40,17 @@ struct ContentView: View {
         ))
     }
 
-    /// Custom binding that detects when the "Today" tab is tapped
-    /// even if it's already selected (TabView doesn't fire onChange for that).
-    private var tabBinding: Binding<Int> {
+    /// Custom binding that detects re-taps on the same tab (TabView
+    /// doesn't fire onChange for the currently-selected tab). The engine
+    /// owns the selected tab; the binding forwards user taps as intents.
+    private var tabSelection: Binding<AppTab> {
         Binding {
-            selectedTab
+            viewModel.displayedTab
         } set: { newValue in
-            if newValue == selectedTab && newValue == 0 {
-                // User tapped "Today" while already on it → reset to today
-                isNavigatingFromCalendar = false
-                viewModel.resetToToday()
-            } else if newValue == 0 && !isNavigatingFromCalendar {
-                // Switching to Today from another tab (not from calendar)
-                viewModel.resetToToday()
+            if newValue == viewModel.displayedTab, newValue == .today {
+                viewModel.todayTabTapped()
             }
-            isNavigatingFromCalendar = false
-            selectedTab = newValue
+            viewModel.displayedTab = newValue
         }
     }
 
@@ -67,11 +58,6 @@ struct ContentView: View {
         ZStack {
             tabs
 
-            // Conversation mode covers everything, tab bar included — while
-            // composing, the companion is the whole interface. The overlay is
-            // visible exactly while a composer session exists; it unmounts
-            // when the session terminates and the engine clears it — this
-            // view has no way to dismiss it.
             if let session = viewModel.activeComposition {
                 ConversationModeView(session: session, style: style)
                     .transition(.opacity.combined(with: .scale(scale: 1.03)))
@@ -82,43 +68,37 @@ struct ContentView: View {
     }
 
     private var tabs: some View {
-        TabView(selection: tabBinding) {
-            // Tab 0: Today's conversation
+        TabView(selection: tabSelection) {
             conversationTab
                 .tabItem {
                     Label(loc.localized("today_tab"), systemImage: "leaf.fill")
                 }
-                .tag(0)
+                .tag(AppTab.today)
 
-            // Tab 1: Goals overview
             GoalsView()
                 .tabItem {
                     Label(loc.localized("goals_tab"), systemImage: "target")
                 }
-                .tag(1)
+                .tag(AppTab.goals)
 
-            // Tab 2: Calendar / Journal history
             CalendarView(
                 conversationService: conversationService,
                 summaryService: summaryService,
                 goalService: goalService,
-                onSelectConversation: { dateKey, _ in
-                    isNavigatingFromCalendar = true
-                    viewModel.loadConversation(for: dateKey)
-                    selectedTab = 0
+                onSelectConversation: { dateKey in
+                    viewModel.navigateFromCalendar(to: dateKey)
                 }
             )
             .tabItem {
                 Label(loc.localized("profile_tab"), systemImage: "person")
             }
-                .tag(2)
+            .tag(AppTab.calendar)
 
-            // Tab 3: "Your Life" tree
             TreeView(treeScoreService: treeScoreService)
                 .tabItem {
                     Label(loc.localized("tree_tab"), image: "TreeGlyph")
                 }
-                .tag(3)
+                .tag(AppTab.tree)
         }
         .tint(.sageGreen)
         .sheet(isPresented: $showOnboarding) {
@@ -129,14 +109,8 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
-                // App came to foreground — scroll to bottom if on an active conversation.
-                if selectedTab == 0 {
-                    viewModel.requestScrollToBottomIfActive()
-                }
+                if viewModel.displayedTab == .today { viewModel.todayTabTapped() }
             case .background:
-                // Lock button, app switcher, phone call, etc. — the live
-                // composer session (if any) sends what exists and terminates,
-                // which also closes the overlay.
                 viewModel.handleAppBackground()
             default:
                 break
@@ -144,7 +118,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Conversation Tab
+    // MARK: - Conversation AppTab
 
     private var conversationTab: some View {
         ZStack {
@@ -232,8 +206,7 @@ extension ContentView {
             messages: viewModel.messages,
             isThinking: viewModel.isThinking,
             isRemembering: viewModel.isRemembering,
-            shouldAutoScroll: viewModel.shouldAutoScroll,
-            scrollToBottomCount: viewModel.scrollToBottomCount,
+            scrollIntent: viewModel.scrollIntent,
             style: style
         )
         .safeAreaInset(edge: .bottom, spacing: 0) {

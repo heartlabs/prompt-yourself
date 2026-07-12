@@ -10,6 +10,17 @@ enum ConversationKind: String {
     case journal
 }
 
+// MARK: - AppTab
+
+/// The four root-level tabs. Owned by the engine so tab transitions and
+/// their side effects are a single decision, not two coordinated calls.
+enum AppTab: Hashable {
+    case today
+    case goals
+    case calendar
+    case tree
+}
+
 // MARK: - ChatCompleting
 
 /// Abstraction over the chat-completion backend, so the send pipeline can be
@@ -146,6 +157,10 @@ class ConversationEngine: ObservableObject {
 
     // MARK: - Published State (derived / independent)
 
+    /// The currently selected root tab. Owned by the engine so tab transitions
+    /// are a single decision, not two coordinated view calls.
+    @Published var displayedTab: AppTab = .today
+
     /// All messages in the current conversation (excluding the system prompt).
     @Published private(set) var messages: [ChatMessage] = []
 
@@ -182,11 +197,28 @@ class ConversationEngine: ObservableObject {
     /// (and should therefore be treated as read-only).
     @Published private(set) var isShowingPastConversation = false
 
-    /// Whether the chat should auto-scroll to the bottom on new messages.
-    @Published private(set) var shouldAutoScroll = false
+    // MARK: - Scroll
 
-    /// Monotonically increasing counter bumped to request a scroll-to-bottom.
-    @Published private(set) var scrollToBottomCount = 0
+    /// A single published scroll intent — the view observes this with ONE
+    /// `onChange` handler. Setting a new value always replaces the old one,
+    /// so duplicate intents (same case) are still delivered as change events.
+    enum ScrollIntent: Equatable {
+        case bottom   // scroll to the bottom anchor
+        case typing   // scroll to the typing indicator
+    }
+
+    /// The current scroll request. The view consumes it via `onChange`.
+    @Published private(set) var scrollIntent: ScrollIntent?
+
+    /// Posts a scroll intent, bumping the value so duplicate intents still fire.
+    private func requestScroll(_ intent: ScrollIntent) {
+        scrollIntent = nil
+        scrollIntent = intent
+    }
+
+    /// Whether the user has sent a message — auto-scroll is active from first
+    /// composition until a past conversation is loaded.
+    private var conversationIsActive = false
 
     // MARK: - Configuration & Dependencies
 
@@ -257,11 +289,11 @@ class ConversationEngine: ObservableObject {
     private func adopt(_ conversation: Conversation) {
         currentConversation = conversation
         updatePastConversationFlag()
-        shouldAutoScroll = false
+        conversationIsActive = false
         messages = conversation.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .map { ChatMessage(from: $0) }
-        requestScrollToBottomIfActive()
+        if !isShowingPastConversation { requestScroll(.bottom) }
     }
 
     // MARK: - Public API
@@ -286,16 +318,27 @@ class ConversationEngine: ObservableObject {
         // No conversation for today — show the start screen.
         currentConversation = nil
         updatePastConversationFlag()
-        shouldAutoScroll = false
+        conversationIsActive = false
         messages = []
         finishReset()
     }
 
-    /// Bumps `scrollToBottomCount` when the conversation is active (not a
-    /// read-only past entry).
-    func requestScrollToBottomIfActive() {
-        guard !isShowingPastConversation else { return }
-        scrollToBottomCount += 1
+    /// Called when the Today tab is tapped. Resets to today if showing a past
+    /// conversation; otherwise requests a scroll to bottom.
+    func todayTabTapped() {
+        guard phase == .idle else { return }
+        if isShowingPastConversation {
+            resetToToday()
+        } else {
+            requestScroll(.bottom)
+        }
+    }
+
+    /// Loads a past conversation from the calendar and switches to the Today
+    /// tab. The engine owns the tab decision — no view-side coordination needed.
+    func navigateFromCalendar(to dateKey: String) {
+        loadConversation(for: dateKey)
+        displayedTab = .today
     }
 
     private func finishReset() {
@@ -304,13 +347,13 @@ class ConversationEngine: ObservableObject {
 
     /// Loads a past conversation by its date key (read-only; no auto-scroll).
     /// No-op while the engine is busy (composing, thinking, or calling a tool).
-    func loadConversation(for dateKey: String) {
+    private func loadConversation(for dateKey: String) {
         guard phase == .idle else { return }
         guard let conversation = conversationService.loadConversation(dateKey: dateKey, kind: configuration.kind) else { return }
 
         currentConversation = conversation
         updatePastConversationFlag()
-        shouldAutoScroll = false
+        conversationIsActive = false
         messages = conversation.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .map { ChatMessage(from: $0) }
@@ -326,7 +369,7 @@ class ConversationEngine: ObservableObject {
     /// No-op while the engine is not idle or a past conversation is shown.
     func beginComposition() {
         guard phase == .idle, !isShowingPastConversation else { return }
-        shouldAutoScroll = true
+        conversationIsActive = true
         let session = VoiceComposerSession { [weak self] outcome in
             self?.compositionDidFinish(outcome)
         }
@@ -357,6 +400,7 @@ class ConversationEngine: ObservableObject {
             OrbCoachmark.recordCompositionSent()
             let targetID = conversation.id
             phase = .thinking(conversationID: targetID)
+            requestScroll(.typing)
             Task { await sendToLLM(on: conversation, targetID: targetID) }
         case .cancelled:
             phase = .idle
@@ -444,7 +488,8 @@ class ConversationEngine: ObservableObject {
             messages.append(message)
             persistMessage(role: .user, content: message.content, id: message.id, timestamp: message.timestamp)
         }
-        shouldAutoScroll = true
+        requestScroll(.bottom)
+        conversationIsActive = true
         return true
     }
 
@@ -458,7 +503,7 @@ class ConversationEngine: ObservableObject {
     /// captured identity — a stale result from a superseded conversation
     /// can never write messages or phase transitions (P0.1).
     private func sendToLLM(on conversation: Conversation, targetID: UUID) async {
-        shouldAutoScroll = true
+        conversationIsActive = true
 
         // Pre-load image data for any image messages in the history.
         var imageData: [UUID: Data] = [:]
@@ -510,6 +555,7 @@ class ConversationEngine: ObservableObject {
                 case .toolCalls(let toolCalls):
                     didAttemptToolCall = true
                     phase = .callingTool(conversationID: targetID)
+                    requestScroll(.typing)
                     let toolCallStart = Date()
 
                     // Append assistant tool-call message to LLM history (OpenAI spec).
@@ -535,6 +581,7 @@ class ConversationEngine: ObservableObject {
                     // Re-validate after tool execution — the world changes.
                     guard case .callingTool(let id) = phase, id == targetID else { return }
                     phase = .thinking(conversationID: targetID)
+                    requestScroll(.typing)
                 }
             }
 
@@ -558,6 +605,7 @@ class ConversationEngine: ObservableObject {
 
             let assistantMessage = ChatMessage(role: .assistant, content: assistantContent)
             messages.append(assistantMessage)
+            requestScroll(.bottom)
             conversationService.addMessage(
                 to: conversation,
                 id: assistantMessage.id,
@@ -575,6 +623,7 @@ class ConversationEngine: ObservableObject {
             #endif
             let errorMessage = ChatMessage(role: .assistant, content: "⚠️ \(error.localizedDescription)")
             messages.append(errorMessage)
+            requestScroll(.bottom)
             conversationService.addMessage(
                 to: conversation,
                 id: errorMessage.id,

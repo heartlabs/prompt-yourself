@@ -10,12 +10,12 @@ struct CalendarView: View {
 
     /// Called when the user taps a daily preview card to switch to the
     /// appropriate conversation view and load the selected day's entries.
-    var onSelectConversation: ((_ dateKey: String, _ kind: ConversationKind) -> Void)?
+    var onSelectConversation: ((_ dateKey: String) -> Void)?
 
     init(conversationService: ConversationService,
          summaryService: SummaryService,
          goalService: GoalService,
-         onSelectConversation: ((String, ConversationKind) -> Void)? = nil) {
+         onSelectConversation: ((String) -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: CalendarViewModel(
             conversationService: conversationService,
             summaryService: summaryService,
@@ -274,7 +274,7 @@ struct CalendarView: View {
                     SectionTitle(text: preview.dateLabel)
 
                     Button(action: {
-                        onSelectConversation?(preview.dateKey, .journal)
+                        onSelectConversation?(preview.dateKey)
                     }) {
                         previewCard(preview: preview)
                     }

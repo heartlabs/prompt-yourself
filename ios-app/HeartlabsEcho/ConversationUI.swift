@@ -277,8 +277,7 @@ struct ConversationTranscriptView: View {
     let messages: [ChatMessage]
     let isThinking: Bool
     let isRemembering: Bool
-    let shouldAutoScroll: Bool
-    let scrollToBottomCount: Int
+    let scrollIntent: ConversationEngine.ScrollIntent?
     let style: ConversationStyle
 
     @State private var fullscreenPhotoPath: String? = nil
@@ -316,17 +315,16 @@ struct ConversationTranscriptView: View {
             // the input bar instead of leaving a gap beneath the greeting.
             .defaultScrollAnchor(.bottom)
             .frame(maxHeight: .infinity)
-            .onChange(of: messages.count) { _, _ in
-                if shouldAutoScroll { scrollToBottom(proxy) }
-            }
-            .onChange(of: isThinking) { _, _ in
-                if isThinking { scrollToBottom(proxy) }
-            }
-            .onChange(of: shouldAutoScroll) { _, newValue in
-                if newValue { scrollToBottom(proxy) }
-            }
-            .onChange(of: scrollToBottomCount) { _, _ in
-                scrollToBottom(proxy)
+            .onChange(of: scrollIntent) { _, intent in
+                guard let intent else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    switch intent {
+                    case .bottom:
+                        proxy.scrollTo("scroll_bottom", anchor: .bottom)
+                    case .typing:
+                        proxy.scrollTo("typing", anchor: .bottom)
+                    }
+                }
             }
         }
 
@@ -340,16 +338,6 @@ struct ConversationTranscriptView: View {
             }
         }
 }
-
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.2)) {
-            if isThinking {
-                proxy.scrollTo("typing", anchor: .bottom)
-            } else {
-                proxy.scrollTo("scroll_bottom", anchor: .bottom)
-            }
-        }
-    }
 }
 
 // MARK: - Full-Screen Photo Viewer

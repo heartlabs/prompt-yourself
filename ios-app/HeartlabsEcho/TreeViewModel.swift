@@ -15,6 +15,7 @@ final class TreeViewModel: ObservableObject {
     }()
 
     private let service: TreeScoreService
+    private var reloadTask: Task<Void, Never>?
 
     init(treeScoreService: TreeScoreService) {
         self.service = treeScoreService
@@ -22,21 +23,26 @@ final class TreeViewModel: ObservableObject {
 
     /// Loads the tree on first appearance (cache-aware).
     /// Skips if already loaded or currently loading.
-    func loadIfNeeded() async {
+    func loadIfNeeded() {
         if case .ready = state { return }
         if case .error = state { return }
-        await reload(force: false)
+        reload(force: false)
     }
 
     /// Recomputes, bypassing the cache (pull-to-refresh).
-    func refresh() async {
-        await reload(force: true)
+    func refresh() {
+        reload(force: true)
     }
 
-    private func reload(force: Bool) async {
+    private func reload(force: Bool) {
+        reloadTask?.cancel()
         if force { state = .loading }
-        let result = await service.loadOrCompute(force: force)
-        state = result
+        reloadTask = Task { [weak self] in
+            guard let self else { return }
+            let result = await service.loadOrCompute(force: force)
+            guard !Task.isCancelled else { return }
+            state = result
+        }
     }
 
     // MARK: - Derived display helpers

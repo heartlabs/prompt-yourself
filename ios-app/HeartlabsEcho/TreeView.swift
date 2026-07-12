@@ -44,7 +44,7 @@ struct TreeView: View {
         }
         .preferredColorScheme(.light)
         .task {
-            await viewModel.loadIfNeeded()
+            viewModel.loadIfNeeded()
         }
         .sheet(item: $selected) { sel in
             CategoryDetailSheet(category: sel.category, score: sel.score)
@@ -135,7 +135,7 @@ struct TreeView: View {
                 .font(.echoBody)
                 .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
-            Button { Task { await viewModel.refresh() } } label: {
+            Button { viewModel.refresh() } label: {
                 Text(loc.localized("try_again"))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
