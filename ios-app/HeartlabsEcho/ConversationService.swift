@@ -17,13 +17,6 @@ final class ConversationService {
 
     // MARK: - Public API
 
-    /// The date key for today, e.g. `"2026-06-13"`.
-    static var todayDateKey: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
-    }
-
     /// Fetches all date keys that have at least one conversation of the given kind.
     ///
     /// - Parameter kind: The conversation kind to scope to (e.g. `.journal`).
@@ -68,7 +61,7 @@ final class ConversationService {
     /// - Parameter kind: The conversation kind to scope to (e.g. `.journal`).
     /// - Returns: The `Conversation` if one exists for today+kind, or `nil`.
     func loadTodayConversation(kind: ConversationKind) -> Conversation? {
-        let key = Self.todayDateKey
+        let key = DateKey.today
         let kindRaw = kind.rawValue
         let predicate = #Predicate<Conversation> { $0.dateKey == key && $0.kind == kindRaw }
         let descriptor = FetchDescriptor<Conversation>(predicate: predicate)
@@ -94,7 +87,7 @@ final class ConversationService {
         if let existing = loadTodayConversation(kind: kind) {
             return existing
         }
-        let conversation = Conversation(dateKey: Self.todayDateKey)
+        let conversation = Conversation(dateKey: DateKey.today)
         conversation.kind = kind.rawValue
         modelContext.insert(conversation)
         saveChanges()
@@ -125,11 +118,11 @@ final class ConversationService {
     ///   - days: Number of days to look back.
     /// - Returns: An array of `Conversation` objects (only days with a saved conversation of that kind).
     func fetchRecentConversations(kind: ConversationKind, days: Int) -> [Conversation] {
-        let todayKey = Self.todayDateKey
+        let todayKey = DateKey.today
         return (1 ... days)
             .compactMap { offset in
                 guard let date = Calendar.current.date(byAdding: .day, value: -offset, to: Date()) else { return nil }
-                let key = Conversation.dateKey(for: date)
+                let key = DateKey.from(date)
                 guard key != todayKey else { return nil }
                 return loadConversation(dateKey: key, kind: kind)
             }

@@ -219,7 +219,7 @@ final class CalendarViewModel: ObservableObject {
             return
         }
 
-        let dateKey = Self.dateKey(for: date)
+        let dateKey = DateKey.from(date)
         previewState = .generating
 
         let result = await buildPreview(for: date, dateKey: dateKey, service: service)
@@ -296,7 +296,7 @@ final class CalendarViewModel: ObservableObject {
             // has already selected a different date.
             guard !Task.isCancelled,
                   let selected = selectedDate,
-                  Self.dateKey(for: selected) == dateKey else { return nil }
+                  DateKey.from(selected) == dateKey else { return nil }
 
             return ConversationPreview(
                 dateKey: dateKey,
@@ -339,12 +339,6 @@ final class CalendarViewModel: ObservableObject {
         return (raw + 5) % 7
     }
 
-    /// Formats a date as a key string, e.g. `"2026-06-13"`.
-    static func dateKey(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
 
     /// Formats a date for the preview label.
     ///     Today → `"Today, June 14"`

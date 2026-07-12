@@ -38,7 +38,7 @@ final class TreeScoreService {
     /// Returns the cached score when valid, otherwise computes a fresh one.
     /// - Parameter force: when `true`, bypasses the cache (used by pull-to-refresh).
     func loadOrCompute(force: Bool = false) async -> TreeState {
-        let today = ConversationService.todayDateKey
+        let today = DateKey.today
         let entries = gatherEntries()
         let signature = inputSignature(for: entries)
 

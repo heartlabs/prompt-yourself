@@ -223,7 +223,7 @@ class ConversationEngine: ObservableObject {
             return
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let conversation = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday), kind: configuration.kind),
+           let conversation = service.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
            conversation.hasRecentActivity {
             adopt(conversation)
             return
@@ -255,7 +255,7 @@ class ConversationEngine: ObservableObject {
             return
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let conversation = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday), kind: configuration.kind),
+           let conversation = service.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
            conversation.hasRecentActivity {
             adopt(conversation)
             finishReset()
@@ -364,7 +364,7 @@ class ConversationEngine: ObservableObject {
             return existing
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let existing = service.loadConversation(dateKey: Conversation.dateKey(for: yesterday), kind: configuration.kind),
+           let existing = service.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
            existing.hasRecentActivity {
             currentConversation = existing
             return existing

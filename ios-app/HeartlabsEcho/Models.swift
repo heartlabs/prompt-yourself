@@ -1,6 +1,26 @@
 import Foundation
 import SwiftData
 
+// MARK: - DateKey
+
+/// A locale-safe, Gregorian-calendar date key (e.g. "2026-06-13").
+/// Pinning the calendar prevents silent forking on non-Gregorian devices.
+enum DateKey {
+    /// Returns the date key string for today.
+    static var today: String {
+        from(Date())
+    }
+
+    /// Returns the date key string for a given date.
+    static func from(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+}
+
 // MARK: - Conversation
 
 /// A single day's conversation, keyed by date.
@@ -55,7 +75,7 @@ final class Conversation {
 
     /// Whether this conversation belongs to today.
     var isToday: Bool {
-        dateKey == Self.dateKey(for: Date())
+        dateKey == DateKey.today
     }
 
     /// The typed conversation kind, decoded from the stored raw value.
@@ -65,12 +85,6 @@ final class Conversation {
         ConversationKind(rawValue: kind) ?? .journal
     }
 
-    /// Returns the date key string for a given date (e.g. "2026-06-13").
-    static func dateKey(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
 }
 
 // MARK: - Message

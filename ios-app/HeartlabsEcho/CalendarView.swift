@@ -438,8 +438,8 @@ struct CalendarView: View {
         let daysInMonth = CalendarViewModel.daysInMonth(month)
         let offset = CalendarViewModel.firstWeekdayOffset(month)
         let today = Date()
-        let todayKey = CalendarViewModel.dateKey(for: today)
-        let selectedKey = viewModel.selectedDate.map { CalendarViewModel.dateKey(for: $0) }
+        let todayKey = DateKey.from(today)
+        let selectedKey = viewModel.selectedDate.map { DateKey.from($0) }
 
         var days: [CalendarDay] = []
         var idCounter = 0
@@ -466,7 +466,7 @@ struct CalendarView: View {
                 day: day
             ))!
 
-            let dateKey = CalendarViewModel.dateKey(for: date)
+            let dateKey = DateKey.from(date)
             let isSelected = selectedKey == dateKey
             let hasEntry = viewModel.datesWithEntries.contains(dateKey)
             let isToday = dateKey == todayKey

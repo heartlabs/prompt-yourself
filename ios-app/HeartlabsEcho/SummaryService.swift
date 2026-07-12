@@ -160,7 +160,7 @@ final class SummaryService {
     ///
     /// - Parameter lookbackDays: How many days to scan (default: 30).
     func backfillOldVersions(lookbackDays: Int = 30) async {
-        let todayKey = ConversationService.todayDateKey
+        let todayKey = DateKey.today
         let allKeys = conversationService.fetchAllDateKeys(kind: kind)
             .filter { $0 != todayKey }
             .sorted(by: >)  // most recent first
