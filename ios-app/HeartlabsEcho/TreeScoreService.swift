@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // MARK: - Tree State
@@ -19,14 +20,24 @@ enum TreeState: Equatable {
 /// - Rebuild **at most once per day**, and **only when a new past entry exists**.
 /// - Malformed LLM output → retry once → otherwise an error state with no tree.
 /// - No/low data → an all-zero score (the intended budding tree), no LLM call.
+/// - Cache version mismatch → full rebuild (bump `currentVersion` to
+///   invalidate all existing caches, e.g. after a prompt change).
 @MainActor
 final class TreeScoreService {
+
+    /// Bump to invalidate all existing cached scores (prompt changes,
+    /// scoring-model changes, etc.).
+    static let currentVersion = 1
+
     private let conversationService: ConversationService
     private let router: ModelRouter
 
     private let lookbackDays = 30
     private let maxEntries = 10
     private let cacheKey = "tree_score_cache_v1"
+
+    /// Guards against concurrent `loadOrCompute` calls.
+    private var inFlightTask: Task<TreeState, Never>?
 
     init(conversationService: ConversationService, router: ModelRouter = ModelRouter()) {
         self.conversationService = conversationService
@@ -36,44 +47,64 @@ final class TreeScoreService {
     // MARK: - Public API
 
     /// Returns the cached score when valid, otherwise computes a fresh one.
+    /// Single-flight: if already loading, returns the in-flight task's result.
     /// - Parameter force: when `true`, bypasses the cache (used by pull-to-refresh).
     func loadOrCompute(force: Bool = false) async -> TreeState {
-        let today = DateKey.today
-        let entries = gatherEntries()
-        let signature = inputSignature(for: entries)
+        // Reuse the in-flight computation if one is already running.
+        if let existing = inFlightTask {
+            return await existing.value
+        }
 
-        // Cache check.
-        if !force, let cached = loadCache() {
-            // Already computed today → at most once per day.
-            if cached.computedDate == today {
-                return .ready(cached)
+        let task = Task { () -> TreeState in
+            let today = DateKey.today
+            let entries = gatherEntries()
+            let signature = inputSignature(for: entries)
+
+            // Cache check.
+            if !force, let cached = loadCache() {
+                // Version mismatch → invalidate and rebuild.
+                if (cached.version ?? 0) >= Self.currentVersion {
+                    // Already computed today → at most once per day.
+                    if cached.computedDate == today {
+                        return .ready(cached)
+                    }
+                    // New day but no new past entry → keep cached scores.
+                    if cached.inputSignature == signature {
+                        var refreshed = cached
+                        refreshed.computedDate = today
+                        saveCache(refreshed)
+                        return .ready(refreshed)
+                    }
+                }
             }
-            // New day but no new past entry → keep the cached scores, just
-            // refresh the date so we don't recompute again until inputs change.
-            if cached.inputSignature == signature {
-                var refreshed = cached
-                refreshed.computedDate = today
-                saveCache(refreshed)
-                return .ready(refreshed)
+
+            // No data → the genuine near-empty growing tree (no API call).
+            if entries.isEmpty {
+                let empty = TreeScore.empty(computedDate: today, inputSignature: signature)
+                saveCache(empty)
+                return .ready(empty)
+            }
+
+            // Compute via the LLM (retry once on malformed output).
+            do {
+                let scores = try await computeScores(from: entries)
+                let result = TreeScore(
+                    scores: scores,
+                    computedDate: today,
+                    inputSignature: signature,
+                    version: Self.currentVersion
+                )
+                saveCache(result)
+                return .ready(result)
+            } catch {
+                return .error(treeErrorMessage(error))
             }
         }
 
-        // No data → the genuine near-empty growing tree (no API call).
-        if entries.isEmpty {
-            let empty = TreeScore.empty(computedDate: today, inputSignature: signature)
-            saveCache(empty)
-            return .ready(empty)
-        }
-
-        // Compute via the LLM (retry once on malformed output).
-        do {
-            let scores = try await computeScores(from: entries)
-            let result = TreeScore(scores: scores, computedDate: today, inputSignature: signature)
-            saveCache(result)
-            return .ready(result)
-        } catch {
-            return .error(treeErrorMessage(error))
-        }
+        inFlightTask = task
+        let result = await task.value
+        inFlightTask = nil
+        return result
     }
 
     // MARK: - Gathering entries
@@ -106,12 +137,15 @@ final class TreeScoreService {
         return entries
     }
 
-    /// A signature of the inputs; changes when a new past entry exists or a
-    /// day's available text changes (e.g. a summary was generated since).
+    /// A content-based signature using SHA256 so same-length regenerated text
+    /// correctly invalidates the cache.
     private func inputSignature(for entries: [Entry]) -> String {
-        entries
-            .map { "\($0.dateKey):\($0.usedSummary ? "s" : "t"):\($0.text.count)" }
+        let raw = entries
+            .map { "\($0.dateKey):\($0.usedSummary ? "s" : "t"):\($0.text)" }
             .joined(separator: "|")
+        return Data(SHA256.hash(data: Data(raw.utf8))).prefix(16).map {
+            String(format: "%02x", $0)
+        }.joined()
     }
 
     // MARK: - LLM scoring
@@ -127,6 +161,7 @@ final class TreeScoreService {
         // Attempt + one retry on malformed output.
         var lastError: Error = TreeScoreError.malformed
         for attempt in 0..<2 {
+            try Task.checkCancellation()
             do {
                 let response = try await router.sendMessages(request, tier: .cheap, jsonMode: true)
                 guard case .text(let content) = response else {
@@ -137,6 +172,8 @@ final class TreeScoreService {
                     return scores
                 }
                 lastError = TreeScoreError.malformed
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 lastError = error
             }

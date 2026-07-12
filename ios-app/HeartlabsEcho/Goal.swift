@@ -45,15 +45,18 @@ enum GoalError: LocalizedError {
     case maxOpenGoalsReached
     case notFound
     case invalidTarget(String)
+    case invalidProgress(String)
 
     var errorDescription: String? {
         switch self {
         case .maxOpenGoalsReached:
-            return "You already have 5 open goals. Close or delete one before creating a new goal."
+            return "You already have \(GoalService.maxOpenGoals) open goals. Close or delete one before creating a new goal."
         case .notFound:
             return "Goal not found."
         case .invalidTarget(let detail):
             return "Invalid goal target: \(detail)"
+        case .invalidProgress(let detail):
+            return "Invalid progress value: \(detail)"
         }
     }
 }
@@ -64,6 +67,9 @@ enum GoalError: LocalizedError {
 @MainActor
 final class GoalService {
     private let modelContext: ModelContext
+
+    /// Maximum number of open goals allowed at once.
+    static let maxOpenGoals = 5
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -130,7 +136,7 @@ final class GoalService {
     /// Target must be > 0.
     @discardableResult
     func createGoal(title: String, description: String, targetProgress: Int, unit: String) throws -> Goal {
-        guard openGoalCount() < 5 else {
+        guard openGoalCount() < Self.maxOpenGoals else {
             throw GoalError.maxOpenGoalsReached
         }
         guard targetProgress > 0 else {
@@ -150,6 +156,7 @@ final class GoalService {
 
     /// Update any subset of fields on a goal. At least one field must be provided.
     /// Throws `.notFound` if no goal exists for the given id.
+    /// Validates target > 0 and current ≥ 0 on every write.
     @discardableResult
     func updateGoal(
         id: UUID,
@@ -161,6 +168,14 @@ final class GoalService {
     ) throws -> Goal {
         guard let goal = findGoal(byId: id) else {
             throw GoalError.notFound
+        }
+
+        // Validate progress invariants on every mutation, same as createGoal.
+        if let tp = targetProgress, tp <= 0 {
+            throw GoalError.invalidTarget("Target must be greater than 0.")
+        }
+        if let cp = currentProgress, cp < 0 {
+            throw GoalError.invalidProgress("Current progress cannot be negative.")
         }
 
         if let title = title { goal.title = title }

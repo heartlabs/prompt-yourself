@@ -137,7 +137,12 @@ struct LifeCategory: Identifiable {
     ]
 
     static func forZone(_ zone: TreeZone) -> LifeCategory {
-        all.first { $0.zone == zone }!
+        switch zone {
+        case .UL: return all[0]
+        case .UR: return all[1]
+        case .LL: return all[2]
+        case .LR: return all[3]
+        }
     }
 }
 
@@ -150,8 +155,11 @@ struct TreeScore: Codable, Equatable {
     var scores: [String: Int]
     /// The date key (yyyy-MM-dd) this score was computed on.
     var computedDate: String
-    /// A signature of the input entries; a change means a new past entry exists.
+    /// A content hash of the input entries; a change means new past data exists.
     var inputSignature: String
+    /// The version of TreeScoreService that produced this score.
+    /// nil / 0 means unversioned (pre-versioning cache) and is treated as stale.
+    var version: Int?
 
     func score(_ zone: TreeZone) -> Int {
         max(0, min(100, scores[zone.rawValue] ?? 0))
@@ -166,7 +174,8 @@ struct TreeScore: Codable, Equatable {
         TreeScore(
             scores: Dictionary(uniqueKeysWithValues: TreeZone.allCases.map { ($0.rawValue, 0) }),
             computedDate: computedDate,
-            inputSignature: inputSignature
+            inputSignature: inputSignature,
+            version: TreeScoreService.currentVersion
         )
     }
 }

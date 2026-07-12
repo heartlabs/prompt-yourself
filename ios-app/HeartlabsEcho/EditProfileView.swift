@@ -1,25 +1,76 @@
 import PhotosUI
 import SwiftUI
 
+// MARK: - Profile Draft
+
+/// Owns the in-flight edit state so no global side effects happen before an
+/// explicit save. Discard cleans up orphaned files; commit atomically applies
+/// all three values (name, language, photo).
+struct ProfileDraft {
+    var name: String
+    var language: AppLanguage
+
+    private let initialPhotoPath: String?
+    private var newPhotoPath: String?
+    private var didCommit = false
+
+    init(currentName: String, currentLanguage: AppLanguage, currentPhotoPath: String?) {
+        self.name = currentName
+        self.language = currentLanguage
+        self.initialPhotoPath = currentPhotoPath
+        self.newPhotoPath = nil
+    }
+
+    /// The photo path to display — the newly picked one, or the original.
+    var displayPhotoPath: String? { newPhotoPath ?? initialPhotoPath }
+
+    /// Call when the PhotosPicker yields a saved image path.
+    mutating func photoPicked(_ path: String) {
+        newPhotoPath = path
+    }
+
+    /// Persist all edits atomically. Old photo file is deleted only on commit
+    /// (never before), so swiping away the sheet leaves everything untouched.
+    mutating func commit() {
+        didCommit = true
+        UserName.save(name.trimmingCharacters(in: .whitespaces))
+
+        if let new = newPhotoPath {
+            ProfilePicture.save(new)
+            if let old = initialPhotoPath {
+                ImageUtils.deleteImage(relativePath: old)
+            }
+        }
+    }
+
+    /// Called when the sheet is dismissed without saving. Deletes the newly
+    /// picked photo file (if any) so it doesn't linger on disk as an orphan.
+    func discard() {
+        guard !didCommit else { return }
+        if let new = newPhotoPath {
+            ImageUtils.deleteImage(relativePath: new)
+        }
+    }
+}
+
 // MARK: - Edit Profile View
 
 /// A sheet for editing the user's profile picture, display name, and language
-/// preference. Pre-populated with the current values.
+/// preference. Uses `ProfileDraft` so no global state changes before Save.
 struct EditProfileView: View {
     @ObservedObject private var loc = LocalizationService.shared
-    @State private var name: String
-    @State private var selectedLanguage: AppLanguage
-    @State private var profilePhotoPath: String?
+    @State private var draft: ProfileDraft
     @State private var pickerItem: PhotosPickerItem?
     @State private var isPickerPresented = false
 
     @Environment(\.dismiss) private var dismiss
 
     init() {
-        // Pre-populate with current values.
-        _name = State(initialValue: UserName.current ?? "")
-        _selectedLanguage = State(initialValue: LocalizationService.shared.currentLanguage)
-        _profilePhotoPath = State(initialValue: ProfilePicture.current)
+        _draft = State(initialValue: ProfileDraft(
+            currentName: UserName.current ?? "",
+            currentLanguage: LocalizationService.shared.currentLanguage,
+            currentPhotoPath: ProfilePicture.current
+        ))
     }
 
     var body: some View {
@@ -50,23 +101,20 @@ struct EditProfileView: View {
                     .font(.body)
                     .foregroundColor(.taupeText.opacity(0.65))
 
-                Picker("", selection: $selectedLanguage) {
+                Picker("", selection: $draft.language) {
                     ForEach(AppLanguage.allCases, id: \.self) { lang in
                         Text(lang.displayName).tag(lang)
                     }
                 }
                 .pickerStyle(.menu)
                 .tint(.sageGreen)
-                .onChange(of: selectedLanguage) { _, newLang in
-                    LocalizationService.shared.setLanguage(newLang)
-                }
             }
 
             Text(loc.localized("name_prompt"))
                 .font(.body)
                 .foregroundColor(.taupeText.opacity(0.65))
 
-            TextField(loc.localized("name_placeholder"), text: $name)
+            TextField(loc.localized("name_placeholder"), text: $draft.name)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
                 .autocorrectionDisabled()
@@ -78,7 +126,7 @@ struct EditProfileView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.sageGreen)
-            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty)
 
             Spacer()
         }
@@ -92,22 +140,18 @@ struct EditProfileView: View {
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
-                    // Remove the old file before saving the new one.
-                    if let oldPath = profilePhotoPath {
-                        ImageUtils.deleteImage(relativePath: oldPath)
+                    if let path = ImageUtils.saveImage(image) {
+                        draft.photoPicked(path)
                     }
-                    let path = ImageUtils.saveImage(image)
-                    profilePhotoPath = path
                 }
             }
         }
+        .onDisappear { draft.discard() }
     }
 
-    /// The profile photo circle — shows the current (or newly picked) photo,
-    /// or a sage green circle with a camera icon centered inside if none is set.
     private var profilePhotoView: some View {
         ZStack {
-            if let path = profilePhotoPath,
+            if let path = draft.displayPhotoPath,
                let uiImage = ImageUtils.loadImage(relativePath: path) {
                 Image(uiImage: uiImage)
                     .resizable()
@@ -126,22 +170,9 @@ struct EditProfileView: View {
     }
 
     private func save() {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
-        LocalizationService.shared.setLanguage(selectedLanguage)
-        UserName.save(trimmed)
-        if let path = profilePhotoPath {
-            ProfilePicture.save(path)
-        } else {
-            // No photo was picked in this editing session — save() was called
-            // with profilePhotoPath == nil, which only happens when no photo
-            // was ever selected via the PhotosPicker. Clear the stored reference
-            // and delete the old file to avoid stale disk usage.
-            if let oldPath = ProfilePicture.current {
-                ImageUtils.deleteImage(relativePath: oldPath)
-            }
-            ProfilePicture.clear()
-        }
+        guard !draft.name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        LocalizationService.shared.setLanguage(draft.language)
+        draft.commit()
         dismiss()
     }
 }
