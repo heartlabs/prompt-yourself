@@ -105,6 +105,7 @@ final class SpeechRecognizer: ObservableObject {
 
     /// Begin listening and transcribing.
     func startTranscribing() {
+        transcript = ""
         recognitionError = nil
 
         if let impl {
