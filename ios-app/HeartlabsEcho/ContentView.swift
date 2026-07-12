@@ -262,6 +262,13 @@ extension ContentView {
                             .font(.echoMicroLabel)
                             .foregroundColor(.textTertiary)
                     }
+
+                    #if DEBUG
+                    Text(viewModel.recognizer.activeEngineName == "…"
+                         ? "" : "STT: \(viewModel.recognizer.activeEngineName)")
+                        .font(.system(size: 9, weight: .regular, design: .monospaced))
+                        .foregroundColor(.textTertiary.opacity(0.5))
+                    #endif
                 }
                 .padding(.bottom, Theme.Spacing.xs)
             }
@@ -330,6 +337,7 @@ struct OnboardingView: View {
             TextField(loc.localized("name_placeholder"), text: $name)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
+                .autocorrectionDisabled()
                 .frame(maxWidth: 240)
                 .onSubmit(submit)
 

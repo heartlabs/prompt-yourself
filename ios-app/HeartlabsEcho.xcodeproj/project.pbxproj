@@ -44,6 +44,9 @@
 		AAA00135 /* ru.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AAA00132 /* ru */; };
 		AAA00137 /* LocalizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00136 /* LocalizationService.swift */; };
 		AAA00418 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00419 /* EditProfileView.swift */; };
+		AAA00425 /* SpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00422 /* SpeechTranscriber.swift */; };
+		AAA00426 /* SFSpeechRecognizerImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00423 /* SFSpeechRecognizerImpl.swift */; };
+		AAA00427 /* SpeechAnalyzerImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00424 /* SpeechAnalyzerImpl.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -88,6 +91,9 @@
 		AAA00132 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
 		AAA00136 /* LocalizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationService.swift; sourceTree = "<group>"; };
 		AAA00419 /* EditProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProfileView.swift; sourceTree = "<group>"; };
+		AAA00422 /* SpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriber.swift; sourceTree = "<group>"; };
+		AAA00423 /* SFSpeechRecognizerImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFSpeechRecognizerImpl.swift; sourceTree = "<group>"; };
+		AAA00424 /* SpeechAnalyzerImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechAnalyzerImpl.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -139,6 +145,9 @@
 				AAA00008 /* Assets.xcassets */,
 				AAA00136 /* LocalizationService.swift */,
 				AAA00419 /* EditProfileView.swift */,
+				AAA00422 /* SpeechTranscriber.swift */,
+				AAA00423 /* SFSpeechRecognizerImpl.swift */,
+				AAA00424 /* SpeechAnalyzerImpl.swift */,
 				AAA00130 /* en */,
 				AAA00131 /* de */,
 				AAA00132 /* ru */,
@@ -260,6 +269,9 @@
 				AAA00417 /* GoalDetailSheet.swift in Sources */,
 				AAA00137 /* LocalizationService.swift in Sources */,
 				AAA00418 /* EditProfileView.swift in Sources */,
+				AAA00425 /* SpeechTranscriber.swift in Sources */,
+				AAA00426 /* SFSpeechRecognizerImpl.swift in Sources */,
+				AAA00427 /* SpeechAnalyzerImpl.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -69,6 +69,7 @@ struct EditProfileView: View {
             TextField(loc.localized("name_placeholder"), text: $name)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
+                .autocorrectionDisabled()
                 .frame(maxWidth: 240)
                 .onSubmit(save)
 
