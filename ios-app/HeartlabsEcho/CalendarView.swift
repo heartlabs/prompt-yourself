@@ -6,12 +6,25 @@ import SwiftUI
 /// The calendar tab view containing the month grid and daily preview section.
 struct CalendarView: View {
     @ObservedObject private var loc = LocalizationService.shared
-    @StateObject private var viewModel = CalendarViewModel()
-    @Environment(\.modelContext) private var modelContext
+    @StateObject private var viewModel: CalendarViewModel
 
     /// Called when the user taps a daily preview card to switch to the
     /// appropriate conversation view and load the selected day's entries.
     var onSelectConversation: ((_ dateKey: String, _ kind: ConversationKind) -> Void)?
+
+    init(conversationService: ConversationService,
+         summaryService: SummaryService,
+         goalService: GoalService,
+         modelContext: ModelContext,
+         onSelectConversation: ((String, ConversationKind) -> Void)? = nil) {
+        _viewModel = StateObject(wrappedValue: CalendarViewModel(
+            conversationService: conversationService,
+            summaryService: summaryService,
+            goalService: goalService,
+            modelContext: modelContext
+        ))
+        self.onSelectConversation = onSelectConversation
+    }
     @State private var showEditProfile = false
     @State private var selectedMemoryPath: String?
     @State private var showGallery = false
@@ -52,9 +65,6 @@ struct CalendarView: View {
         }
         }
         .preferredColorScheme(.light)
-        .task {
-            viewModel.setup(with: modelContext)
-        }
         .sheet(isPresented: $showEditProfile) {
             EditProfileView()
         }
@@ -490,5 +500,17 @@ struct CalendarView: View {
 // MARK: - Preview
 
 #Preview {
-    CalendarView()
+    let container = try! ModelContainer(for: Conversation.self, Message.self, Goal.self,
+                                        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let ctx = container.mainContext
+    let convService = ConversationService(modelContext: ctx)
+    let summService = SummaryService(conversationService: convService, kind: .journal)
+    let goalService = GoalService(modelContext: ctx)
+    return CalendarView(
+        conversationService: convService,
+        summaryService: summService,
+        goalService: goalService,
+        modelContext: ctx
+    )
+    .modelContainer(container)
 }

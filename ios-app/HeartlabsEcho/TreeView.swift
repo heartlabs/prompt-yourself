@@ -8,9 +8,12 @@ import SwiftUI
 /// status, progress); tapping one opens a detail sheet. A single reflection
 /// card at the bottom names where to focus next.
 struct TreeView: View {
-    @Environment(\.modelContext) private var modelContext
-    @StateObject private var viewModel = TreeViewModel()
+    @StateObject private var viewModel: TreeViewModel
     @ObservedObject private var loc = LocalizationService.shared
+
+    init(treeScoreService: TreeScoreService) {
+        _viewModel = StateObject(wrappedValue: TreeViewModel(treeScoreService: treeScoreService))
+    }
 
     /// The category whose detail sheet is open (nil = none).
     @State private var selected: SelectedCategory?
@@ -41,7 +44,6 @@ struct TreeView: View {
         }
         .preferredColorScheme(.light)
         .task {
-            viewModel.setup(modelContext: modelContext)
             await viewModel.loadIfNeeded()
         }
         .sheet(item: $selected) { sel in
@@ -503,6 +505,13 @@ struct FocusLineCard: View {
 }
 
 #Preview {
-    TreeView()
-        .modelContainer(for: [Conversation.self, Message.self], inMemory: true)
+    let container = try! ModelContainer(for: Conversation.self, Message.self, Goal.self,
+                                        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let ctx = container.mainContext
+    let convService = ConversationService(modelContext: ctx)
+    let summService = SummaryService(conversationService: convService, kind: .journal)
+    let goalService = GoalService(modelContext: ctx)
+    let treeService = TreeScoreService(conversationService: convService)
+    return TreeView(treeScoreService: treeService)
+        .modelContainer(container)
 }

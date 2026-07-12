@@ -41,9 +41,6 @@ struct CreateGoalTool: ConversationTool {
     }
 
     @MainActor func run(arguments: String, context: ToolContext) -> String {
-        guard let goalService = context.goalService else {
-            return "⚠️ Goal service not available."
-        }
 
         struct Args: Decodable {
             let title: String
@@ -58,13 +55,13 @@ struct CreateGoalTool: ConversationTool {
         }
 
         do {
-            let goal = try goalService.createGoal(
+            let goal = try context.goalService.createGoal(
                 title: args.title,
                 description: args.description,
                 targetProgress: args.targetProgress,
                 unit: args.unit
             )
-            return "✅ Goal created: \"\(goal.title)\" — 0/\(args.targetProgress) \(args.unit). You have \(goalService.openGoalCount()) open goal(s) remaining."
+            return "✅ Goal created: \"\(goal.title)\" — 0/\(args.targetProgress) \(args.unit). You have \(context.goalService.openGoalCount()) open goal(s) remaining."
         } catch let error as GoalError {
             return "⚠️ \(error.localizedDescription)"
         } catch {
@@ -89,11 +86,8 @@ struct ListOpenGoalsTool: ConversationTool {
     }
 
     @MainActor func run(arguments: String, context: ToolContext) -> String {
-        guard let goalService = context.goalService else {
-            return "⚠️ Goal service not available."
-        }
 
-        let goals = goalService.openGoals()
+        let goals = context.goalService.openGoals()
         guard !goals.isEmpty else {
             return "📋 No open goals."
         }
@@ -142,9 +136,6 @@ struct FindGoalTool: ConversationTool {
     }
 
     @MainActor func run(arguments: String, context: ToolContext) -> String {
-        guard let goalService = context.goalService else {
-            return "⚠️ Goal service not available."
-        }
 
         struct Args: Decodable {
             let goalId: String?
@@ -162,9 +153,9 @@ struct FindGoalTool: ConversationTool {
             guard let id = UUID(uuidString: goalId) else {
                 return "⚠️ Invalid goal ID format: \(goalId)."
             }
-            goal = goalService.findGoal(byId: id)
+            goal = context.goalService.findGoal(byId: id)
         } else if let title = args.title {
-            goal = goalService.findGoal(byTitle: title)
+            goal = context.goalService.findGoal(byTitle: title)
         } else {
             return "⚠️ Provide either goalId or title to search."
         }
@@ -228,9 +219,6 @@ struct UpdateGoalTool: ConversationTool {
     }
 
     @MainActor func run(arguments: String, context: ToolContext) -> String {
-        guard let goalService = context.goalService else {
-            return "⚠️ Goal service not available."
-        }
 
         struct Args: Decodable {
             let goalId: String
@@ -256,7 +244,7 @@ struct UpdateGoalTool: ConversationTool {
         }
 
         do {
-            let goal = try goalService.updateGoal(
+            let goal = try context.goalService.updateGoal(
                 id: id,
                 title: args.title,
                 description: args.description,
@@ -295,9 +283,6 @@ struct DeleteGoalTool: ConversationTool {
     }
 
     @MainActor func run(arguments: String, context: ToolContext) -> String {
-        guard let goalService = context.goalService else {
-            return "⚠️ Goal service not available."
-        }
 
         struct Args: Decodable {
             let goalId: String
@@ -313,7 +298,7 @@ struct DeleteGoalTool: ConversationTool {
         }
 
         do {
-            try goalService.deleteGoal(id: id)
+            try context.goalService.deleteGoal(id: id)
             return "✅ Goal deleted."
         } catch let error as GoalError {
             return "⚠️ \(error.localizedDescription)"

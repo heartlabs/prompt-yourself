@@ -4,13 +4,8 @@ import Foundation
 
 /// Services available to tool implementations during execution.
 struct ToolContext {
-    let conversationService: ConversationService?
-    let goalService: GoalService?
-
-    init(conversationService: ConversationService? = nil, goalService: GoalService? = nil) {
-        self.conversationService = conversationService
-        self.goalService = goalService
-    }
+    let conversationService: ConversationService
+    let goalService: GoalService
 }
 
 // MARK: - ConversationTool
@@ -73,7 +68,7 @@ struct ConversationLookupTool: ConversationTool {
         else {
             return "Failed to parse arguments for \(toolName)"
         }
-        guard let text = context.conversationService?.fetchFullConversationText(kind: targetKind, dateKey: dateKey) else {
+        guard let text = context.conversationService.fetchFullConversationText(kind: targetKind, dateKey: dateKey) else {
             return "No \(targetKind.rawValue) entry found for date \(dateKey)"
         }
         return text

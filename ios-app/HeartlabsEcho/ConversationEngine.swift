@@ -161,11 +161,10 @@ class ConversationEngine: ObservableObject {
 
     // MARK: - Persistence
 
-    private var conversationService: ConversationService?
-    private var summaryService: SummaryService?
-    private var goalService: GoalService?
+    private let conversationService: ConversationService
+    private let summaryService: SummaryService
+    private let goalService: GoalService
     private var currentConversation: Conversation?
-    private var hasSetupPersistence = false
 
     /// Maximum number of tool call iterations per user message (prevents loops).
     private let maxToolCallIterations = 3
@@ -173,12 +172,21 @@ class ConversationEngine: ObservableObject {
     // MARK: - Init
 
     init(configuration: ConversationConfiguration,
-         router: ModelRouter = ModelRouter(),
+         conversationService: ConversationService,
+         summaryService: SummaryService,
+         goalService: GoalService,
+         router: ModelRouter,
          chat: ChatCompleting? = nil) {
         self.configuration = configuration
+        self.conversationService = conversationService
+        self.summaryService = summaryService
+        self.goalService = goalService
         self.router = router
         self.chat = chat ?? router
         loadSystemPrompt()
+
+        loadPersistedConversation()
+        Task { await summaryService.backfillOldVersions() }
     }
 
     // MARK: - Helpers
@@ -193,37 +201,15 @@ class ConversationEngine: ObservableObject {
         } ?? false
     }
 
-    // MARK: - Persistence Setup
-
-    /// Initializes persistence with the given SwiftData model context. Call once
-    /// from the view (e.g. in `.task`) after the environment `modelContext` is
-    /// available. Restores today's (or an active yesterday's) conversation.
-    func setupPersistence(with modelContext: ModelContext) {
-        guard !hasSetupPersistence else { return }
-        hasSetupPersistence = true
-
-        let service = ConversationService(modelContext: modelContext)
-        conversationService = service
-
-        let summ = SummaryService(conversationService: service, kind: configuration.kind, router: router)
-        summaryService = summ
-
-        goalService = GoalService(modelContext: modelContext)
-
-        loadPersistedConversation(service: service)
-
-        Task { await summ.backfillOldVersions() }
-    }
-
-    /// Restores the active conversation on app launch (today, else active
+    /// Restores the active conversation on launch (today, else active
     /// yesterday, else nothing).
-    private func loadPersistedConversation(service: ConversationService) {
-        if let conversation = service.loadTodayConversation(kind: configuration.kind) {
+    private func loadPersistedConversation() {
+        if let conversation = conversationService.loadTodayConversation(kind: configuration.kind) {
             adopt(conversation)
             return
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let conversation = service.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
+           let conversation = conversationService.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
            conversation.hasRecentActivity {
             adopt(conversation)
             return
@@ -247,15 +233,13 @@ class ConversationEngine: ObservableObject {
     /// Resets the chat to today's conversation (today, else active yesterday,
     /// else the empty start screen).
     func resetToToday() {
-        guard let service = conversationService else { return }
-
-        if let conversation = service.loadTodayConversation(kind: configuration.kind) {
+        if let conversation = conversationService.loadTodayConversation(kind: configuration.kind) {
             adopt(conversation)
             finishReset()
             return
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let conversation = service.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
+           let conversation = conversationService.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
            conversation.hasRecentActivity {
             adopt(conversation)
             finishReset()
@@ -278,14 +262,12 @@ class ConversationEngine: ObservableObject {
     }
 
     private func finishReset() {
-        guard let summ = summaryService else { return }
-        Task { await summ.backfillOldVersions() }
+        Task { await summaryService.backfillOldVersions() }
     }
 
     /// Loads a past conversation by its date key (read-only; no auto-scroll).
     func loadConversation(for dateKey: String) {
-        guard let service = conversationService else { return }
-        guard let conversation = service.loadConversation(dateKey: dateKey, kind: configuration.kind) else { return }
+        guard let conversation = conversationService.loadConversation(dateKey: dateKey, kind: configuration.kind) else { return }
 
         currentConversation = conversation
         updatePastConversationFlag()
@@ -357,19 +339,18 @@ class ConversationEngine: ObservableObject {
     /// Ensures there is an active conversation, creating one for today if needed.
     private func ensureConversation() -> Conversation? {
         if let existing = currentConversation { return existing }
-        guard let service = conversationService else { return nil }
 
-        if let existing = service.loadTodayConversation(kind: configuration.kind) {
+        if let existing = conversationService.loadTodayConversation(kind: configuration.kind) {
             currentConversation = existing
             return existing
         }
         if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()),
-           let existing = service.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
+           let existing = conversationService.loadConversation(dateKey: DateKey.from(yesterday), kind: configuration.kind),
            existing.hasRecentActivity {
             currentConversation = existing
             return existing
         }
-        let new = service.createTodayConversation(kind: configuration.kind)
+        let new = conversationService.createTodayConversation(kind: configuration.kind)
         currentConversation = new
         return new
     }
@@ -379,11 +360,9 @@ class ConversationEngine: ObservableObject {
     /// Persists a message with typed content.
     /// `MessageContent` is split into `(contentType, content)` for SwiftData.
     private func persistMessage(role: String, content: MessageContent, id: UUID, timestamp: Date) {
-        guard let service = conversationService,
-              let conversation = ensureConversation()
-        else { return }
+        guard let conversation = ensureConversation() else { return }
         let (type, value) = content.persistable
-        service.addMessage(to: conversation, id: id, role: role, contentType: type, content: value, timestamp: timestamp)
+        conversationService.addMessage(to: conversation, id: id, role: role, contentType: type, content: value, timestamp: timestamp)
     }
 
     /// Convenience overload for text-only messages.
@@ -449,11 +428,9 @@ class ConversationEngine: ObservableObject {
                 fullHistory.append(ChatMessage(role: .system, content: contextPrompt))
             }
             // Inject open goals context
-            if let goalService = goalService {
-                let goalsContext = goalService.openGoalsContextString()
-                if !goalsContext.isEmpty {
-                    fullHistory.append(ChatMessage(role: .system, content: goalsContext))
-                }
+            let goalsContext = goalService.openGoalsContextString()
+            if !goalsContext.isEmpty {
+                fullHistory.append(ChatMessage(role: .system, content: goalsContext))
             }
 
             fullHistory.append(contentsOf: messages)

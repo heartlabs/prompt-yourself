@@ -14,20 +14,17 @@ final class TreeViewModel: ObservableObject {
         return formatter.string(from: Date())
     }()
 
-    private var service: TreeScoreService?
-    private var hasLoadedOnce = false
+    private let service: TreeScoreService
 
-    /// Wires up the scoring service from the SwiftData context. Idempotent.
-    func setup(modelContext: ModelContext) {
-        guard service == nil else { return }
-        let conversationService = ConversationService(modelContext: modelContext)
-        service = TreeScoreService(conversationService: conversationService)
+    init(treeScoreService: TreeScoreService) {
+        self.service = treeScoreService
     }
 
     /// Loads the tree on first appearance (cache-aware).
+    /// Skips if already loaded or currently loading.
     func loadIfNeeded() async {
-        guard !hasLoadedOnce else { return }
-        hasLoadedOnce = true
+        if case .ready = state { return }
+        if case .error = state { return }
         await reload(force: false)
     }
 
@@ -37,10 +34,6 @@ final class TreeViewModel: ObservableObject {
     }
 
     private func reload(force: Bool) async {
-        guard let service else {
-            state = .error("Journal storage isn't ready yet.")
-            return
-        }
         if force { state = .loading }
         let result = await service.loadOrCompute(force: force)
         state = result

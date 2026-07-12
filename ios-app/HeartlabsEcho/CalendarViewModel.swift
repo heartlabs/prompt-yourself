@@ -53,23 +53,21 @@ final class CalendarViewModel: ObservableObject {
 
     /// Total number of user messages across all conversations.
     var voiceMemoriesCount: Int {
-        guard let context = modelContext else { return 0 }
         let predicate = #Predicate<Message> { $0.role == "user" }
         let descriptor = FetchDescriptor<Message>(predicate: predicate)
-        return (try? context.fetchCount(descriptor)) ?? 0
+        return (try? modelContext.fetchCount(descriptor)) ?? 0
     }
 
     /// Total number of image messages across all conversations.
     var photosCount: Int {
-        guard let context = modelContext else { return 0 }
         let predicate = #Predicate<Message> { $0.contentType == "image" }
         let descriptor = FetchDescriptor<Message>(predicate: predicate)
-        return (try? context.fetchCount(descriptor)) ?? 0
+        return (try? modelContext.fetchCount(descriptor)) ?? 0
     }
 
     /// Total number of completed goals (progress >= target).
     var goalsCompletedCount: Int {
-        goalService?.closedGoals().count ?? 0
+        goalService.closedGoals().count
     }
 
     /// Recent photo memories, sorted newest-first.
@@ -80,11 +78,10 @@ final class CalendarViewModel: ObservableObject {
 
     /// Loads the most recent image messages from all conversations.
     func loadRecentPhotos() {
-        guard let context = modelContext else { return }
         let predicate = #Predicate<Message> { $0.contentType == "image" }
         var descriptor = FetchDescriptor<Message>(predicate: predicate, sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         descriptor.fetchLimit = Self.maxRecentPhotos
-        let messages = (try? context.fetch(descriptor)) ?? []
+        let messages = (try? modelContext.fetch(descriptor)) ?? []
         recentPhotos = messages.compactMap { msg in
             guard let conv = msg.conversation else { return nil }
             return MemoryPhoto(path: msg.content, dateKey: conv.dateKey, timestamp: msg.timestamp)
@@ -93,26 +90,24 @@ final class CalendarViewModel: ObservableObject {
 
     /// Loads all image messages from all conversations, sorted newest-first.
     func loadAllPhotos() -> [MemoryPhoto] {
-        guard let context = modelContext else { return [] }
         let predicate = #Predicate<Message> { $0.contentType == "image" }
         let descriptor = FetchDescriptor<Message>(
             predicate: predicate,
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         )
-        let messages = (try? context.fetch(descriptor)) ?? []
+        let messages = (try? modelContext.fetch(descriptor)) ?? []
         return messages.compactMap { msg in
             guard let conv = msg.conversation else { return nil }
             return MemoryPhoto(path: msg.content, dateKey: conv.dateKey, timestamp: msg.timestamp)
         }
     }
 
-    // MARK: - Private State
+    // MARK: - Services
 
-    private var modelContext: ModelContext?
-    private var conversationService: ConversationService?
-    private var summaryService: SummaryService?
-    private var goalService: GoalService?
-    private var hasSetup = false
+    private let modelContext: ModelContext
+    private let conversationService: ConversationService
+    private let summaryService: SummaryService
+    private let goalService: GoalService
 
     /// The in-flight preview generation task. Cancelled when the user selects
     /// a different date, so a stale result can never overwrite `previewState`.
@@ -120,30 +115,16 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Init
 
-    init() {
-        // Truncate to the start of the current month.
+    init(conversationService: ConversationService,
+         summaryService: SummaryService,
+         goalService: GoalService,
+         modelContext: ModelContext) {
         self.currentMonth = Self.startOfMonth(Date())
         self.selectedDate = nil
-    }
-
-    // MARK: - Setup
-
-    /// Initializes the view model with a conversation service.
-    ///
-    /// Call this once from the view when the model context is available.
-    func setup(with modelContext: ModelContext) {
-        guard !hasSetup else { return }
-        hasSetup = true
-
+        self.conversationService = conversationService
+        self.summaryService = summaryService
+        self.goalService = goalService
         self.modelContext = modelContext
-
-        let service = ConversationService(modelContext: modelContext)
-        conversationService = service
-
-        let summ = SummaryService(conversationService: service, kind: .journal)
-        summaryService = summ
-
-        goalService = GoalService(modelContext: modelContext)
 
         loadDatesWithEntries()
         loadRecentPhotos()
@@ -154,8 +135,7 @@ final class CalendarViewModel: ObservableObject {
 
     /// Refreshes the set of date keys that have entries.
     func loadDatesWithEntries() {
-        guard let service = conversationService else { return }
-        datesWithEntries = Set(service.fetchAllDateKeys(kind: .journal))
+        datesWithEntries = Set(conversationService.fetchAllDateKeys(kind: .journal))
     }
 
     // MARK: - Month Navigation
@@ -214,7 +194,7 @@ final class CalendarViewModel: ObservableObject {
     /// - **No summary**: generates on the fly (loading indicator shown);
     ///   falls back to conversation text if generation fails.
     private func refreshPreview() async {
-        guard let date = selectedDate, let service = conversationService else {
+        guard let date = selectedDate else {
             previewState = .empty
             return
         }
@@ -222,7 +202,7 @@ final class CalendarViewModel: ObservableObject {
         let dateKey = DateKey.from(date)
         previewState = .generating
 
-        let result = await buildPreview(for: date, dateKey: dateKey, service: service)
+        let result = await buildPreview(for: date, dateKey: dateKey, service: conversationService)
 
         guard !Task.isCancelled else { return }
 
@@ -268,13 +248,11 @@ final class CalendarViewModel: ObservableObject {
             )
         }
 
-        guard let summ = summaryService else { return nil }
-
         if let summary = conversation.summary {
             // Regenerate outdated summary in background (fire-and-forget).
-            if summ.isOutdated(for: dateKey) {
+            if summaryService.isOutdated(for: dateKey) {
                 Task {
-                    await summ.regenerateIfOutdated(for: dateKey)
+                    await summaryService.regenerateIfOutdated(for: dateKey)
                 }
             }
             return ConversationPreview(
@@ -287,11 +265,11 @@ final class CalendarViewModel: ObservableObject {
         }
 
         // No summary yet — generate on the fly if not already pending.
-        if summ.isGenerationPending(for: dateKey) {
+        if summaryService.isGenerationPending(for: dateKey) {
             return nil
         }
 
-        if let generatedSummary = await summ.generateSummaryIfMissing(for: dateKey) {
+        if let generatedSummary = await summaryService.generateSummaryIfMissing(for: dateKey) {
             // After the await, bail out if the task was cancelled or the user
             // has already selected a different date.
             guard !Task.isCancelled,

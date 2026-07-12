@@ -4,9 +4,8 @@ import SwiftUI
 // MARK: - Root View
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var viewModel = ConversationEngine(configuration: .journal)
+    @StateObject private var viewModel: ConversationEngine
     @ObservedObject private var loc = LocalizationService.shared
     @State private var selectedTab = 0
     /// Prevents `resetToToday` from overriding a conversation that was just
@@ -17,6 +16,36 @@ struct ContentView: View {
 
     /// Shared visual style for the daily conversation screen.
     private let style = ConversationStyle.journal
+
+    // Services passed to sub-views.
+    private let conversationService: ConversationService
+    private let summaryService: SummaryService
+    private let goalService: GoalService
+    private let treeScoreService: TreeScoreService
+    private let router: ModelRouter
+    private let modelContext: ModelContext
+
+    init(conversationService: ConversationService,
+         summaryService: SummaryService,
+         goalService: GoalService,
+         treeScoreService: TreeScoreService,
+         router: ModelRouter,
+         modelContext: ModelContext) {
+        self.conversationService = conversationService
+        self.summaryService = summaryService
+        self.goalService = goalService
+        self.treeScoreService = treeScoreService
+        self.router = router
+        self.modelContext = modelContext
+
+        _viewModel = StateObject(wrappedValue: ConversationEngine(
+            configuration: .journal,
+            conversationService: conversationService,
+            summaryService: summaryService,
+            goalService: goalService,
+            router: router
+        ))
+    }
 
     /// Custom binding that detects when the "Today" tab is tapped
     /// even if it's already selected (TabView doesn't fire onChange for that).
@@ -73,6 +102,10 @@ struct ContentView: View {
 
             // Tab 2: Calendar / Journal history
             CalendarView(
+                conversationService: conversationService,
+                summaryService: summaryService,
+                goalService: goalService,
+                modelContext: modelContext,
                 onSelectConversation: { dateKey, _ in
                     isNavigatingFromCalendar = true
                     viewModel.loadConversation(for: dateKey)
@@ -85,7 +118,7 @@ struct ContentView: View {
                 .tag(2)
 
             // Tab 3: "Your Life" tree
-            TreeView()
+            TreeView(treeScoreService: treeScoreService)
                 .tabItem {
                     Label(loc.localized("tree_tab"), image: "TreeGlyph")
                 }
@@ -128,9 +161,7 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.light)
-        .task {
-            viewModel.setupPersistence(with: modelContext)
-        }
+
         .alert(loc.localized("speech_recognition_alert"), isPresented: Binding(
             get: { viewModel.compositionError != nil },
             set: { presented in if !presented { viewModel.compositionError = nil } }
@@ -349,5 +380,20 @@ struct OnboardingView: View {
 }
 
 #Preview {
-    ContentView()
+    let container = try! ModelContainer(for: Conversation.self, Message.self, Goal.self,
+                                        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let ctx = container.mainContext
+    let convService = ConversationService(modelContext: ctx)
+    let summService = SummaryService(conversationService: convService, kind: .journal)
+    let goalService = GoalService(modelContext: ctx)
+    let treeService = TreeScoreService(conversationService: convService)
+    return ContentView(
+        conversationService: convService,
+        summaryService: summService,
+        goalService: goalService,
+        treeScoreService: treeService,
+        router: ModelRouter(),
+        modelContext: ctx
+    )
+    .modelContainer(container)
 }
