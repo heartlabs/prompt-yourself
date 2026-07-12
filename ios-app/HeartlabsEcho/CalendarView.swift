@@ -15,6 +15,7 @@ struct CalendarView: View {
     @State private var showEditProfile = false
     @State private var selectedMemoryPath: String?
     @State private var showGallery = false
+    @State private var galleryPhotos: [MemoryPhoto] = []
     @State private var scrollProxy: ScrollViewProxy?
 
     var body: some View {
@@ -66,7 +67,7 @@ struct CalendarView: View {
             }
         }
         .fullScreenCover(isPresented: $showGallery) {
-            RecentMemoriesGalleryView()
+            RecentMemoriesGalleryView(photos: galleryPhotos)
         }
     }
 
@@ -376,6 +377,7 @@ struct CalendarView: View {
         if !viewModel.recentPhotos.isEmpty {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                 Button {
+                    galleryPhotos = viewModel.loadAllPhotos()
                     showGallery = true
                 } label: {
                     HStack(spacing: Theme.Spacing.s) {
@@ -482,169 +484,6 @@ struct CalendarView: View {
         }
 
         return days
-    }
-}
-
-// MARK: - CalendarDayCell
-
-/// A single day cell in the calendar grid.
-private struct CalendarDayCell: View {
-    let day: Int
-    let isSelected: Bool
-    let hasEntry: Bool
-    let isToday: Bool
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                // Today outline (unselected) — subtle ring around the number
-                if isToday && !isSelected {
-                    Circle()
-                        .stroke(Color.sageGreen.opacity(0.5), lineWidth: 1.5)
-                        .frame(width: 44, height: 44)
-                }
-
-                // Selected circle background (takes precedence)
-                if isSelected {
-                    Circle()
-                        .fill(Color.sageGreen)
-                        .frame(width: 44, height: 44)
-                }
-
-                // Day number
-                Text("\(day)")
-                    .font(.system(size: 20, weight: isSelected || isToday ? .semibold : .regular, design: .default))
-                    .foregroundColor(textColor)
-            }
-            .frame(height: 44)
-
-            // Entry indicator — always occupies the same height so rows with and
-            // without a leaf stay perfectly aligned.
-            Group {
-                if hasEntry {
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.sageGreen.opacity(isSelected ? 1.0 : 0.55))
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(height: 12)
-            .offset(y: -2)
-        }
-    }
-
-    private var textColor: Color {
-        if isSelected {
-            return .white
-        }
-        if isToday {
-            return .sageGreen
-        }
-        return .taupeText.opacity(0.7)
-    }
-}
-
-// MARK: - LoadingCirclesIndicator
-
-/// A compact pulsing-circles animation shown while a summary is being generated.
-private struct LoadingCirclesIndicator: View {
-    @State private var activeIndex = 0
-    let timer = Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0 ..< 3) { i in
-                Circle()
-                    .fill(Color.sageGreen)
-                    .frame(width: 10, height: 10)
-                    .opacity(activeIndex == i ? 1.0 : 0.25)
-                    .scaleEffect(activeIndex == i ? 1.0 : 0.7)
-                    .animation(.easeInOut(duration: 0.25), value: activeIndex)
-            }
-        }
-        .onReceive(timer) { _ in
-            activeIndex = (activeIndex + 1) % 3
-        }
-    }
-}
-
-// MARK: - Recent Memories Gallery
-
-/// A full-screen gallery showing all photo memories in a vertical grid with
-/// lazy loading. Tapping a thumbnail opens it fullscreen.
-struct RecentMemoriesGalleryView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-    @State private var allPhotos: [MemoryPhoto] = []
-    @State private var selectedPhotoPath: String?
-
-    /// Three columns for the grid.
-    private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-    ]
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 2) {
-                    ForEach(allPhotos) { photo in
-                        Button {
-                            selectedPhotoPath = photo.path
-                        } label: {
-                            if let uiImage = ImageUtils.loadImage(relativePath: photo.path) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(height: 130)
-                                    .clipped()
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .background(Color.warmIvory)
-            .navigationTitle("All Memories")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .foregroundColor(.taupeText)
-                    }
-                }
-            }
-        }
-        .preferredColorScheme(.light)
-        .task {
-            loadPhotos()
-        }
-        .fullScreenCover(isPresented: Binding(
-            get: { selectedPhotoPath != nil },
-            set: { if !$0 { selectedPhotoPath = nil } }
-        )) {
-            if let path = selectedPhotoPath {
-                FullScreenPhotoView(path: path)
-            }
-        }
-    }
-
-    private func loadPhotos() {
-        let predicate = #Predicate<Message> { $0.contentType == "image" }
-        let descriptor = FetchDescriptor<Message>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-        let messages = (try? modelContext.fetch(descriptor)) ?? []
-        allPhotos = messages.compactMap { msg in
-            guard let conv = msg.conversation else { return nil }
-            return MemoryPhoto(path: msg.content, dateKey: conv.dateKey, timestamp: msg.timestamp)
-        }
     }
 }
 

@@ -47,6 +47,9 @@
 		AAA00431 /* SFSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00435 /* SFSpeechEngine.swift */; };
 		AAA00432 /* SpeechAnalyzerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00436 /* SpeechAnalyzerEngine.swift */; };
 		AAA00433 /* VoiceComposerSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00437 /* VoiceComposerSession.swift */; };
+		AAA00440 /* CalendarDayCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00443 /* CalendarDayCell.swift */; };
+		AAA00441 /* LoadingCirclesIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00444 /* LoadingCirclesIndicator.swift */; };
+		AAA00442 /* RecentMemoriesGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00445 /* RecentMemoriesGalleryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -94,6 +97,9 @@
 		AAA00435 /* SFSpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFSpeechEngine.swift; sourceTree = "<group>"; };
 		AAA00436 /* SpeechAnalyzerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechAnalyzerEngine.swift; sourceTree = "<group>"; };
 		AAA00437 /* VoiceComposerSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceComposerSession.swift; sourceTree = "<group>"; };
+		AAA00443 /* CalendarDayCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayCell.swift; sourceTree = "<group>"; };
+		AAA00444 /* LoadingCirclesIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingCirclesIndicator.swift; sourceTree = "<group>"; };
+		AAA00445 /* RecentMemoriesGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentMemoriesGalleryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -128,6 +134,8 @@
 				AAA0002A /* ConversationService.swift */,
 				AAA0002D /* CalendarView.swift */,
 				AAA0002E /* CalendarViewModel.swift */,
+				AAA00443 /* CalendarDayCell.swift */,
+				AAA00445 /* RecentMemoriesGalleryView.swift */,
 				AAA00111 /* LifeTreeModels.swift */,
 				AAA00112 /* TreeRenderer.swift */,
 				AAA00113 /* TreeScoreService.swift */,
@@ -135,6 +143,7 @@
 				AAA00115 /* TreeView.swift */,
 				AAA00116 /* anchors.json */,
 				AAA00117 /* LLMConfigs.swift */,
+				AAA00444 /* LoadingCirclesIndicator.swift */,
 				AAA0011A /* ModelRouter.swift */,
 				AAA0011C /* SummaryService.swift */,
 				AAA00408 /* ImageUtils.swift */,
@@ -255,6 +264,8 @@
 				AAA00029 /* ConversationService.swift in Sources */,
 				AAA0002B /* CalendarView.swift in Sources */,
 				AAA0002C /* CalendarViewModel.swift in Sources */,
+				AAA00440 /* CalendarDayCell.swift in Sources */,
+				AAA00442 /* RecentMemoriesGalleryView.swift in Sources */,
 				AAA00101 /* LifeTreeModels.swift in Sources */,
 				AAA00102 /* TreeRenderer.swift in Sources */,
 				AAA00103 /* TreeScoreService.swift in Sources */,
@@ -262,6 +273,7 @@
 				AAA00105 /* TreeView.swift in Sources */,
 				AAA00119 /* ModelRouter.swift in Sources */,
 				AAA00118 /* LLMConfigs.swift in Sources */,
+				AAA00441 /* LoadingCirclesIndicator.swift in Sources */,
 				AAA0011B /* SummaryService.swift in Sources */,
 				AAA0040A /* ImageUtils.swift in Sources */,
 				AAA0040D /* Goal.swift in Sources */,

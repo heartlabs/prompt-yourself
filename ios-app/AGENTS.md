@@ -84,13 +84,20 @@ file means removing all four entries.
     orderings: check the comment and git history before "fixing" them. Some
     absences are deliberate (they carry warning comments at the site). If
     you keep a weirdness, make sure it's commented WHY; if you remove one,
-    say so explicitly in the commit message so it can be traced.
+    say so explicitly in the commit message so it can be traced. But once
+    you PROVE something dead (a state never entered, a branch never taken),
+    do not preserve it as a quirk — unreachable states contradict rule 2.
+    Flag it and propose either wiring it up or deleting it; the user decides.
 12. **Refactors start from behavior, not code.** Before rewriting, enumerate
     the observable behaviors and edge cases — interruptions, backgrounding,
     double-taps, gesture races, system timeouts, process restarts — and
     decide each one explicitly. UX stays identical unless a change was
     agreed. If you can't enumerate the edge cases, you don't understand the
-    code well enough to rewrite it yet.
+    code well enough to rewrite it yet. The inventory MUST include an await
+    sweep: list every `await` in the touched code and state, for each one,
+    what can change during the suspension and how the code re-validates
+    afterwards. Untreated awaits are where the races live — an inventory
+    without this sweep only catalogs the happy paths.
 13. **YAGNI, precisely.** Every abstraction must be paid for by variation
     that exists today (two implementations → protocol; one → no protocol).
     No speculative config, no "for the future" parameters, no third
@@ -103,6 +110,9 @@ file means removing all four entries.
 ## Definition of done
 
 - Builds without new warnings.
+- Every claim about existing code (line counts, dead code, callers, "never
+  set") is verified by command output (`wc -l`, `grep -n`, …) — never
+  estimated.
 - For every new or touched async path you can answer: what happens if it's
   cancelled mid-way? backgrounded? triggered twice? Does every wait end?
 - No new mirrored state, guard flags, or settable event closures.

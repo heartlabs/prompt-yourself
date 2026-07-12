@@ -114,6 +114,10 @@ final class CalendarViewModel: ObservableObject {
     private var goalService: GoalService?
     private var hasSetup = false
 
+    /// The in-flight preview generation task. Cancelled when the user selects
+    /// a different date, so a stale result can never overwrite `previewState`.
+    private var previewTask: Task<Void, Never>?
+
     // MARK: - Init
 
     init() {
@@ -182,10 +186,14 @@ final class CalendarViewModel: ObservableObject {
     // MARK: - Selection
 
     /// Selects a specific date in the calendar and refreshes the preview.
+    ///
+    /// Cancels any in-flight preview generation for the previous date so a
+    /// stale result can never overwrite `previewState` after a rapid tap.
     func selectDate(_ date: Date) {
         selectedDate = date
-        Task {
-            await refreshPreview()
+        previewTask?.cancel()
+        previewTask = Task { [weak self] in
+            await self?.refreshPreview()
         }
     }
 
@@ -193,11 +201,17 @@ final class CalendarViewModel: ObservableObject {
 
     /// Refreshes the preview for the currently selected date.
     ///
-    /// Determines the right preview content:
+    /// Sets `previewState` to `.generating` before awaiting the preview build
+    /// so the view shows a loading indicator during on-the-fly summary generation
+    /// for past dates. After the await, checks for cancellation so a stale
+    /// result from a superseded selection can never be written.
+    ///
+    /// Preview content decision tree:
     /// - **Today**: shows the first sentences of the conversation.
     /// - **Has summary (current version)**: shows the first lines of the summary.
-    /// - **Has summary (outdated)**: shows the old summary immediately, regenerates in background.
-    /// - **No summary**: triggers on-the-fly generation with a loading indicator;
+    /// - **Has summary (outdated)**: shows the old summary immediately,
+    ///   regenerates in background.
+    /// - **No summary**: generates on the fly (loading indicator shown);
     ///   falls back to conversation text if generation fails.
     private func refreshPreview() async {
         guard let date = selectedDate, let service = conversationService else {
@@ -206,8 +220,13 @@ final class CalendarViewModel: ObservableObject {
         }
 
         let dateKey = Self.dateKey(for: date)
+        previewState = .generating
 
-        if let preview = await buildPreview(for: date, dateKey: dateKey, service: service) {
+        let result = await buildPreview(for: date, dateKey: dateKey, service: service)
+
+        guard !Task.isCancelled else { return }
+
+        if let preview = result {
             previewState = .loaded([preview])
         } else {
             previewState = .empty
@@ -273,6 +292,12 @@ final class CalendarViewModel: ObservableObject {
         }
 
         if let generatedSummary = await summ.generateSummaryIfMissing(for: dateKey) {
+            // After the await, bail out if the task was cancelled or the user
+            // has already selected a different date.
+            guard !Task.isCancelled,
+                  let selected = selectedDate,
+                  Self.dateKey(for: selected) == dateKey else { return nil }
+
             return ConversationPreview(
                 dateKey: dateKey,
                 dateLabel: Self.dateLabel(for: date),
@@ -351,7 +376,7 @@ final class CalendarViewModel: ObservableObject {
         return formatter.string(from: date)
     }
 
-    /// Extracts a short snippet (first ~80 characters) from content text.
+    /// Extracts a snippet (first 5000 characters) from content text.
     static func snippet(from text: String) -> String {
         let cleaned = text
             .replacingOccurrences(of: "\n", with: " ")

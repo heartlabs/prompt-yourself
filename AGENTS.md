@@ -22,6 +22,6 @@ Additional folders in the workspace root are:
 * `scripts`: various scripts to be used by human or agent for routine tasks like building, ...
 
 ## Hard Rules
-* ALWAYS rebuild the obsidian plugin after you did a change that affects it (scripts/build-plugin.sh)!
+* ALWAYS rebuild the obsidian plugin after you did a change that affects it (scripts/build-plugin.sh)! NEVER rebuild it for changes that DON'T affect the plugin.
 * The `ios-app` expert must be built on macOS with Xcode (not possible in the Linux container)
 * NEVER git commit or push code yourself or modify the commit history! You MAY use read-only git commands like `git status`, log etc.
