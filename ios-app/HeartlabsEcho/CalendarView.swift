@@ -46,6 +46,7 @@ struct CalendarView: View {
 
                     calendarGrid
                         .padding(.horizontal, 16)
+                        .id("calendar_grid")
 
                     dailyPreviewSection
                         .padding(.horizontal, 16)
@@ -259,6 +260,9 @@ struct CalendarView: View {
                     .onTapGesture {
                         if let date = day.date, !CalendarViewModel.isFuture(date) {
                             viewModel.selectDate(date)
+                            withAnimation(.easeInOut(duration: 0.35)) {
+                                scrollProxy?.scrollTo("calendar_grid", anchor: .top)
+                            }
                         }
                     }
                 }
