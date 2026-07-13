@@ -256,6 +256,7 @@ class ConversationEngine: ObservableObject {
     /// so duplicate intents (same case) are still delivered as change events.
     enum ScrollIntent: Equatable {
         case bottom   // scroll to the bottom anchor
+        case top      // scroll to the top (past conversations)
         case typing   // scroll to the typing indicator
     }
 
@@ -433,7 +434,9 @@ class ConversationEngine: ObservableObject {
         messages = conversation.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .map { ChatMessage(from: $0) }
-        // Past conversation — deliberately NOT scrolling.
+        // Past conversation — scroll to top so the user starts reading from
+        // the beginning, not staring at the empty bottom (defaultScrollAnchor).
+        requestScroll(.top)
     }
 
     // MARK: - Voice Composition
@@ -586,7 +589,7 @@ class ConversationEngine: ObservableObject {
         // Pre-load image data for any image messages in the history.
         var imageData: [UUID: Data] = [:]
         for msg in messages {
-            if case .image(let path) = msg.content, let data = ImageUtils.loadImageData(relativePath: path) {
+            if case .image(let path) = msg.content, let data = await ImageUtils.loadImageData(relativePath: path) {
                 imageData[msg.id] = data
             }
         }

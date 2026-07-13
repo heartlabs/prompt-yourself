@@ -162,11 +162,12 @@ struct EditProfileView: View {
 
     private var profilePhotoView: some View {
         ZStack {
-            if let path = draft.displayPhotoPath,
-               let uiImage = ImageUtils.loadImage(relativePath: path) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
+            if let path = draft.displayPhotoPath {
+                CachedAsyncImage(path: path, placeholderSize: CGSize(width: 120, height: 120)) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                }
             } else {
                 Circle()
                     .fill(Color.sageGreen)

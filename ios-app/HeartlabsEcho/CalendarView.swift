@@ -396,8 +396,8 @@ struct CalendarView: View {
                             Button {
                                 selectedMemoryPath = photo.path
                             } label: {
-                                if let uiImage = ImageUtils.loadImage(relativePath: photo.path) {
-                                    Image(uiImage: uiImage)
+                                CachedAsyncImage(path: photo.path, placeholderSize: CGSize(width: 100, height: 100)) { image in
+                                    image
                                         .resizable()
                                         .scaledToFill()
                                         .frame(width: 100, height: 100)

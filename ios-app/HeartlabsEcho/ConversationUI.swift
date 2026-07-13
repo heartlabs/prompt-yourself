@@ -179,22 +179,17 @@ struct MessageBubbleView: View {
                     .textSelection(.enabled)
 
             case .image(let path):
-                Group {
-                    if let uiImage = ImageUtils.loadImage(relativePath: path) {
-                        Button {
-                            onTapPhoto?(path)
-                        } label: {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: 240)
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        Text("📷")
-                            .font(.system(size: 32))
+                CachedAsyncImage(path: path) { image in
+                    Button {
+                        onTapPhoto?(path)
+                    } label: {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 240)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -294,6 +289,12 @@ struct ConversationTranscriptView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        // Invisible top anchor — scrolled to when loading past
+                        // conversations so the header is visible immediately.
+                        Color.clear
+                            .frame(height: 1)
+                            .id("scroll_top")
+
                         // Header: date label + burn button (scrolls with content).
                         if let dateLabel = headerDateLabel {
                             conversationHeader(dateLabel: dateLabel)
@@ -331,6 +332,8 @@ struct ConversationTranscriptView: View {
                 guard let intent else { return }
                 withAnimation(.easeOut(duration: 0.2)) {
                     switch intent {
+                    case .top:
+                        proxy.scrollTo("scroll_top", anchor: .top)
                     case .bottom:
                         proxy.scrollTo("scroll_bottom", anchor: .bottom)
                     case .typing:
@@ -487,8 +490,8 @@ struct ConversationDetailSheet: View {
                         Button {
                             selectedPhotoPath = path
                         } label: {
-                            if let uiImage = ImageUtils.loadImage(relativePath: path) {
-                                Image(uiImage: uiImage)
+                            CachedAsyncImage(path: path, placeholderSize: CGSize(width: 100, height: 100)) { image in
+                                image
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 100, height: 100)
@@ -536,8 +539,8 @@ struct FullScreenPhotoView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if let uiImage = ImageUtils.loadImage(relativePath: path) {
-                Image(uiImage: uiImage)
+            CachedAsyncImage(path: path, placeholderSize: CGSize(width: 200, height: 200)) { image in
+                image
                     .resizable()
                     .scaledToFit()
             }

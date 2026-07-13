@@ -228,13 +228,14 @@ struct ProfileCircleView: View {
 
     var body: some View {
         ZStack {
-            if let path = photoPath,
-               let uiImage = ImageUtils.loadImage(relativePath: path) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: diameter, height: diameter)
-                    .clipShape(Circle())
+            if let path = photoPath {
+                CachedAsyncImage(path: path, placeholderSize: CGSize(width: diameter, height: diameter)) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: diameter, height: diameter)
+                        .clipShape(Circle())
+                }
             } else {
                 Circle()
                     .fill(Color.sageGreen)

@@ -104,14 +104,15 @@ struct ConversationModeView: View {
             VStack(spacing: Theme.Spacing.m) {
                 // Photo preview — shown whenever a photo is held, regardless
                 // of whether speech has been added yet.
-                if let photoPath = session.photoPath,
-                   let uiImage = ImageUtils.loadImage(relativePath: photoPath) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxHeight: 240)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .padding(.horizontal)
+                if let photoPath = session.photoPath {
+                    CachedAsyncImage(path: photoPath, placeholderSize: CGSize(width: 240, height: 180)) { image in
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 240)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .padding(.horizontal)
                 }
 
                 Text(displayTranscript)

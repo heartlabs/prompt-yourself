@@ -28,8 +28,8 @@ struct RecentMemoriesGalleryView: View {
                         Button {
                             selectedPhotoPath = photo.path
                         } label: {
-                            if let uiImage = ImageUtils.loadImage(relativePath: photo.path) {
-                                Image(uiImage: uiImage)
+                            CachedAsyncImage(path: photo.path, placeholderSize: CGSize(width: 100, height: 130)) { image in
+                                image
                                     .resizable()
                                     .scaledToFill()
                                     .frame(height: 130)
