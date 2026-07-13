@@ -177,7 +177,7 @@ final class ConversationService {
         let sortedMessages = conversation.messages.sorted { $0.timestamp < $1.timestamp }
         let lines = sortedMessages.map { msg in
             let prefix = msg.role.capitalized
-            if msg.contentType == "image" {
+            if msg.contentType == Message.contentTypeImage {
                 return "[\(prefix)]: (photo)"
             }
             return "[\(prefix)]: \(msg.content)"

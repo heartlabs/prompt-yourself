@@ -12,7 +12,7 @@ struct ProfileDraft {
 
     private let initialPhotoPath: String?
     private var newPhotoPath: String?
-    private var didCommit = false
+    private var isFinished = false
 
     init(currentName: String, currentLanguage: AppLanguage, currentPhotoPath: String?) {
         self.name = currentName
@@ -24,15 +24,25 @@ struct ProfileDraft {
     /// The photo path to display — the newly picked one, or the original.
     var displayPhotoPath: String? { newPhotoPath ?? initialPhotoPath }
 
-    /// Call when the PhotosPicker yields a saved image path.
+    /// Call when the PhotosPicker yields a saved image path. Deletes any
+    /// previously picked photo to avoid orphaning it. If the draft is already
+    /// finished (committed/discarded), deletes the new file immediately — the
+    /// picker task completed after the sheet was dismissed.
     mutating func photoPicked(_ path: String) {
+        if isFinished {
+            ImageUtils.deleteImage(relativePath: path)
+            return
+        }
+        if let previous = newPhotoPath {
+            ImageUtils.deleteImage(relativePath: previous)
+        }
         newPhotoPath = path
     }
 
     /// Persist all edits atomically. Old photo file is deleted only on commit
     /// (never before), so swiping away the sheet leaves everything untouched.
     mutating func commit() {
-        didCommit = true
+        isFinished = true
         UserName.save(name.trimmingCharacters(in: .whitespaces))
 
         if let new = newPhotoPath {
@@ -45,8 +55,9 @@ struct ProfileDraft {
 
     /// Called when the sheet is dismissed without saving. Deletes the newly
     /// picked photo file (if any) so it doesn't linger on disk as an orphan.
-    func discard() {
-        guard !didCommit else { return }
+    mutating func discard() {
+        guard !isFinished else { return }
+        isFinished = true
         if let new = newPhotoPath {
             ImageUtils.deleteImage(relativePath: new)
         }

@@ -329,8 +329,10 @@ class ConversationEngine: ObservableObject {
     }
 
     /// Loads a past conversation from the calendar and switches to the Today
-    /// tab. The engine owns the tab decision — no view-side coordination needed.
+    /// tab. No-ops entirely while the engine is busy — avoids landing on the
+    /// Today tab without the requested conversation loaded.
     func navigateFromCalendar(to dateKey: String) {
+        guard phase == .idle else { return }
         loadConversation(for: dateKey)
         displayedTab = .today
     }
