@@ -15,6 +15,12 @@ struct TreeView: View {
         _viewModel = StateObject(wrappedValue: TreeViewModel(treeScoreService: treeScoreService))
     }
 
+    /// Whether tree assets (trunk, anchors, leaf sprites) have finished loading.
+    @State private var assetsReady = false
+
+    /// Whether the initial async setup (assets + scores) has been kicked off.
+    @State private var didStartLoading = false
+
     /// The category whose detail sheet is open (nil = none).
     @State private var selected: SelectedCategory?
 
@@ -44,6 +50,12 @@ struct TreeView: View {
         }
         .preferredColorScheme(.light)
         .task {
+            guard !didStartLoading else { return }
+            didStartLoading = true
+            // Load tree art assets first — formerly a synchronous blocking
+            // call inside LifeTreeCanvas.body evaluation.
+            await TreeAssets.shared.ensureLoaded()
+            assetsReady = true
             viewModel.loadIfNeeded()
         }
         .sheet(item: $selected) { sel in
@@ -72,13 +84,18 @@ struct TreeView: View {
 
     @ViewBuilder
     private var stateContent: some View {
-        switch viewModel.state {
-        case .loading:
+        // Keep the spinner until both assets AND scores are ready.
+        if !assetsReady {
             loadingView
-        case .error(let message):
-            errorView(message)
-        case .ready(let score):
-            readyView(score)
+        } else {
+            switch viewModel.state {
+            case .loading:
+                loadingView
+            case .error(let message):
+                errorView(message)
+            case .ready(let score):
+                readyView(score)
+            }
         }
     }
 

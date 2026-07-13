@@ -74,7 +74,9 @@ struct LeafSprite {
 // MARK: - Tree assets (loaded once)
 
 /// Loads and caches the trunk, the baked anchors, and both leaf sprite sets.
-/// Resolved lazily on first use and shared for the app's lifetime.
+/// Shared for the app's lifetime. Call `ensureLoaded()` from a `.task` modifier
+/// before rendering — assets are no longer loaded synchronously in `init()`.
+@MainActor
 final class TreeAssets {
     static let shared = TreeAssets()
 
@@ -94,9 +96,17 @@ final class TreeAssets {
 
     private let tones = ["deep", "medium", "pale"]
 
-    private init() { load() }
+    private init() {}
 
-    private func load() {
+    /// Loads all tree assets (anchors.json, trunk, leaf sprites). Idempotent —
+    /// subsequent calls are no-ops once loaded. Call from `.task` so the first
+    /// render shows the loading spinner instead of blocking SwiftUI body evaluation.
+    func ensureLoaded() async {
+        guard !loaded else { return }
+        await load()
+    }
+
+    private func load() async {
         guard
             let anchorsURL = Bundle.main.url(forResource: "anchors", withExtension: "json"),
             let anchorsData = try? Data(contentsOf: anchorsURL)
@@ -145,6 +155,9 @@ final class TreeAssets {
             loadError = "Failed to parse anchors.json: \(error.localizedDescription)"
         }
     }
+
+    /// True once assets are fully loaded and ready to render the tree.
+    var isReady: Bool { loaded }
 }
 
 // MARK: - The tree canvas
