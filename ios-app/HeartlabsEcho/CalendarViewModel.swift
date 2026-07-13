@@ -355,7 +355,7 @@ final class CalendarViewModel: ObservableObject {
         let cleaned = text
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let maxLength = 5000
+        let maxLength = 500
         if cleaned.count <= maxLength {
             return cleaned
         }

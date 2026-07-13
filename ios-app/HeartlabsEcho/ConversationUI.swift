@@ -540,7 +540,6 @@ struct FullScreenPhotoView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()
-                    .padding(40)
             }
 
             VStack {
