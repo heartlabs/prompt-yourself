@@ -50,6 +50,16 @@
 "speech_recognition_alert" = "Speech Recognition";
 "ok_button" = "OK";
 
+// MARK: - Burn Conversation
+"burn_confirmation_title" = "Burn This Conversation?";
+"burn_confirmation_message" = "This will permanently delete the conversation, its summary, and all attached photos. This action cannot be undone.";
+"burn_button" = "Burn";
+"cancel_button" = "Cancel";
+"burn_conversation_button" = "Burn This Conversation";
+"burn_conversation_hint" = "This permanently deletes the conversation, its summary, and all photos.";
+"conversation_detail_no_photos" = "No photos in this conversation";
+"shared_pictures" = "Shared Pictures";
+
 // MARK: - Calendar / Profile
 "tap_day_to_view" = "Tap a day to view its entry";
 "recent_memories" = "Recent Memories";

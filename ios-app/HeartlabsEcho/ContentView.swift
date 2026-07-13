@@ -10,6 +10,9 @@ struct ContentView: View {
     /// Whether to show the onboarding sheet (first launch).
     @State private var showOnboarding = !UserName.isSet
 
+    /// Whether the conversation detail sheet is presented.
+    @State private var showConversationDetail = false
+
     /// Shared visual style for the daily conversation screen.
     private let style = ConversationStyle.journal
 
@@ -207,7 +210,9 @@ extension ContentView {
             isThinking: viewModel.isThinking,
             isRemembering: viewModel.isRemembering,
             scrollIntent: viewModel.scrollIntent,
-            style: style
+            style: style,
+            headerDateLabel: viewModel.conversationDateLabel,
+            onTapTitle: { showConversationDetail = true }
         )
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if viewModel.isShowingPastConversation {
@@ -219,6 +224,15 @@ extension ContentView {
             } else {
                 orbBar
             }
+        }
+        .sheet(isPresented: $showConversationDetail) {
+            ConversationDetailSheet(
+                dateLabel: viewModel.conversationDateLabel ?? "",
+                photos: viewModel.conversationPhotos,
+                onBurn: { viewModel.burnConversation() }
+            )
+            .presentationDetents([PresentationDetent.medium, PresentationDetent.large])
+            .presentationDragIndicator(Visibility.visible)
         }
     }
 

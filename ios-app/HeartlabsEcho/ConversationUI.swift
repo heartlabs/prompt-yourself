@@ -280,6 +280,13 @@ struct ConversationTranscriptView: View {
     let scrollIntent: ConversationEngine.ScrollIntent?
     let style: ConversationStyle
 
+    /// The formatted date label for the conversation header (e.g. "Today, July 13").
+    /// When non-nil, a header row with this label is shown above the messages.
+    var headerDateLabel: String? = nil
+
+    /// Called when the user taps the conversation title to see details.
+    var onTapTitle: (() -> Void)? = nil
+
     @State private var fullscreenPhotoPath: String? = nil
 
     var body: some View {
@@ -287,6 +294,11 @@ struct ConversationTranscriptView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        // Header: date label + burn button (scrolls with content).
+                        if let dateLabel = headerDateLabel {
+                            conversationHeader(dateLabel: dateLabel)
+                        }
+
                     ForEach(messages) { message in
                         MessageBubbleView(
                             message: message,
@@ -337,7 +349,179 @@ struct ConversationTranscriptView: View {
                 FullScreenPhotoView(path: path)
             }
         }
+    }
+
+    // MARK: - Conversation Header
+
+    private func conversationHeader(dateLabel: String) -> some View {
+        Button {
+            onTapTitle?()
+        } label: {
+            HStack(spacing: 6) {
+                Text(dateLabel)
+                    .font(.echoSectionTitle)
+                    .foregroundColor(.textPrimary)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.textTertiary)
+
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
+    }
 }
+
+// MARK: - Conversation Detail Sheet
+
+/// Slides up when the user taps the conversation title. Shows a horizontal
+/// photo row (like the calendar) and a subtle burn button.
+struct ConversationDetailSheet: View {
+    @ObservedObject private var loc = LocalizationService.shared
+    @Environment(\.dismiss) private var dismiss
+
+    /// The formatted date label (e.g. "Today, July 13").
+    let dateLabel: String
+    /// Relative paths of photos in this conversation.
+    let photos: [String]
+    /// Called when the user confirms they want to burn this conversation.
+    let onBurn: () -> Void
+
+    @State private var showBurnConfirmation = false
+    @State private var selectedPhotoPath: String?
+    @State private var showAllPhotos = false
+
+    var body: some View {
+        DetailView(
+            title: dateLabel,
+            subtitle: subtitleText
+        ) {
+            ZStack {
+                Circle()
+                    .fill(Color.softTaupe.opacity(0.4))
+                    .frame(width: 44, height: 44)
+                Image(systemName: "bubble.left.and.bubble.right.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.taupeText)
+            }
+            .accessibilityHidden(true)
+        } content: {
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                if !photos.isEmpty {
+                    photoRow
+                }
+
+                Divider()
+                    .overlay(Color.cardBorder)
+
+                burnRow
+            }
+        }
+        .confirmationDialog(
+            loc.localized("burn_confirmation_title"),
+            isPresented: $showBurnConfirmation,
+            titleVisibility: Visibility.visible
+        ) {
+            Button(loc.localized("burn_button"), role: .destructive) {
+                onBurn()
+                dismiss()
+            }
+            Button(loc.localized("cancel_button"), role: .cancel) {}
+        } message: {
+            Text(loc.localized("burn_confirmation_message"))
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { selectedPhotoPath != nil },
+            set: { if !$0 { selectedPhotoPath = nil } }
+        )) {
+            if let path = selectedPhotoPath {
+                FullScreenPhotoView(path: path)
+            }
+        }
+        .sheet(isPresented: $showAllPhotos) {
+            RecentMemoriesGalleryView(
+                photos: photos.map { MemoryPhoto(path: $0, dateKey: "", timestamp: Date()) }
+            )
+        }
+    }
+
+    private var subtitleText: String {
+        if photos.isEmpty {
+            return loc.localized("conversation_detail_no_photos")
+        }
+        let count = photos.count
+        let label = count == 1 ? loc.localized("photo") : loc.localized("photos")
+        return "\(count) \(label)"
+    }
+
+    // MARK: - Photo Row
+
+    /// A single horizontal row of thumbnails with a "See all" link,
+    /// matching the calendar's recent memories section.
+    private var photoRow: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                showAllPhotos = true
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
+                    Text(loc.localized("shared_pictures"))
+                        .font(.echoSectionTitle)
+                        .foregroundColor(.textPrimary)
+                    HStack(spacing: 4) {
+                        Text(loc.localized("see_all"))
+                            .font(.echoSubheadline)
+                            .foregroundColor(.sageGreen)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.sageGreen)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: Theme.Spacing.s) {
+                    ForEach(photos, id: \.self) { path in
+                        Button {
+                            selectedPhotoPath = path
+                        } label: {
+                            if let uiImage = ImageUtils.loadImage(relativePath: path) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 100, height: 100)
+                                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    // MARK: - Burn Row
+
+    /// A subtle row with a small flame icon and label.
+    private var burnRow: some View {
+        Button {
+            showBurnConfirmation = true
+        } label: {
+            HStack(spacing: Theme.Spacing.s) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.textTertiary)
+                Text(loc.localized("burn_conversation_button"))
+                    .font(.echoBody)
+                    .foregroundColor(.textSecondary)
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // MARK: - Full-Screen Photo Viewer

@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftData
 import SwiftUI
@@ -100,6 +101,9 @@ final class CalendarViewModel: ObservableObject {
     /// a different date, so a stale result can never overwrite `previewState`.
     private var previewTask: Task<Void, Never>?
 
+    /// Combine cancellables for notification observers.
+    private var cancellables = Set<AnyCancellable>()
+
     // MARK: - Init
 
     init(conversationService: ConversationService,
@@ -116,6 +120,15 @@ final class CalendarViewModel: ObservableObject {
 
         // Auto-select today so the preview card appears immediately.
         selectDate(Date())
+
+        // Refresh calendar dots when a conversation is burned.
+        NotificationCenter.default.publisher(for: .conversationBurned)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.loadDatesWithEntries()
+                self?.loadRecentPhotos()
+            }
+            .store(in: &cancellables)
     }
 
     /// Refreshes the set of date keys that have entries.

@@ -112,6 +112,14 @@ struct ConversationConfiguration {
     )
 }
 
+// MARK: - Notifications
+
+extension Notification.Name {
+    /// Posted when a conversation is burned (permanently deleted).
+    /// Observers (e.g. the calendar) should refresh their data.
+    static let conversationBurned = Notification.Name("conversationBurned")
+}
+
 // MARK: - ConversationEngine
 
 /// The pipeline behind a conversation screen: LLM communication (with a
@@ -192,6 +200,54 @@ class ConversationEngine: ObservableObject {
     /// Whether the currently displayed conversation belongs to a past date
     /// (and should therefore be treated as read-only).
     @Published private(set) var isShowingPastConversation = false
+
+    /// The relative paths of all photos in the current conversation.
+    var conversationPhotos: [String] {
+        messages.compactMap { msg in
+            if case .image(let path) = msg.content { return path }
+            return nil
+        }
+    }
+
+    /// The formatted date label for the current conversation header
+    /// (e.g. "Today, July 13" or "Monday, July 12"). `nil` when no
+    /// conversation is loaded.
+    var conversationDateLabel: String? {
+        guard let conversation = currentConversation else { return nil }
+        return Self.formatDateLabel(dateKey: conversation.dateKey)
+    }
+
+    /// Formats a date-key string ("yyyy-MM-dd") into a human-readable label.
+    /// Uses the same format as the calendar preview cards.
+    static func formatDateLabel(dateKey: String) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: dateKey) else { return dateKey }
+
+        let locale = AppLanguage.current.locale
+        let monthDay: String = {
+            let f = DateFormatter()
+            f.locale = locale
+            f.dateFormat = "MMMM d"
+            return f.string(from: date)
+        }()
+
+        if Calendar.current.isDateInToday(date) {
+            let todayLabel = LocalizationService.shared.localized("today_label")
+            return "\(todayLabel), \(monthDay)"
+        }
+
+        let weekday: String = {
+            let f = DateFormatter()
+            f.locale = locale
+            f.dateFormat = "EEEE"
+            return f.string(from: date)
+        }()
+
+        return "\(weekday), \(monthDay)"
+    }
 
     // MARK: - Scroll
 
@@ -335,6 +391,30 @@ class ConversationEngine: ObservableObject {
         guard phase == .idle else { return }
         loadConversation(for: dateKey)
         displayedTab = .today
+    }
+
+    /// Permanently deletes the currently displayed conversation: all messages,
+    /// the summary, and any attached image files are removed from disk.
+    ///
+    /// After burning, the engine resets to the moodboard (empty state) — as if
+    /// the user opened the app for the first time that day. No-op while the
+    /// engine is busy (composing, thinking, or calling a tool).
+    func burnConversation() {
+        guard phase == .idle else { return }
+        guard let conversation = currentConversation else { return }
+
+        let dateKey = conversation.dateKey
+        let kind = configuration.kind
+
+        conversationService.deleteConversation(dateKey: dateKey, kind: kind)
+
+        // Reset to moodboard — empty state, as if first launch of the day.
+        currentConversation = nil
+        messages = []
+        conversationIsActive = false
+        updatePastConversationFlag()
+
+        NotificationCenter.default.post(name: .conversationBurned, object: nil)
     }
 
     private func finishReset() {

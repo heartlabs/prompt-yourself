@@ -50,6 +50,16 @@
 "speech_recognition_alert" = "Spracherkennung";
 "ok_button" = "OK";
 
+// MARK: - Burn Conversation
+"burn_confirmation_title" = "Diese Unterhaltung löschen?";
+"burn_confirmation_message" = "Dadurch werden die Unterhaltung, ihre Zusammenfassung und alle angehängten Fotos dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.";
+"burn_button" = "Löschen";
+"cancel_button" = "Abbrechen";
+"burn_conversation_button" = "Diese Unterhaltung löschen";
+"burn_conversation_hint" = "Dadurch werden die Unterhaltung, ihre Zusammenfassung und alle Fotos dauerhaft gelöscht.";
+"conversation_detail_no_photos" = "Keine Fotos in dieser Unterhaltung";
+"shared_pictures" = "Geteilte Bilder";
+
 // MARK: - Calendar / Profile
 "tap_day_to_view" = "Tippe auf einen Tag, um den Eintrag zu sehen";
 "recent_memories" = "Letzte Erinnerungen";

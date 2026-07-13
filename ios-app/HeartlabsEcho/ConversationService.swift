@@ -199,6 +199,32 @@ final class ConversationService {
         saveChanges()
     }
 
+    /// Deletes a conversation and all associated data (messages, summary, image files).
+    ///
+    /// - Parameters:
+    ///   - dateKey: The date key string (e.g. `"2026-06-13"`).
+    ///   - kind: The conversation kind to scope to (e.g. `.journal`).
+    /// - Returns: `true` if a conversation was found and deleted, `false` if none existed.
+    @discardableResult
+    func deleteConversation(dateKey: String, kind: ConversationKind) -> Bool {
+        guard let conversation = loadConversation(dateKey: dateKey, kind: kind) else {
+            return false
+        }
+        // Collect image paths to delete from disk after SwiftData removal.
+        let imagePaths = conversation.messages
+            .filter { $0.contentType == Message.contentTypeImage }
+            .map { $0.content }
+
+        modelContext.delete(conversation)
+        saveChanges()
+
+        // Clean up image files from disk.
+        for path in imagePaths {
+            ImageUtils.deleteImage(relativePath: path)
+        }
+        return true
+    }
+
     /// Persists any pending changes to the store.
     func saveChanges() {
         do {

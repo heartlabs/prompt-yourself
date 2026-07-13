@@ -50,6 +50,16 @@
 "speech_recognition_alert" = "Распознавание речи";
 "ok_button" = "OK";
 
+// MARK: - Burn Conversation
+"burn_confirmation_title" = "Удалить этот разговор?";
+"burn_confirmation_message" = "Разговор, его краткое содержание и все прикреплённые фотографии будут удалены безвозвратно. Это действие нельзя отменить.";
+"burn_button" = "Удалить";
+"cancel_button" = "Отмена";
+"burn_conversation_button" = "Удалить этот разговор";
+"burn_conversation_hint" = "Разговор, его краткое содержание и все фотографии будут удалены безвозвратно.";
+"conversation_detail_no_photos" = "Нет фотографий в этом разговоре";
+"shared_pictures" = "Общие фото";
+
 // MARK: - Calendar / Profile
 "tap_day_to_view" = "Нажмите на день, чтобы просмотреть запись";
 "recent_memories" = "Недавние воспоминания";
