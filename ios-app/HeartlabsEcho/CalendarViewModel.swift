@@ -115,12 +115,6 @@ final class CalendarViewModel: ObservableObject {
         self.summaryService = summaryService
         self.goalService = goalService
 
-        loadDatesWithEntries()
-        loadRecentPhotos()
-
-        // Auto-select today so the preview card appears immediately.
-        selectDate(Date())
-
         // Refresh calendar dots when a conversation is burned.
         NotificationCenter.default.publisher(for: .conversationBurned)
             .receive(on: DispatchQueue.main)
@@ -129,6 +123,15 @@ final class CalendarViewModel: ObservableObject {
                 self?.loadRecentPhotos()
             }
             .store(in: &cancellables)
+    }
+
+    /// Loads all calendar data asynchronously — called from `.task` after the
+    /// view appears so the UI renders immediately with zero/placeholder values
+    /// rather than blocking on SwiftData fetches during init.
+    func loadInitialData() async {
+        loadDatesWithEntries()
+        loadRecentPhotos()
+        selectDate(Date())
     }
 
     /// Refreshes the set of date keys that have entries.

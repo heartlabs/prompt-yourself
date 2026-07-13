@@ -62,6 +62,9 @@ struct CalendarView: View {
         }
         }
         .preferredColorScheme(.light)
+        .task {
+            await viewModel.loadInitialData()
+        }
         .sheet(isPresented: $showEditProfile) {
             EditProfileView()
         }
