@@ -4,7 +4,7 @@ use std::cell::RefCell;
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused_imports))]
 use chrono::Utc;
-use prompt_yourself_core::domain::entities::game::{GameError, Quest, QuestStatus};
+use prompt_yourself_core::domain::entities::game::{GameError, Quest, QuestStatus, TimelineEntryData};
 use prompt_yourself_core::domain::ports::quest_repository::QuestRepository;
 #[cfg(target_arch = "wasm32")]
 use serde_json::json;
@@ -213,17 +213,27 @@ pub async fn get_quest_state_from_cache() -> String {
             entries.sort_by_key(|e| e.occurred_on);
 
             entries.iter().map(|entry| {
-                let quest_info = quests.iter().find(|q| q.id == entry.quest_id);
-                let points = quest_info.map(|q| q.points).unwrap_or(0);
-                let description = quest_info.map(|q| q.description.as_str()).unwrap_or("");
-                json!({
-                    "id": entry.id.to_string(),
-                    "questId": entry.quest_id.to_string(),
-                    "questTitle": quest_info.map(|q| q.title.as_str()).unwrap_or(""),
-                    "occurredOn": entry.occurred_on.to_rfc3339(),
-                    "points": points,
-                    "description": description,
-                })
+                match &entry.data {
+                    TimelineEntryData::CheckIn { energy_level, description } => json!({
+                        "id": entry.id.to_string(),
+                        "occurredOn": entry.occurred_on.to_rfc3339(),
+                        "type": "check_in",
+                        "energyLevel": format!("{:?}", energy_level).to_lowercase(),
+                        "description": description,
+                        "points": 5,
+                    }),
+                    TimelineEntryData::QuestCompletion { quest_id } => {
+                        let quest = quests.iter().find(|q| q.id == *quest_id);
+                        json!({
+                            "id": entry.id.to_string(),
+                            "occurredOn": entry.occurred_on.to_rfc3339(),
+                            "type": "quest_completion",
+                            "energyLevel": serde_json::Value::Null,
+                            "description": quest.map(|q| format!("Completed quest: {}", q.title)).unwrap_or_default(),
+                            "points": quest.map(|q| q.points).unwrap_or(0),
+                        })
+                    }
+                }
             }).collect()
         });
 

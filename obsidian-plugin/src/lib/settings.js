@@ -182,6 +182,15 @@ export class PromptYourselfSettingTab extends PluginSettingTab {
               const model = value.trim() || 'deepseek-chat';
               profileManager.update(activeProfile.id, { model });
               await this.plugin.saveSettings();
+
+              // Re-init chat with the new model
+              const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+              if (leaves.length > 0) {
+                const view = leaves[0].view;
+                if (view && view.loadFolder) {
+                  await view.loadFolder();
+                }
+              }
             });
         });
 

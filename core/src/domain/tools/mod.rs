@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::domain::entities::game::{GameService, Quest, QuestStatus};
+use crate::domain::entities::game::{EnergyLevel, GameService, Quest, QuestStatus, TimelineEntryData};
 use crate::domain::ports::openai::{ToolCall, ToolDefinition};
 
 pub struct ToolOutcome {
@@ -75,9 +75,30 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "record_check_in".to_string(),
+            description: "Record a check-in with the user's current energy level. "
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "level": {
+                        "type": "string",
+                        "enum": ["green", "yellow", "red"],
+                        "description": "Current energy level"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Note about the user's current state"
+                    }
+                },
+                "required": ["level", "description"],
+                "additionalProperties": false
+            }),
+        },
+        ToolDefinition {
             name: "list_timeline".to_string(),
-            description: "List today's timeline entries with full details including \
-                          UUIDs, quest IDs, timestamps, and point values. Use this \
+            description: "List today's timeline entries (check-ins and quest completions) with \
+                          UUIDs, energy levels, quest info, timestamps, and point values. Use this \
                           to find entry IDs for the update_timeline tool."
                 .to_string(),
             parameters: json!({
@@ -125,6 +146,7 @@ pub async fn execute(
         "complete_quest" => execute_complete_quest(game, call).await,
         "update_quest" => execute_update_quest(game, call).await,
         "update_timeline" => execute_update_timeline(game, call).await,
+        "record_check_in" => execute_record_check_in(game, call).await,
         "list_open_quests" => execute_list_open_quests(game, call, day).await,
         "list_timeline" => execute_list_timeline(game, call, day).await,
         other => (
@@ -326,6 +348,40 @@ async fn execute_update_timeline(game: &mut GameService, call: &ToolCall) -> (St
     }
 }
 
+async fn execute_record_check_in(game: &mut GameService, call: &ToolCall) -> (String, String) {
+    #[derive(Deserialize)]
+    struct Args {
+        level: String,
+        description: String,
+    }
+
+    let args: Args = match serde_json::from_str(&call.arguments) {
+        Ok(a) => a,
+        Err(e) => return (
+            "⚠️ Could not parse check-in arguments".into(),
+            format!("error: failed to parse record_check_in arguments: {e}"),
+        ),
+    };
+
+    let level = match args.level.as_str() {
+        "green" => EnergyLevel::Green,
+        "yellow" => EnergyLevel::Yellow,
+        "red" => EnergyLevel::Red,
+        other => return (
+            format!("⚠️ Invalid energy level: {other}"),
+            format!("error: invalid energy level '{other}'"),
+        ),
+    };
+
+    match game.record_check_in(level, args.description.clone()).await {
+        Ok(()) => (
+            format!("✅ Check-in recorded: {} — {}", args.level, args.description),
+            format!("Check-in recorded with energy {:?}. Description: {}", level, args.description),
+        ),
+        Err(e) => (format!("⚠️ {e}"), format!("error: {e}")),
+    }
+}
+
 async fn execute_list_timeline(
     game: &mut GameService,
     _call: &ToolCall,
@@ -340,16 +396,26 @@ async fn execute_list_timeline(
     let mut lines = vec![format!("📜 {} timeline entries:", entries.len())];
 
     for entry in &entries {
-        if let Ok(Some(quest)) = game.find_quest_by_id(entry.quest_id).await {
-            lines.push(format!(
-                "  - id: {}, quest: \"{}\" (id: {}), time: {}, points: {}, description: \"{}\"",
-                entry.id, quest.title, quest.id, entry.occurred_on.format("%H:%M:%S"), quest.points, quest.description,
-            ));
-        } else {
-            lines.push(format!(
-                "  - id: {}, quest_id: {}, time: {} (quest not found)",
-                entry.id, entry.quest_id, entry.occurred_on.format("%H:%M:%S"),
-            ));
+        match &entry.data {
+            TimelineEntryData::CheckIn { energy_level, description } => {
+                lines.push(format!(
+                    "  - id: {}, type: check_in, time: {}, energy: {:?}, description: \"{}\", points: 5",
+                    entry.id, entry.occurred_on.format("%H:%M:%S"), energy_level, description,
+                ));
+            }
+            TimelineEntryData::QuestCompletion { quest_id } => {
+                if let Ok(Some(quest)) = game.find_quest_by_id(*quest_id).await {
+                    lines.push(format!(
+                        "  - id: {}, type: quest_completion, time: {}, quest: \"{}\", quest_id: {}, points: {}, description: \"{}\"",
+                        entry.id, entry.occurred_on.format("%H:%M:%S"), quest.title, quest.id, quest.points, quest.description,
+                    ));
+                } else {
+                    lines.push(format!(
+                        "  - id: {}, type: quest_completion, time: {}, quest: (deleted)",
+                        entry.id, entry.occurred_on.format("%H:%M:%S"),
+                    ));
+                }
+            }
         }
     }
 
@@ -388,22 +454,32 @@ async fn execute_list_open_quests(
 
     if !timeline.is_empty() {
         let pts_today: u32 = game.total_points(day).await;
-        lines.push(format!("✅ {} completed today ({} pts)", timeline.len(), pts_today));
+        lines.push(format!("✅ {} today ({} pts)", timeline.len(), pts_today));
         for entry in &timeline {
-            if let Ok(Some(quest)) = game.find_quest_by_id(entry.quest_id).await {
-                lines.push(format!(
-                    "  - id: {}, title: \"{}\", points: {}",
-                    entry.id, quest.title, quest.points,
-                ));
+            match &entry.data {
+                TimelineEntryData::CheckIn { energy_level, description } => {
+                    lines.push(format!(
+                        "  - id: {}, type: check_in, energy: {:?}, description: \"{}\", points: 5",
+                        entry.id, energy_level, description,
+                    ));
+                }
+                TimelineEntryData::QuestCompletion { quest_id } => {
+                    if let Ok(Some(quest)) = game.find_quest_by_id(*quest_id).await {
+                        lines.push(format!(
+                            "  - id: {}, type: quest_completion, quest: \"{}\", points: {}",
+                            entry.id, quest.title, quest.points,
+                        ));
+                    }
+                }
             }
         }
     }
 
     let llm_msg = lines.join("\n");
     let open_count = open_quests.len();
-    let completed_count = timeline.len();
+    let total_count = timeline.len();
     let pts_today: u32 = game.total_points(day).await;
-    let user_msg = format!("📋 {} active, {} completed ({} pts)", open_count, completed_count, pts_today);
+    let user_msg = format!("📋 {} active, {} entries today ({} pts)", open_count, total_count, pts_today);
 
     (user_msg, llm_msg)
 }

@@ -1,6 +1,6 @@
 import { ItemView } from 'obsidian';
 import { QUEST_VIEW_TYPE } from './constants.js';
-import { getGameState } from '../core_wasm.js';
+import { getGameState, updateTimelineEntryEnergy } from '../core_wasm.js';
 
 /**
  * Format an RFC3339 timestamp string to hh:mm:ss (local time).
@@ -101,25 +101,38 @@ export class PromptYourselfQuestView extends ItemView {
       for (const entry of timeline) {
         const li = timelineList.createEl('li', { cls: 'quests-timeline-entry' });
 
-        // ── Collapsed row (3 columns) ─────────────────────────────────────
+        // ── Collapsed row ───────────────────────────────────────────────────
         const row = li.createEl('div', { cls: 'quests-timeline-row' });
+
+        // Energy dot (check-in only)
+        if (entry.type === 'check_in' && entry.energyLevel) {
+          const energyEl = row.createEl('span', {
+            cls: `quests-timeline-energy energy-${entry.energyLevel}`,
+          });
+          energyEl.setAttr('data-entry-id', entry.id);
+
+          energyEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._showEnergyDropdown(energyEl, entry.id, entry.energyLevel);
+          });
+        }
 
         // Column 1: Timestamp
         const timeCol = row.createEl('span', { cls: 'quests-timeline-time' });
         timeCol.setText(formatTimestamp(entry.occurredOn));
 
-        // Column 2: Quest title
+        // Column 2: Description
         const titleCol = row.createEl('span', { cls: 'quests-timeline-title' });
-        titleCol.setText(entry.questTitle);
+        titleCol.setText(entry.description);
 
         // Column 3: Points badge
         const ptsCol = row.createEl('span', { cls: 'quests-timeline-points' });
         ptsCol.setText('+' + entry.points);
 
-        // ── Expanded description (hidden by default) ───────────────────────
+        // ── Expanded description (hidden by default) ────────────────────────
         const desc = li.createEl('div', {
           cls: 'quests-timeline-desc',
-          text: entry.description || '',
+          text: '',
         });
 
         // ── Toggle on click ───────────────────────────────────────────────
@@ -129,7 +142,7 @@ export class PromptYourselfQuestView extends ItemView {
         });
       }
     } else {
-      contentEl.createEl('p', { text: 'No completed quests yet.', cls: 'quests-empty' });
+      contentEl.createEl('p', { text: 'No entries yet today.', cls: 'quests-empty' });
     }
 
     // ── Total points ───────────────────────────────────────────────────────
@@ -139,6 +152,46 @@ export class PromptYourselfQuestView extends ItemView {
       text: '⭐ Total: ' + total + ' points',
       cls: 'quests-total',
     });
+  }
+
+  /**
+   * Show an inline dropdown to change the energy level of a check-in entry.
+   */
+  _showEnergyDropdown(anchorEl, entryId, currentLevel) {
+    const existing = anchorEl.querySelector('.quests-energy-dropdown');
+    if (existing) return;
+
+    const popup = anchorEl.createEl('div', { cls: 'quests-energy-dropdown' });
+    const levels = ['green', 'yellow', 'red'];
+
+    for (const l of levels) {
+      const dot = popup.createEl('div', {
+        cls: `quests-energy-dot energy-${l}${l === currentLevel ? ' is-current' : ''}`,
+      });
+
+      dot.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (l === currentLevel) {
+          popup.remove();
+          return;
+        }
+        try {
+          await updateTimelineEntryEnergy(entryId, l);
+        } catch (err) {
+          console.error('Failed to update energy level:', err);
+        }
+        popup.remove();
+        this.render();
+      });
+    }
+
+    const closeOnOutside = (e) => {
+      if (!anchorEl.contains(e.target)) {
+        popup.remove();
+        document.removeEventListener('click', closeOnOutside, true);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeOnOutside, true), 0);
   }
 
   async onClose() {

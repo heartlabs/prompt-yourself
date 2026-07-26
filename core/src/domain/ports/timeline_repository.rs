@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use uuid::Uuid;
 
-use crate::domain::entities::game::{GameError, TimelineEntry};
+use crate::domain::entities::game::{EnergyLevel, GameError, TimelineEntry};
 
 /// Driven port for CRUD operations on timeline entries.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -16,6 +16,11 @@ pub trait TimelineRepository: Send {
     /// Remove a timeline entry by its UUID.
     async fn remove(&mut self, id: Uuid) -> Result<(), GameError>;
 
-    /// Change which quest a timeline entry references (by quest UUID).
+    /// Change which quest a QuestCompletion entry references.
+    /// Returns GameError if the entry is not a QuestCompletion variant.
     async fn reassign(&mut self, entry_id: Uuid, quest_id: Uuid) -> Result<(), GameError>;
+
+    /// Update the energy level of a CheckIn entry.
+    /// Returns GameError if the entry is not a CheckIn variant.
+    async fn update_energy_level(&mut self, entry_id: Uuid, level: EnergyLevel) -> Result<(), GameError>;
 }

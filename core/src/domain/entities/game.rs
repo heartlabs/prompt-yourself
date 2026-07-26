@@ -11,6 +11,24 @@ pub enum QuestStatus {
     Pinned,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum EnergyLevel {
+    Green,
+    Yellow,
+    Red,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum TimelineEntryData {
+    CheckIn {
+        energy_level: EnergyLevel,
+        description: String,
+    },
+    QuestCompletion {
+        quest_id: Uuid,
+    },
+}
+
 pub struct GameService {
     quest_repo: Box<dyn QuestRepository>,
     timeline_repo: Box<dyn TimelineRepository>,
@@ -54,8 +72,8 @@ impl GameService {
 
         let entry = TimelineEntry {
             id: Uuid::new_v4(),
-            quest_id,
             occurred_on: Utc::now(),
+            data: TimelineEntryData::QuestCompletion { quest_id },
         };
         self.timeline_repo.record(entry).await
     }
@@ -76,8 +94,13 @@ impl GameService {
         let entries = self.timeline_repo.find_by_date(day).await;
         let mut total = 0u32;
         for entry in &entries {
-            if let Ok(Some(quest)) = self.quest_repo.find_by_id(entry.quest_id).await {
-                total += quest.points;
+            match &entry.data {
+                TimelineEntryData::CheckIn { .. } => total += 5,
+                TimelineEntryData::QuestCompletion { quest_id } => {
+                    if let Ok(Some(quest)) = self.quest_repo.find_by_id(*quest_id).await {
+                        total += quest.points;
+                    }
+                }
             }
         }
         total
@@ -93,6 +116,29 @@ impl GameService {
 
     pub async fn reassign_timeline_entry(&mut self, entry_id: Uuid, quest_id: Uuid) -> Result<(), GameError> {
         self.timeline_repo.reassign(entry_id, quest_id).await
+    }
+
+    /// Record a check-in with the user's current energy level.
+    pub async fn record_check_in(
+        &mut self,
+        energy_level: EnergyLevel,
+        description: String,
+    ) -> Result<(), GameError> {
+        let entry = TimelineEntry {
+            id: Uuid::new_v4(),
+            occurred_on: Utc::now(),
+            data: TimelineEntryData::CheckIn { energy_level, description },
+        };
+        self.timeline_repo.record(entry).await
+    }
+
+    /// Update the energy level of a CheckIn timeline entry.
+    pub async fn update_entry_energy(
+        &mut self,
+        entry_id: Uuid,
+        level: EnergyLevel,
+    ) -> Result<(), GameError> {
+        self.timeline_repo.update_energy_level(entry_id, level).await
     }
 
     pub async fn find_quest_by_id(&self, id: Uuid) -> Result<Option<Quest>, GameError> {
@@ -118,6 +164,6 @@ pub struct Quest {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TimelineEntry {
     pub id: Uuid,
-    pub quest_id: Uuid,
     pub occurred_on: DateTime<Utc>,
+    pub data: TimelineEntryData,
 }

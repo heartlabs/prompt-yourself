@@ -4,7 +4,7 @@ use std::cell::RefCell;
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused_imports))]
 use chrono::NaiveDate;
-use prompt_yourself_core::domain::entities::game::{GameError, TimelineEntry};
+use prompt_yourself_core::domain::entities::game::{EnergyLevel, GameError, TimelineEntry, TimelineEntryData};
 use prompt_yourself_core::domain::ports::timeline_repository::TimelineRepository;
 #[cfg(target_arch = "wasm32")]
 use serde_json::json;
@@ -90,8 +90,30 @@ impl TimelineRepository for WasmTimelineRepository {
         TIMELINE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             let entry = cache.iter_mut().find(|e| e.id == entry_id).ok_or_else(|| GameError::Other(format!("No timeline entry with id '{}'", entry_id)))?;
-            entry.quest_id = quest_id;
-            Ok(())
+            match &mut entry.data {
+                TimelineEntryData::QuestCompletion { quest_id: ref mut qid } => {
+                    *qid = quest_id;
+                    Ok(())
+                }
+                _ => Err(GameError::Other("Cannot reassign a non-quest timeline entry".into())),
+            }
+        })?;
+        persist_cache().await
+    }
+
+    async fn update_energy_level(&mut self, entry_id: Uuid, level: EnergyLevel) -> Result<(), GameError> {
+        let _guard = ReentryGuard::try_enter()?;
+        ensure_cache_loaded().await?;
+        TIMELINE_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            let entry = cache.iter_mut().find(|e| e.id == entry_id).ok_or_else(|| GameError::Other(format!("No timeline entry with id '{}'", entry_id)))?;
+            match &mut entry.data {
+                TimelineEntryData::CheckIn { energy_level, .. } => {
+                    *energy_level = level;
+                    Ok(())
+                }
+                _ => Err(GameError::Other("Cannot change energy on a non-check-in entry".into())),
+            }
         })?;
         persist_cache().await
     }
@@ -104,6 +126,7 @@ impl TimelineRepository for WasmTimelineRepository {
     async fn find_by_date(&self, _day: NaiveDate) -> Vec<TimelineEntry> { unreachable!() }
     async fn remove(&mut self, _id: Uuid) -> Result<(), GameError> { unreachable!() }
     async fn reassign(&mut self, _entry_id: Uuid, _quest_id: Uuid) -> Result<(), GameError> { unreachable!() }
+    async fn update_energy_level(&mut self, _entry_id: Uuid, _level: EnergyLevel) -> Result<(), GameError> { unreachable!() }
 }
 
 // ─── Timeline helpers (WASM only) ──────────────────────────────────────────
@@ -142,6 +165,43 @@ pub(crate) async fn persist_cache() -> Result<(), GameError> {
     Ok(())
 }
 
+// ─── WASM exports ───────────────────────────────────────────────────────────
+
+/// Update the energy level of a CheckIn timeline entry.
+#[wasm_bindgen(js_name = updateTimelineEntryEnergy)]
+pub async fn wasm_update_timeline_entry_energy(entry_id: &str, level: &str) -> Result<(), JsError> {
+    #[cfg(target_arch = "wasm32")]
+    async fn impl_(entry_id: &str, level: &str) -> Result<(), JsError> {
+        let id: Uuid = entry_id.parse().map_err(|e| JsError::new(&format!("Invalid entry ID: {e}")))?;
+        let energy = match level {
+            "green" => EnergyLevel::Green,
+            "yellow" => EnergyLevel::Yellow,
+            "red" => EnergyLevel::Red,
+            other => return Err(JsError::new(&format!("Invalid energy level: {other}"))),
+        };
+        ensure_cache_loaded().await.map_err(|e| JsError::new(&e.to_string()))?;
+        TIMELINE_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            let entry = cache.iter_mut().find(|e| e.id == id).ok_or_else(|| JsError::new(&format!("No timeline entry with id '{entry_id}'")))?;
+            match &mut entry.data {
+                TimelineEntryData::CheckIn { energy_level, .. } => {
+                    *energy_level = energy;
+                    Ok(())
+                }
+                _ => Err(JsError::new("Cannot change energy on a non-check-in entry")),
+            }
+        })?;
+        persist_cache().await.map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn impl_(_entry_id: &str, _level: &str) -> Result<(), JsError> {
+        Err(JsError::new("updateTimelineEntryEnergy is only available on WASM"))
+    }
+
+    impl_(entry_id, level).await
+}
+
 // ─── Combined query exports ────────────────────────────────────────────────
 
 /// Return timeline entries for a specific date as JSON (includes quest info).
@@ -168,17 +228,27 @@ pub async fn wasm_get_timeline_for_date(year: i32, month: u8, day: u8) -> Result
                 entries.sort_by_key(|e| e.occurred_on);
 
                 let timeline: Vec<serde_json::Value> = entries.iter().map(|entry| {
-                    let quest_info = quests.iter().find(|q| q.id == entry.quest_id);
-                    let points = quest_info.map(|q| q.points).unwrap_or(0);
-                    let description = quest_info.map(|q| q.description.as_str()).unwrap_or("");
-                    json!({
-                        "id": entry.id.to_string(),
-                        "questId": entry.quest_id.to_string(),
-                        "questTitle": quest_info.map(|q| q.title.as_str()).unwrap_or(""),
-                        "occurredOn": entry.occurred_on.to_rfc3339(),
-                        "points": points,
-                        "description": description,
-                    })
+                    match &entry.data {
+                        TimelineEntryData::CheckIn { energy_level, description } => json!({
+                            "id": entry.id.to_string(),
+                            "occurredOn": entry.occurred_on.to_rfc3339(),
+                            "type": "check_in",
+                            "energyLevel": format!("{:?}", energy_level).to_lowercase(),
+                            "description": description,
+                            "points": 5,
+                        }),
+                        TimelineEntryData::QuestCompletion { quest_id } => {
+                            let quest = quests.iter().find(|q| q.id == *quest_id);
+                            json!({
+                                "id": entry.id.to_string(),
+                                "occurredOn": entry.occurred_on.to_rfc3339(),
+                                "type": "quest_completion",
+                                "energyLevel": serde_json::Value::Null,
+                                "description": quest.map(|q| format!("Completed quest: {}", q.title)).unwrap_or_default(),
+                                "points": quest.map(|q| q.points).unwrap_or(0),
+                            })
+                        }
+                    }
                 }).collect();
 
                 let total_points: u32 = timeline.iter().filter_map(|e| e.get("points")?.as_u64()).sum::<u64>() as u32;
