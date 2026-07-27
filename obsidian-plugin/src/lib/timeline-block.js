@@ -74,8 +74,9 @@ export class TimelineBlockComponent extends MarkdownRenderChild {
       // Collapsed row
       const row = li.createEl('div', { cls: 'quests-timeline-row' });
 
-      // Energy dot (check-in only)
+      // Energy dot (check-in only) — replaces the default blue dot
       if (entry.type === 'check_in' && entry.energyLevel) {
+        li.addClass('is-energy');
         const energyEl = row.createEl('span', {
           cls: `quests-timeline-energy energy-${entry.energyLevel}`,
         });

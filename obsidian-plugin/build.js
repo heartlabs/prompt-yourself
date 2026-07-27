@@ -25,9 +25,9 @@ function buildWasm() {
   const wasmDir = path.join(ROOT, 'core-wasm');
   const outDir = path.join(wasmDir, 'pkg');
 
-  // Run wasm-pack
+  // Run wasm-pack (no wasm-opt — avoid permission issues on some systems)
   execSync(
-    `wasm-pack build "${wasmDir}" --target web --out-dir "${outDir}" --release`,
+    `wasm-pack build "${wasmDir}" --target web --out-dir "${outDir}" --release --no-opt`,
     { stdio: 'inherit' }
   );
 

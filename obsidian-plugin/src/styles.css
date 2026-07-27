@@ -667,6 +667,23 @@
 
 /* ─── Energy dot ─────────────────────────────────────────────────────── */
 
+/* Energy entries: hide the default blue timeline dot */
+.prompt-yourself-quests .quests-timeline-entry.is-energy::before {
+  display: none;
+}
+
+/* Position energy dot at the same spot the blue dot would be */
+.prompt-yourself-quests .quests-timeline-entry.is-energy .quests-timeline-energy {
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  width: 15px;
+  height: 15px;
+  margin-right: 0;
+  border: 2px solid transparent;
+  z-index: 2;
+}
+
 .prompt-yourself-quests .quests-timeline-energy {
   width: 12px;
   height: 12px;
