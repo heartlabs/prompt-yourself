@@ -48,7 +48,7 @@ coaching, reflection, or encouragement. Do not question the\
 \
 user\'s intent. Simply execute and report the result.";
 
-const MAX_TOKENS: u32 = 500;
+const MAX_TOKENS: u32 = 3000;
 
 // ─── Driving port ───────────────────────────────────────────────────────────
 
