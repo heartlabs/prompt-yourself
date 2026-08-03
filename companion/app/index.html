@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Companion — Prompt Yourself</title>
+  <meta name="description" content="Micro-reflections on the go. Companion app to Prompt Yourself.">
+  <meta name="theme-color" content="#44584a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Companion">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!--
+  One <section> per screen. Exactly one is visible at a time (hidden attribute).
+  Navigation: ui.js showScreen(id). Dynamic content is rendered into the
+  elements marked with data-slot attributes. Keep markup semantic and minimal.
+-->
+
+<!-- ═══════════ HOME: calendar + day timeline ═══════════ -->
+<section id="screen-home">
+  <header class="appbar">
+    <h1>Companion</h1>
+    <button class="iconbtn" data-nav="screen-settings" aria-label="Settings">⚙︎</button>
+  </header>
+
+  <div class="card">
+    <nav class="cal-head" aria-label="Month navigation">
+      <button class="iconbtn" id="cal-prev" aria-label="Previous month">‹</button>
+      <h2 id="cal-title">Month</h2>
+      <button class="iconbtn" id="cal-next" aria-label="Next month">›</button>
+    </nav>
+    <div class="cal" id="cal-grid" role="grid"></div>
+  </div>
+
+  <h3 class="section-title" id="day-title">Today</h3>
+  <ul class="timeline" id="day-timeline"></ul>
+
+  <!-- not data-nav: starting a reflection must reset the picker session -->
+  <button class="fab" id="start-reflection" aria-label="New reflection">+</button>
+</section>
+
+<!-- ═══════════ DETAIL: one reflection, read-only ═══════════ -->
+<section id="screen-detail" hidden>
+  <header class="appbar">
+    <button class="backbtn" data-nav="screen-home">‹ Back</button>
+  </header>
+  <article class="card detail" id="detail-body"></article>
+  <button class="btn ghost" id="detail-copy">⧉ Copy as Markdown</button>
+</section>
+
+<!-- ═══════════ COMMITMENT: first prompt of the day ═══════════ -->
+<section id="screen-commit" hidden>
+  <h2 class="big" id="commit-greeting">Reflect today?</h2>
+  <p class="center-note">Confirm today's rhythm — you can change it any time.</p>
+  <div class="card">
+    <label class="set-row">Until
+      <input type="time" id="commit-end">
+    </label>
+    <label class="set-row">Rhythm
+      <select id="commit-rhythm"></select>
+    </label>
+  </div>
+  <button class="btn" id="commit-yes">I'm in — start my day</button>
+  <button class="btn quiet" id="commit-skip">Skip today</button>
+</section>
+
+<!-- ═══════════ PICKER ═══════════ -->
+<section id="screen-picker" hidden>
+  <h2 class="big">What feels right,<br>right now?</h2>
+  <nav class="pick" id="picker-options" aria-label="Choose a reflection"></nav>
+  <button class="btn quiet" data-nav="screen-home">← Back to home</button>
+</section>
+
+<!-- ═══════════ ENERGY: traffic light (tap = save) ═══════════ -->
+<section id="screen-energy" hidden>
+  <header class="appbar">
+    <button class="backbtn" data-nav="screen-picker">‹ Back</button>
+  </header>
+  <h2 class="big">Where's your<br>energy?</h2>
+  <div class="lights">
+    <button class="light green"  data-level="green">Green<small>thriving</small></button>
+    <button class="light yellow" data-level="yellow">Yellow<small>danger of going red</small></button>
+    <button class="light red"    data-level="red">Red<small>bad</small></button>
+  </div>
+</section>
+
+<!-- ═══════════ ENERGY NOTE: optional, after save ═══════════ -->
+<section id="screen-energy-note" hidden>
+  <header class="appbar">
+    <span></span>
+    <span class="hint">Saved ✓</span>
+  </header>
+  <h2 class="big small" id="note-title">A few words?</h2>
+  <textarea id="note-text" rows="4" placeholder="Whatever is true right now…"></textarea>
+  <h3 class="section-title" id="note-chips-title">Recent notes</h3>
+  <div class="chips" id="note-chips"></div>
+  <div class="spacer"></div>
+  <div class="btn-row">
+    <button class="btn ghost" id="note-skip">Skip note</button>
+    <button class="btn" id="note-done">Done</button>
+  </div>
+</section>
+
+<!-- ═══════════ 5 QUESTIONS ═══════════ -->
+<section id="screen-questions" hidden>
+  <header class="appbar">
+    <button class="backbtn" data-nav="screen-picker">‹ Back</button>
+    <h2>5 Questions</h2>
+    <span></span>
+  </header>
+  <form id="questions-form" class="stack">
+    <label>What am I doing right now?
+      <textarea name="doing" rows="2"></textarea>
+    </label>
+    <label>With what goal?
+      <textarea name="goal" rows="2"></textarea>
+    </label>
+    <div class="chips" id="goal-chips" aria-label="Goal examples"></div>
+    <label>Am I progressing towards it?
+      <textarea name="progressing" rows="2"></textarea>
+    </label>
+    <label>How am I feeling?
+      <textarea name="feeling" rows="2"></textarea>
+    </label>
+    <label>Continue as I was, or change something?
+      <textarea name="next" rows="2"></textarea>
+    </label>
+    <button class="btn" type="submit">Save reflection</button>
+  </form>
+</section>
+
+<!-- ═══════════ FEELINGS: persistent sliders ═══════════ -->
+<section id="screen-feelings" hidden>
+  <header class="appbar">
+    <button class="backbtn" data-nav="screen-picker">‹ Back</button>
+    <h2>Feelings</h2>
+    <span></span>
+  </header>
+  <ul class="stack" id="feelings-list"></ul>
+  <form id="feeling-add-form">
+    <input type="text" id="feeling-add" placeholder="+ add a feeling (any word that fits)" autocomplete="off">
+  </form>
+  <div class="spacer"></div>
+  <button class="btn" id="feelings-save">Save snapshot</button>
+</section>
+
+<!-- ═══════════ SETTINGS ═══════════ -->
+<section id="screen-settings" hidden>
+  <header class="appbar">
+    <button class="backbtn" data-nav="screen-home">‹ Home</button>
+    <h2>Settings</h2>
+    <span></span>
+  </header>
+
+  <h3 class="section-title">Daily window</h3>
+  <div class="card">
+    <label class="set-row">Start <input type="time" id="set-start"></label>
+    <label class="set-row">End <input type="time" id="set-end"></label>
+  </div>
+
+  <h3 class="section-title">Rhythm</h3>
+  <div class="seg" id="set-rhythm" role="radiogroup"></div>
+
+  <h3 class="section-title">Snooze</h3>
+  <div class="seg" id="set-snooze" role="radiogroup"></div>
+
+  <h3 class="section-title">Notifications</h3>
+  <div class="card">
+    <div class="set-row"><span>Status</span><span id="notif-status" class="val">–</span></div>
+    <button class="btn ghost" id="notif-enable">Enable notifications</button>
+    <button class="btn ghost danger" id="stop-today">Stop for today</button>
+  </div>
+
+  <h3 class="section-title">Data</h3>
+  <div class="btn-row">
+    <button class="btn ghost" id="export-btn">Export backup</button>
+    <button class="btn ghost" id="import-btn">Import</button>
+    <input type="file" id="import-file" accept=".json" hidden>
+  </div>
+  <p class="center-note">Your data lives only on this device. Export regularly —
+     deleting the app deletes your reflections.</p>
+</section>
+
+<!-- Transient feedback (toast) -->
+<output id="toast" role="status" hidden></output>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

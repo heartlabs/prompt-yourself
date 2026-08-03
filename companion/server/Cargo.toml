@@ -1,0 +1,24 @@
+[package]
+name = "companion-server"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal push-notification backend for Prompt Yourself: Companion. Stores one user's schedule + push subscriptions and fires Web Push on time. Reflection content NEVER touches this server."
+
+# Standalone workspace: the repo root has its own [workspace] and this crate
+# keeps its own Cargo.lock (it is not a member of the root workspace).
+[workspace]
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+web-push = { version = "0.10", default-features = false, features = ["hyper-client"] }
+chrono = "0.4"
+base64 = "0.22"
+p256 = { version = "0.13", features = ["ecdh"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+[profile.release]
+strip = true

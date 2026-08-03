@@ -1,0 +1,14 @@
+{
+  "name": "Companion — Prompt Yourself",
+  "short_name": "Companion",
+  "description": "Micro-reflections on the go. Companion to the Prompt Yourself journaling framework.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf9f6",
+  "theme_color": "#44584a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
