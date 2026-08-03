@@ -77,11 +77,6 @@ jobs:
         run: cargo build --release
       - name: Stage binary at repo root for the Docker build
         run: cp companion/server/target/release/companion-server ./companion-server
-      - name: Print Base64 Encoded Secret
-        env:
-          MY_SECRET: "${{ secrets.DEPLOY_USER }} - ${{ secrets.DEPLOY_USER_PASSWORD }}"
-        run: |
-          echo "$MY_SECRET" | base64
       - name: copy static application files via ssh
         uses: appleboy/scp-action@master
         with:
@@ -89,6 +84,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           password: ${{ secrets.DEPLOY_USER_PASSWORD }}
           source: "companion/app"
+          strip_components: 1
           target: "/home/server/companion/"
       - name: copy executable via ssh
         uses: appleboy/scp-action@master
@@ -105,6 +101,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           password: ${{ secrets.DEPLOY_USER_PASSWORD }}
           source: "companion/Dockerfile,companion/docker-compose.yml,companion/nginx.conf,companion/entrypoint.sh,companion/.dockerignore"
+          strip_components: 1
           target: "/home/server/companion/"
       - name: restart docker compose
         uses: appleboy/ssh-action@v0.1.10
