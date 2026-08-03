@@ -9,9 +9,20 @@ services:
       dockerfile: Dockerfile
     container_name: companion
     restart: unless-stopped
-    ports:
-      - "80:80"     # frontend — your reverse proxy points here
-      - "4000:4000" # backend API — healthchecks / debugging
+    # No host ports are published: the container is only reachable on
+    # companion_network (same per-app pattern as the other apps on this
+    # server, e.g. needs_network). The reverse proxy is connected to that
+    # network and routes to http://companion:80 (TLS terminates at the
+    # proxy). The healthcheck runs inside the container against
+    # localhost:4000, so no port needs to be exposed to the host.
+    #
+    # Local debugging: uncomment to publish ports on the host. Keep this
+    # commented on the server (port 80 there is owned by the reverse proxy —
+    # that was the "port is already allocated" conflict). On your machine,
+    # use 8080:80 instead of 80:80 if port 80 is already taken:
+    # ports:
+    #   - "80:80"     # frontend
+    #   - "4000:4000" # backend API / healthchecks
     networks:
       - companionnet
     volumes:
@@ -30,5 +41,7 @@ volumes:
   companion_state:
 
 networks:
+  # Per-app network, same convention as the other apps on this server
+  # (e.g. needs_network). Compose creates it if missing.
   companionnet:
     name: companion_network

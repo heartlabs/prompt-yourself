@@ -110,8 +110,20 @@ binary and files instead:
   builds `companion-server --release`, scps the binary, `app/` and the docker
   files to the server, then `docker compose up -d --build --force-recreate`.
 
-Point your reverse proxy at the container's `:80` (TLS is terminated at the
-proxy — iOS push and the service worker require HTTPS).
+**Networking:** the container publishes **no host ports** — the `ports:` block
+in `docker-compose.yml` is commented out (uncomment it when running locally on
+your machine for debugging). It sits on the per-app `companion_network` docker
+network, same convention as the other apps on this server (e.g. `needs_network`).
+
+The reverse proxy must be connected to that network and routes to the
+container as `http://companion:80` (TLS is terminated at the proxy — iOS push
+and the service worker require HTTPS). One-time setup on the server:
+
+```sh
+docker network connect companion_network <your-reverse-proxy-container>
+```
+
+Then set the proxy's upstream to `http://companion:80`.
 
 ### Building the Linux binary locally (optional)
 
