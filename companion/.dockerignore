@@ -1,0 +1,7 @@
+# Keep the build context (and any local docker build) small.
+.git
+server/
+node_modules/
+package-lock.json
+companion-state.json
+server/companion-state.json

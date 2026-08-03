@@ -1,0 +1,110 @@
+name: Companion CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+env:
+  RUST_TOOLCHAIN: stable
+  TOOLCHAIN_PROFILE: minimal
+
+jobs:
+  rustfmt:
+    name: Check Style
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt
+      - name: Run cargo fmt
+        working-directory: companion/server
+        run: cargo fmt --all -- --check
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run cargo test
+        working-directory: companion/server
+        run: cargo test --all-features --all
+      - name: Install app test deps (jsdom)
+        working-directory: companion
+        run: npm install --no-save jsdom
+      - name: Run app tests (real UI in jsdom)
+        working-directory: companion
+        run: node --test --test-force-exit app/js/*.test.mjs
+
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: [rustfmt, test]
+    environment: heartlabs.tech
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Build release binary
+        working-directory: companion/server
+        run: cargo build --release
+      - name: Stage binary at repo root for the Docker build
+        run: cp companion/server/target/release/companion-server ./companion-server
+      - name: copy static application files via ssh
+        uses: appleboy/scp-action@master
+        with:
+          host: v2202204174441188151.happysrv.de
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_USER_PASSWORD }}
+          source: "companion/app"
+          target: "/home/server/companion/"
+      - name: copy executable via ssh
+        uses: appleboy/scp-action@master
+        with:
+          host: v2202204174441188151.happysrv.de
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_USER_PASSWORD }}
+          source: "companion-server"
+          target: "/home/server/companion/"
+      - name: copy docker files via ssh
+        uses: appleboy/scp-action@master
+        with:
+          host: v2202204174441188151.happysrv.de
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_USER_PASSWORD }}
+          source: "companion/Dockerfile,companion/docker-compose.yml,companion/nginx.conf,companion/entrypoint.sh,companion/.dockerignore"
+          target: "/home/server/companion/"
+      - name: restart docker compose
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: v2202204174441188151.happysrv.de
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_USER_PASSWORD }}
+          script: cd /home/server/companion && docker compose up -d --build --remove-orphans --force-recreate

@@ -95,6 +95,43 @@ Snooze, skip-day and stop-today all work locally.
   within a daily start–end window. Missed prompts are silently replaced —
   there is never a backlog.
 
+## Deploy with Docker
+
+The repo ships a container setup plus a CI workflow that builds and deploys
+it to your server — no multi-stage build on the server, CI scps the release
+binary and files instead:
+
+- `Dockerfile` / `docker-compose.yml` / `nginx.conf` / `entrypoint.sh` — one
+  container, two processes: nginx serves the PWA on `:80` and proxies `/api/*`
+  to the Rust backend on `:4000`. Server state (VAPID keys, subscription,
+  schedule) lives in the `companion_state` volume — keep it; deleting it means
+  re-enabling notifications on the phone.
+- `.github/release-companion.yml` — on push to `main`: runs rustfmt + tests,
+  builds `companion-server --release`, scps the binary, `app/` and the docker
+  files to the server, then `docker compose up -d --build --force-recreate`.
+
+Point your reverse proxy at the container's `:80` (TLS is terminated at the
+proxy — iOS push and the service worker require HTTPS).
+
+### Building the Linux binary locally (optional)
+
+The CI workflow does this for you; to iterate locally on a Mac:
+
+```sh
+brew install zig                                  # once: C toolchain for the musl target
+rustup target add x86_64-unknown-linux-musl      # once
+cargo install cargo-zigbuild                      # once: wires zig into cargo builds
+cd server
+cargo zigbuild --release --target x86_64-unknown-linux-musl
+file target/x86_64-unknown-linux-musl/release/companion-server   # expect: statically linked
+cp target/x86_64-unknown-linux-musl/release/companion-server ../companion-server
+```
+
+`cargo-zigbuild` generates the zig compiler/linker wrappers that OpenSSL's
+build (vendored for the musl target, see `Cargo.toml`) needs — plain `cargo build`
+can't cross-compile this crate. CI's linux-gnu build and macOS dev builds use
+the system OpenSSL and are unchanged.
+
 ## Development
 
 ```sh

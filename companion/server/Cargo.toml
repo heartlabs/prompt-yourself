@@ -20,5 +20,12 @@ base64 = "0.22"
 p256 = { version = "0.13", features = ["ecdh"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 
+# Cross-compiling to a static Linux binary (x86_64-unknown-linux-musl) needs
+# OpenSSL built for that target: web-push pulls in openssl-sys via native-tls,
+# and there is no system OpenSSL for a foreign target. Vendoring builds it
+# from source using the cross C compiler (zig). macOS/CI builds are untouched.
+[target.'cfg(all(target_os = "linux", target_env = "musl"))'.dependencies]
+openssl-sys = { version = "0.9", features = ["vendored"] }
+
 [profile.release]
 strip = true

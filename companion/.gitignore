@@ -1,5 +1,7 @@
 # Rust build output
 server/target/
+# Cross-compiled Linux binary staged for docker/scp (cp target/... ./companion-server)
+/companion-server
 # Server runtime state (VAPID keys, subscriptions, schedule) — keep it private
 companion-state.json
 server/companion-state.json

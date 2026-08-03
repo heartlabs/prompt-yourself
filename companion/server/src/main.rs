@@ -60,7 +60,13 @@ struct Schedule {
 
 impl Default for Schedule {
     fn default() -> Self {
-        Self { start_min: 9 * 60, end_min: 18 * 60, rhythm: "hourly".into(), snooze_min: 10, tz_offset_min: 0 }
+        Self {
+            start_min: 9 * 60,
+            end_min: 18 * 60,
+            rhythm: "hourly".into(),
+            snooze_min: 10,
+            tz_offset_min: 0,
+        }
     }
 }
 
@@ -104,8 +110,7 @@ fn ensure_vapid(state: &mut AppState) {
     let public = secret.public_key();
     state.vapid_private = URL_SAFE_NO_PAD.encode(secret.to_bytes());
     // Browsers expect the uncompressed SEC1 point (65 bytes, 0x04-prefixed).
-    state.vapid_public =
-        URL_SAFE_NO_PAD.encode(public.to_encoded_point(false).as_bytes());
+    state.vapid_public = URL_SAFE_NO_PAD.encode(public.to_encoded_point(false).as_bytes());
     println!("Generated new VAPID keypair (stored in {STATE_FILE}).");
 }
 
@@ -135,9 +140,12 @@ async fn send_push(state: &mut AppState, title: &str, body: &str, first: bool) {
     let mut dead: Vec<String> = Vec::new();
     for sub in &state.subscriptions {
         let result = async {
-            let sig =
-                VapidSignatureBuilder::from_base64(&state.vapid_private, web_push::URL_SAFE_NO_PAD, sub)?
-                    .build()?;
+            let sig = VapidSignatureBuilder::from_base64(
+                &state.vapid_private,
+                web_push::URL_SAFE_NO_PAD,
+                sub,
+            )?
+            .build()?;
             let mut msg = WebPushMessageBuilder::new(sub);
             msg.set_vapid_signature(sig);
             msg.set_payload(ContentEncoding::Aes128Gcm, payload.as_bytes());
@@ -147,7 +155,10 @@ async fn send_push(state: &mut AppState, title: &str, body: &str, first: bool) {
         if let Err(e) = result {
             eprintln!("push to {} failed: {e}", sub.endpoint);
             // 404/410 mean the subscription is gone — forget it.
-            if matches!(e, web_push::WebPushError::EndpointNotValid | web_push::WebPushError::EndpointNotFound) {
+            if matches!(
+                e,
+                web_push::WebPushError::EndpointNotValid | web_push::WebPushError::EndpointNotFound
+            ) {
                 dead.push(sub.endpoint.clone());
             }
         }
@@ -170,7 +181,10 @@ async fn tick(shared: &Shared) {
 
     // New day → reset day flags.
     if state.day.date != today {
-        state.day = DayState { date: today.clone(), ..Default::default() };
+        state.day = DayState {
+            date: today.clone(),
+            ..Default::default()
+        };
         save_state(&state);
     }
 
@@ -178,7 +192,13 @@ async fn tick(shared: &Shared) {
     if let Some(when) = state.day.snooze_until_epoch {
         if Utc::now().timestamp() >= when && !state.day.skipped && !state.day.stopped {
             state.day.snooze_until_epoch = None;
-            send_push(&mut state, "Snooze is over", "Ready for that check-in now?", false).await;
+            send_push(
+                &mut state,
+                "Snooze is over",
+                "Ready for that check-in now?",
+                false,
+            )
+            .await;
             save_state(&state);
         }
         return; // while snoozing, regular slots stay silent
@@ -190,7 +210,11 @@ async fn tick(shared: &Shared) {
 
     let start = state.schedule.start_min;
     let end = state.day.end_min.unwrap_or(state.schedule.end_min);
-    let rhythm = state.day.rhythm.clone().unwrap_or_else(|| state.schedule.rhythm.clone());
+    let rhythm = state
+        .day
+        .rhythm
+        .clone()
+        .unwrap_or_else(|| state.schedule.rhythm.clone());
     let slots = slot_times(start, end, &rhythm);
 
     // The latest slot that is already due. Missed slots are silently replaced —
@@ -204,9 +228,15 @@ async fn tick(shared: &Shared) {
 
     let first = !state.day.committed;
     let (title, body) = if first {
-        ("Good morning — reflect today?", "Confirm today's rhythm, or skip the day. No pressure.")
+        (
+            "Good morning — reflect today?",
+            "Confirm today's rhythm, or skip the day. No pressure.",
+        )
     } else {
-        ("Time for a check-in", "A quiet minute with yourself. Pick a reflection — or snooze.")
+        (
+            "Time for a check-in",
+            "A quiet minute with yourself. Pick a reflection — or snooze.",
+        )
     };
     send_push(&mut state, title, body, first).await;
     state.last_sent = Some((today, due));
@@ -230,7 +260,9 @@ async fn post_subscribe(
     Json(body): Json<SubscribeBody>,
 ) -> StatusCode {
     let mut state = shared.lock().await;
-    state.subscriptions.retain(|s| s.endpoint != body.subscription.endpoint);
+    state
+        .subscriptions
+        .retain(|s| s.endpoint != body.subscription.endpoint);
     state.subscriptions.push(body.subscription);
     save_state(&state);
     StatusCode::NO_CONTENT
@@ -314,9 +346,17 @@ async fn main() {
         .layer(CorsLayer::permissive()) // harmless same-origin; helps if app is hosted elsewhere
         .with_state(shared);
 
-    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8990);
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8990);
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
-    println!("Companion server on http://{addr} (serving {})", app_dir.display());
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("bind failed");
+    println!(
+        "Companion server on http://{addr} (serving {})",
+        app_dir.display()
+    );
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .expect("bind failed");
     axum::serve(listener, router).await.expect("server crashed");
 }
