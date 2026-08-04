@@ -214,6 +214,21 @@ test('settings: footer shows the app version (update check)', async () => {
   assert.match(app.$('#app-version').textContent, /^Companion v\d+$/);
 });
 
+test('returning to the foreground triggers an SW update check', async () => {
+  // Regression guard: iOS is lazy about SW updates; the app must nudge
+  // registration.update() when it becomes visible again.
+  let updates = 0;
+  const serviceWorker = {
+    register: async () => {},
+    addEventListener: () => {},
+    ready: Promise.resolve({ update: () => { updates++; } }),
+  };
+  const app = await bootApp({ serviceWorker });
+  app.document.dispatchEvent(new app.window.Event('visibilitychange'));
+  await app.tick();
+  assert.equal(updates, 1, 'visibilitychange → visible must call registration.update()');
+});
+
 test('settings: test + re-register buttons are always visible (recovery UI)', async () => {
   // Regression guard for "no way to recover from a silently failed
   // registration": once permission is granted, notif-enable disappears, so

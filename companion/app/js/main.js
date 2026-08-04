@@ -20,7 +20,10 @@ document.getElementById('start-reflection').addEventListener('click', openPicker
 
 // ── service worker ──
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js', { type: 'module' });
+  // updateViaCache: 'none' — WebKit may otherwise serve sw.js (and its
+  // imported js/version.js) from the HTTP cache, which is exactly how a PWA
+  // gets stuck on an old build. nginx.conf also forces no-cache on /sw.js.
+  navigator.serviceWorker.register('sw.js', { type: 'module', updateViaCache: 'none' });
   // Messages from the SW (notification action buttons).
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data === 'snooze') snoozeToday();
@@ -37,6 +40,21 @@ if ('serviceWorker' in navigator) {
     if (refreshed) return;
     refreshed = true;
     location.reload();
+  });
+
+  // iOS is lazy about SW updates: standalone PWAs can sit on a stale build
+  // for days, and restoring from bfcache doesn't fire a load at all. Nudge an
+  // explicit update check whenever the app returns to the foreground.
+  const checkForUpdate = () => {
+    navigator.serviceWorker.ready
+      .then((reg) => reg.update())
+      .catch((err) => console.warn('SW update check failed', err));
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) checkForUpdate(); // restored from bfcache — no load event
   });
 }
 

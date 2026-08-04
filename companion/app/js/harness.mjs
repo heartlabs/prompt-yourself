@@ -98,6 +98,7 @@ export async function bootApp({
   window.fetch = fetchStub ?? (async () => { throw new Error('offline in tests'); }); // no server by default
   window.scrollTo = () => {};
   Object.defineProperty(window.document, 'hidden', { value: false, configurable: true });
+  Object.defineProperty(window.document, 'visibilityState', { value: 'visible', configurable: true });
   if (notificationPermission) {
     Object.defineProperty(window, 'Notification', {
       value: { permission: notificationPermission },
