@@ -133,6 +133,9 @@ node --test --test-force-exit app/js/*.test.mjs
   `markdown.js` so they stay trivially node-testable.
 - Server: `cd server && cargo build` must pass warning-free-ish; manual smoke:
   run it, `curl localhost:8990/api/health`.
+- **Always run `cargo fmt` (or `cargo fmt --check`) after any change to
+  `server/` — before reporting success.** The CI workflow runs rustfmt, so an
+  unformatted change fails deploy; don't hand that back to the human.
 - Manual device check after UI changes: iPhone Safari, installed to Home
   Screen (the standalone-mode viewport and safe-area behave differently from
   the browser tab).

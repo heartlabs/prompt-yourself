@@ -167,8 +167,8 @@ async fn send_push(
     let payload = serde_json::json!({ "title": title, "body": body, "first": first }).to_string();
     let client = HyperWebPushClient::new();
     let mut results: Vec<(String, Result<(), String>)> = Vec::new();
-    let mut dead: Vec<String> = Vec::new();        // 404/410 — always dead
-    let mut maybe_dead: Vec<String> = Vec::new();  // 403 — dead only if others succeeded
+    let mut dead: Vec<String> = Vec::new(); // 404/410 — always dead
+    let mut maybe_dead: Vec<String> = Vec::new(); // 403 — dead only if others succeeded
     for sub in &state.subscriptions {
         let result = async {
             let mut sig_builder = VapidSignatureBuilder::from_base64(
