@@ -288,6 +288,59 @@ test('boot with permission granted + reachable server registers the push subscri
   );
 });
 
+test('boot with a subscription bound to a stale VAPID key self-heals (re-subscribe)', async () => {
+  // Regression guard for the stale-subscription loop: if the server's VAPID
+  // keypair changed (e.g. state volume recreated), the browser still holds a
+  // subscription bound to the OLD key — every push 403s (VapidPkHashMismatch)
+  // and the app would otherwise re-POST the dead one forever. subscribePush()
+  // must detect the mismatch, unsubscribe, and register a fresh subscription.
+  const calls = [];
+  let staleUnsubscribed = 0;
+  let freshSubscribes = 0;
+  const fetchStub = async (url, opts = {}) => {
+    calls.push({ url, method: opts.method ?? 'GET', body: opts.body });
+    if (url === '/api/health') return { ok: true };
+    if (url === '/api/vapid-public-key') {
+      return { ok: true, json: async () => ({ key: 'current-server-key' }) };
+    }
+    if (url === '/api/status') {
+      return { ok: true, json: async () => ({ subscriptions: 1 }) };
+    }
+    return { ok: true, status: 204 };
+  };
+  const staleSub = {
+    getKey: () => Uint8Array.from([1, 2, 3]).buffer, // bound to an OLD key
+    unsubscribe: async () => { staleUnsubscribed += 1; },
+    toJSON: () => ({ endpoint: 'https://push.example/stale', keys: {} }),
+  };
+  const serviceWorker = {
+    register: async () => {},
+    addEventListener: () => {},
+    ready: Promise.resolve({
+      pushManager: {
+        getSubscription: async () => staleSub,
+        subscribe: async () => {
+          freshSubscribes += 1;
+          return {
+            toJSON: () => ({ endpoint: 'https://push.example/fresh', keys: { p256dh: 'k', auth: 'a' } }),
+          };
+        },
+      },
+    }),
+  };
+  const app = await bootApp({ fetch: fetchStub, serviceWorker, notificationPermission: 'granted' });
+
+  await waitFor(() => calls.some((c) => c.url === '/api/subscribe' && c.method === 'POST'));
+  const posted = calls.find((c) => c.url === '/api/subscribe' && c.method === 'POST');
+  assert.equal(staleUnsubscribed, 1, 'stale subscription must be unsubscribed');
+  assert.equal(freshSubscribes, 1, 'a fresh subscription must be created');
+  assert.equal(
+    JSON.parse(posted.body).subscription.endpoint,
+    'https://push.example/fresh',
+    'must POST the fresh subscription, not the stale one'
+  );
+});
+
 /** Poll until `predicate` is true (bounded), for async boot chains. */
 function waitFor(predicate, timeoutMs = 2000) {
   return new Promise((resolve, reject) => {

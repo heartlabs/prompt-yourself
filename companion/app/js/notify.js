@@ -83,10 +83,12 @@ export async function enableNotifications() {
 }
 
 /**
- * Idempotent push registration: reuse the existing subscription if present,
- * otherwise subscribe, then POST it and re-sync the schedule. Safe to call on
- * every app start — recovers from a failed first attempt, an expired/rotated
- * subscription, or a server-pruned (EndpointNotValid/EndpointNotFound) one.
+ * Idempotent push registration: reuse the existing subscription when it is
+ * still bound to the server's current VAPID key (subscribePush checks), then
+ * POST it and re-sync the schedule. Safe to call on every app start —
+ * recovers from a failed first attempt, an expired/rotated subscription, a
+ * server-pruned (EndpointNotValid/EndpointNotFound) one, and a server whose
+ * VAPID keypair changed (stale subscription → forced re-subscribe).
  * `force` unsubscribes first (used by the settings "Re-register" button).
  */
 export async function ensurePushRegistered(force = false) {
@@ -109,8 +111,23 @@ async function subscribePush() {
   try {
     const reg = await navigator.serviceWorker.ready;
     let subscription = await reg.pushManager.getSubscription();
+    const { key } = await (await fetch('/api/vapid-public-key')).json();
+    // Self-heal: if the existing subscription was bound to a DIFFERENT VAPID
+    // public key than the server has now (its state volume was recreated, or
+    // it moved hosts), Apple rejects every push with 403 VapidPkHashMismatch
+    // — and the browser keeps re-POSTing the stale subscription on every
+    // launch, so it never recovers on its own. Compare the key the
+    // subscription was created with against the server's current key and
+    // force a fresh one, instead of relying on the manual Re-register button.
+    if (subscription) {
+      const bound = subscription.getKey('applicationServerKey');
+      if (bound && buf2b64url(new Uint8Array(bound)) !== key) {
+        console.warn('subscription bound to a different VAPID key — re-subscribing');
+        await subscription.unsubscribe();
+        subscription = null;
+      }
+    }
     if (!subscription) {
-      const { key } = await (await fetch('/api/vapid-public-key')).json();
       subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(key),
@@ -122,6 +139,12 @@ async function subscribePush() {
     console.warn('push subscribe failed', err);
     return false;
   }
+}
+
+function buf2b64url(bytes) {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function urlBase64ToUint8Array(base64) {

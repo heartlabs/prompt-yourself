@@ -97,10 +97,16 @@ fn load_state() -> AppState {
 }
 
 fn save_state(state: &AppState) {
-    // Write-then-rename would be more robust; for a single-user toy server a
-    // straight write is acceptable and simpler.
+    // Write-then-rename: readers (docker cp, a crash mid-write) never see a
+    // truncated file — std::fs::rename is atomic on POSIX. If the rename
+    // fails (very unlikely), clean the temp file up rather than leaving it.
     if let Ok(json) = serde_json::to_string_pretty(state) {
-        let _ = std::fs::write(STATE_FILE, json);
+        let tmp = format!("{STATE_FILE}.tmp");
+        if std::fs::write(&tmp, json).is_ok() {
+            if std::fs::rename(&tmp, STATE_FILE).is_err() {
+                let _ = std::fs::remove_file(&tmp);
+            }
+        }
     }
 }
 

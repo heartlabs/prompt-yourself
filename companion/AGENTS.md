@@ -91,6 +91,12 @@ Nothing else should need to change.
   requested from a user gesture. Nothing to debug in code if one is missing.
 - `notification.tag = 'companion'` makes new pushes replace old ones — that's
   the no-backlog rule, don't remove it.
+- `subscribePush()` in `notify.js` compares the existing subscription's
+  `applicationServerKey` against `/api/vapid-public-key` and force-re-subscribes
+  on mismatch — the self-heal for a server whose VAPID keypair changed (state
+  volume recreated / moved hosts). Don't "simplify" it away: without it a stale
+  subscription re-POSTs forever and every push 403s (VapidPkHashMismatch), with
+  the manual "Re-register" button as the only escape.
 - The energy flow saves **on tap** (screen-energy) and then *updates* the same
   record with the note (via `importAll` put-overwrite). Don't turn the note
   into a second record.
