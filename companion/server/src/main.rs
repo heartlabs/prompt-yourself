@@ -154,10 +154,10 @@ fn slot_times(start: u32, end: u32, rhythm: &str) -> Vec<u32> {
 
 /// Sends a push to every subscription. Returns one (endpoint, result) pair per
 /// subscription so callers (e.g. /api/test-push) can surface failures instead
-/// of only logging. Dead subscriptions are pruned: 404/410 always, and 403
-/// (Apple: subscription no longer valid, e.g. after a PWA reinstall) only
-/// when another subscription in this batch succeeded — so a global
-/// authorization failure can never wipe the live subscription.
+/// of only logging. Dead subscriptions are pruned on 404/410/403 — Apple
+/// answers 403 for endpoints that are no longer valid (PWA deleted/reinstalled,
+/// or unsubscribed). Timeouts are NOT pruned: a timeout means Apple stopped
+/// answering (throttling), not that the endpoint is gone.
 async fn send_push(
     state: &mut AppState,
     title: &str,
@@ -167,8 +167,7 @@ async fn send_push(
     let payload = serde_json::json!({ "title": title, "body": body, "first": first }).to_string();
     let client = HyperWebPushClient::new();
     let mut results: Vec<(String, Result<(), String>)> = Vec::new();
-    let mut dead: Vec<String> = Vec::new(); // 404/410 — always dead
-    let mut maybe_dead: Vec<String> = Vec::new(); // 403 — dead only if others succeeded
+    let mut dead: Vec<String> = Vec::new();
     for sub in &state.subscriptions {
         let result = async {
             let mut sig_builder = VapidSignatureBuilder::from_base64(
@@ -215,7 +214,10 @@ async fn send_push(
                     );
                 }
                 results.push((endpoint.clone(), Err(format!("{e:?}"))));
-                // 404/410 mean the subscription is gone — forget it.
+                // 404/410 and Apple's 403 all mean this endpoint is gone — forget it.
+                // Single-user server: 403 is always endpoint death, never a global
+                // authorization failure. Even a wrong guess self-corrects: the phone
+                // re-registers its live subscription on every app launch.
                 if matches!(
                     e,
                     web_push::WebPushError::EndpointNotValid
@@ -226,10 +228,7 @@ async fn send_push(
                     e,
                     web_push::WebPushError::Other(ref s) if s.as_str() == "403"
                 ) {
-                    // Apple 403 = this endpoint is no longer valid (e.g. the PWA
-                    // was deleted/reinstalled) — but only prune if we're sure it's
-                    // endpoint-specific and not a global authorization problem.
-                    maybe_dead.push(endpoint);
+                    dead.push(endpoint);
                 } else if matches!(
                     e,
                     web_push::WebPushError::Other(ref s) if s.as_str() == "timeout"
@@ -242,9 +241,6 @@ async fn send_push(
                 }
             }
         }
-    }
-    if results.iter().any(|(_, r)| r.is_ok()) {
-        dead.extend(maybe_dead);
     }
     state.subscriptions.retain(|s| !dead.contains(&s.endpoint));
     results
