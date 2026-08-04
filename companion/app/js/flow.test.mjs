@@ -444,9 +444,17 @@ test('stop for today is honest when the server is unreachable', async () => {
 test('enable notifications tells the truth when registration fails', async () => {
   // Server up (health/vapid/status fine) but the subscription POST is rejected
   // — the old code toasted "Notifications on" anyway.
+  // A REAL 65-byte base64url VAPID key: with a fake one ('k') the app crashes
+  // in atob() before the POST is ever made, so the test would exercise the
+  // wrong failure path. This one decodes cleanly, so the failure is the 500.
+  const VAPID_PUBLIC_KEY = Buffer.from(Array.from({ length: 65 }, (_, i) => i))
+    .toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const calls = [];
   const fetchStub = async (url, opts = {}) => {
+    calls.push({ url, method: opts.method ?? 'GET' });
     if (url === '/api/health') return { ok: true };
-    if (url === '/api/vapid-public-key') return { ok: true, json: async () => ({ key: 'k' }) };
+    if (url === '/api/vapid-public-key') return { ok: true, json: async () => ({ key: VAPID_PUBLIC_KEY }) };
     if (url === '/api/status') return { ok: true, json: async () => ({ subscriptions: 1 }) };
     if (url === '/api/subscribe') return { ok: false, status: 500 };
     return { ok: true, status: 204 };
@@ -466,4 +474,10 @@ test('enable notifications tells the truth when registration fails', async () =>
   await app.click('#notif-enable');
   await waitFor(() => /not registered/.test(app.$('#toast').textContent));
   assert.match(app.$('#toast').textContent, /not registered/);
+  // Prove the failure was the HTTP 500, not an earlier crash: the subscription
+  // POST must actually have been attempted with a decodable key.
+  assert.ok(
+    calls.some((c) => c.url === '/api/subscribe' && c.method === 'POST'),
+    'the subscription POST must be attempted (real base64 key)'
+  );
 });
