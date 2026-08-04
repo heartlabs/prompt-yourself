@@ -3,6 +3,8 @@
 //
 // Server contract (see server/src/main.rs):
 //   GET  /api/health            → { ok: true }        server present?
+//   GET  /api/status            → { subscriptions, vapid_subject, schedule, … }
+//   POST /api/test-push         → immediate push; per-subscription results
 //   GET  /api/vapid-public-key  → { key }             for pushManager.subscribe
 //   POST /api/subscribe         { subscription }
 //   POST /api/schedule          { start_min, end_min, rhythm, snooze_min, tz_offset_min }
@@ -17,14 +19,18 @@ const TICK_MS = 30_000;
 
 let serverAvailable = null; // null = unknown yet
 
+/**
+ * Only `true` is cached. A failed probe (cold start, offline blip, timeout)
+ * must not poison the whole session — the next call re-probes. Otherwise a
+ * single early failure would silently disable all server features.
+ */
 export async function hasServer() {
-  if (serverAvailable === null) {
-    try {
-      const res = await fetch('/api/health', { signal: AbortSignal.timeout(3000) });
-      serverAvailable = res.ok;
-    } catch {
-      serverAvailable = false;
-    }
+  if (serverAvailable === true) return true;
+  try {
+    const res = await fetch('/api/health', { signal: AbortSignal.timeout(3000) });
+    serverAvailable = res.ok;
+  } catch {
+    serverAvailable = false;
   }
   return serverAvailable;
 }
@@ -70,21 +76,46 @@ export function permissionState() {
 export async function enableNotifications() {
   if (!('Notification' in window)) return 'unsupported';
   const permission = await Notification.requestPermission();
-  if (permission === 'granted' && (await hasServer())) {
-    await subscribePush();
-    await syncSchedule();
+  if (permission === 'granted') {
+    await ensurePushRegistered();
   }
   return permission;
+}
+
+/**
+ * Idempotent push registration: reuse the existing subscription if present,
+ * otherwise subscribe, then POST it and re-sync the schedule. Safe to call on
+ * every app start — recovers from a failed first attempt, an expired/rotated
+ * subscription, or a server-pruned (EndpointNotValid/EndpointNotFound) one.
+ * `force` unsubscribes first (used by the settings "Re-register" button).
+ */
+export async function ensurePushRegistered(force = false) {
+  if (permissionState() !== 'granted' || !(await hasServer())) return false;
+  if (force) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
+    } catch (err) {
+      console.warn('unsubscribe failed (continuing anyway)', err);
+    }
+  }
+  const ok = await subscribePush();
+  if (ok) await syncSchedule();
+  return ok;
 }
 
 async function subscribePush() {
   try {
     const reg = await navigator.serviceWorker.ready;
-    const { key } = await (await fetch('/api/vapid-public-key')).json();
-    const subscription = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(key),
-    });
+    let subscription = await reg.pushManager.getSubscription();
+    if (!subscription) {
+      const { key } = await (await fetch('/api/vapid-public-key')).json();
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key),
+      });
+    }
     await post('/api/subscribe', { subscription: subscription.toJSON() });
     return true;
   } catch (err) {

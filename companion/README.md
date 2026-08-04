@@ -50,6 +50,38 @@ On first run it generates a VAPID keypair into `companion-state.json`
 (created in the working directory — keep that file, it also holds your
 subscription and schedule). `PORT=9000 cargo run` to change the port.
 
+**VAPID subject:** Apple's push service rejects any VAPID JWT without a `sub`
+claim (`400 BadJwtToken`); Chrome is lenient, which is why pushes work on
+desktop and silently die on the iPhone. The server always sends a `sub` claim;
+set the contact URI via env (default `mailto:pocket@localhost`):
+
+```sh
+POCKET_VAPID_SUBJECT="mailto:you@example.com" cargo run --release
+```
+
+Don't "simplify" this away — the `sub` claim is required for iOS.
+
+### Debugging background push
+
+Both of these are your friends when a push doesn't arrive. Run them against
+the deployed server while the phone sits idle:
+
+```sh
+curl -s https://YOUR-HOST/api/status | jq        # subscriptions, vapid_subject,
+                                                  # schedule + tz_offset_min
+curl -s -X POST https://YOUR-HOST/api/test-push | jq  # immediate push, per-subscription
+                                                  # result (e.g. BadJwtToken) in the body
+```
+
+- `subscriptions: 0` → the phone never registered (check the app's Settings →
+  Notifications: "this device is NOT registered", or tap *Re-register*).
+- `subscriptions: 1` but the push errors → the VAPID JWT (see above), the
+  endpoint, or TLS.
+
+The app's Settings screen also has *Send test notification* and *Re-register
+this device* buttons, and the status row shows the server's subscription
+count so a silently-failed registration is visible on the phone itself.
+
 ### 2. Get HTTPS in front of it
 
 Pick whichever is easiest for you tonight:

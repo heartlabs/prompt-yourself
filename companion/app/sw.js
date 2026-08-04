@@ -1,7 +1,7 @@
 // Service worker: offline app shell + Web Push display + notification actions.
 // Bump VERSION whenever any app file changes — it busts the cache.
 
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = `companion-${VERSION}`;
 const SHELL = [
   './',
@@ -35,6 +35,30 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ── Web Push (sent by the Rust server) ──
+
+function urlBase64ToUint8Array(base64) {
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+// The browser can silently rotate a subscription (new endpoint/keys).
+// Re-subscribe and re-POST, or pushes die without any user-visible error.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const refresh = async () => {
+    const { key } = await (await fetch('/api/vapid-public-key')).json();
+    const subscription = await self.registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key),
+    });
+    return fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: subscription.toJSON() }),
+    });
+  };
+  event.waitUntil(refresh().catch(() => {}));
+});
 
 self.addEventListener('push', (event) => {
   let data = { title: 'Companion', body: 'Time for a check-in.' };

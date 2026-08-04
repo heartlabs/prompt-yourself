@@ -208,6 +208,77 @@ test('settings: stop for today silences and goes home', async () => {
   assert.equal(JSON.parse(app.window.localStorage.getItem('today')).stopped, true);
 });
 
+test('settings: test + re-register buttons are always visible (recovery UI)', async () => {
+  // Regression guard for "no way to recover from a silently failed
+  // registration": once permission is granted, notif-enable disappears, so
+  // these two must always be there (even offline).
+  const app = await bootApp();
+  await app.click('[data-nav="screen-settings"]');
+  assert.deepEqual(app.visibleScreens(), ['screen-settings']);
+  assert.equal(app.$('#notif-test').hidden, false);
+  assert.equal(app.$('#notif-reregister').hidden, false);
+});
+
+test('boot with permission granted + reachable server registers the push subscription', async () => {
+  // The phone that granted permission but never registered (or whose
+  // subscription was later rotated/pruned) must self-heal on next launch.
+  const calls = [];
+  const fetchStub = async (url, opts = {}) => {
+    calls.push({ url, method: opts.method ?? 'GET' });
+    if (url === '/api/health') return { ok: true };
+    if (url === '/api/vapid-public-key') {
+      return { ok: true, json: async () => ({ key: 'fake-key' }) };
+    }
+    if (url === '/api/status') {
+      return { ok: true, json: async () => ({ subscriptions: 1 }) };
+    }
+    return { ok: true, status: 204 };
+  };
+  const serviceWorker = {
+    register: async () => {},
+    addEventListener: () => {},
+    ready: Promise.resolve({
+      pushManager: {
+        getSubscription: async () => null,
+        subscribe: async () => ({
+          toJSON: () => ({
+            endpoint: 'https://push.example/sub',
+            keys: { p256dh: 'k', auth: 'a' },
+          }),
+        }),
+      },
+    }),
+  };
+  const app = await bootApp({
+    fetch: fetchStub,
+    serviceWorker,
+    notificationPermission: 'granted',
+  });
+
+  // The boot-time ensurePushRegistered() chain is async; wait for the POST.
+  await waitFor(() => calls.some((c) => c.url === '/api/subscribe' && c.method === 'POST'));
+  assert.ok(
+    calls.some((c) => c.url === '/api/subscribe' && c.method === 'POST'),
+    'must POST the subscription to /api/subscribe on start'
+  );
+  assert.ok(
+    calls.some((c) => c.url === '/api/schedule' && c.method === 'POST'),
+    'must re-sync the schedule too'
+  );
+});
+
+/** Poll until `predicate` is true (bounded), for async boot chains. */
+function waitFor(predicate, timeoutMs = 2000) {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    (function poll() {
+      if (predicate()) return resolve();
+      if (Date.now() - start > timeoutMs) return reject(new Error('waitFor timed out'));
+      setTimeout(poll, 5);
+    })();
+  });
+}
+
 test('back buttons return to the expected screens', async () => {
   const app = await bootApp();
   await app.click('[data-nav="screen-settings"]');

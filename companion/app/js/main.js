@@ -6,6 +6,7 @@ import { initReflect, openFromNotification, openPickerFresh } from './reflect.js
 import { initSettings } from './settings.js';
 import {
   startForegroundTicker, showLocalNotification, hasServer, syncSchedule, syncDayAction,
+  ensurePushRegistered,
 } from './notify.js';
 import { getToday, updateToday, getSettings } from './state.js';
 
@@ -55,9 +56,15 @@ startForegroundTicker(() => {
   }
 });
 
-// ── keep the server's schedule fresh (tz changes, travel, reinstalls) ──
+// ── keep the server's schedule + push registration fresh ──
+// Re-runs every cold start: re-syncs the schedule (tz changes, travel,
+// reinstalls) and re-registers the push subscription if it is missing,
+// expired, rotated, or was pruned by the server. No-ops when the server is
+// down or permission isn't granted yet.
 hasServer().then((server) => {
-  if (server) syncSchedule();
+  if (!server) return;
+  syncSchedule();
+  ensurePushRegistered();
 });
 
 // Ensure "today" state exists/rolls over even if nothing else touches it.

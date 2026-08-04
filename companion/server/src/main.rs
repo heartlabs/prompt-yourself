@@ -39,6 +39,8 @@ const TICK_SECONDS: u64 = 30;
 struct AppState {
     vapid_public: String,
     vapid_private: String,
+    /// VAPID `sub` claim (mailto: or https: URI). Apple rejects JWTs without it.
+    vapid_subject: String,
     subscriptions: Vec<SubscriptionInfo>,
     schedule: Schedule,
     day: DayState,
@@ -114,6 +116,22 @@ fn ensure_vapid(state: &mut AppState) {
     println!("Generated new VAPID keypair (stored in {STATE_FILE}).");
 }
 
+/// The VAPID `sub` claim — a mailto: or https: contact URI. Apple's push
+/// service (web.push.apple.com) rejects any VAPID JWT without a sub claim with
+/// 400 BadJwtToken; Chrome/FCM is lenient, which is why this only bites on iOS.
+/// Read once at startup; override with POCKET_VAPID_SUBJECT.
+fn vapid_subject() -> String {
+    std::env::var("POCKET_VAPID_SUBJECT")
+        .unwrap_or_else(|_| "mailto:pocket@localhost".to_string())
+}
+
+/// Persist the subject so /api/status can show it (never secrets, only this).
+fn ensure_vapid_subject(state: &mut AppState) {
+    if state.vapid_subject.is_empty() {
+        state.vapid_subject = vapid_subject();
+    }
+}
+
 // ─────────────────────────── schedule math ───────────────────────────
 // Mirror of app/js/schedule.js — keep both in sync (see AGENTS.md).
 
@@ -134,36 +152,56 @@ fn slot_times(start: u32, end: u32, rhythm: &str) -> Vec<u32> {
 
 // ─────────────────────────── push sending ───────────────────────────
 
-async fn send_push(state: &mut AppState, title: &str, body: &str, first: bool) {
+/// Sends a push to every subscription. Returns one result per subscription so
+/// callers (e.g. /api/test-push) can surface failures instead of only logging.
+/// Dead subscriptions (404/410) are still pruned, as before.
+async fn send_push(
+    state: &mut AppState,
+    title: &str,
+    body: &str,
+    first: bool,
+) -> Vec<Result<(), String>> {
     let payload = serde_json::json!({ "title": title, "body": body, "first": first }).to_string();
     let client = HyperWebPushClient::new();
+    let mut results: Vec<Result<(), String>> = Vec::new();
     let mut dead: Vec<String> = Vec::new();
     for sub in &state.subscriptions {
         let result = async {
-            let sig = VapidSignatureBuilder::from_base64(
+            let mut sig_builder = VapidSignatureBuilder::from_base64(
                 &state.vapid_private,
                 web_push::URL_SAFE_NO_PAD,
                 sub,
-            )?
-            .build()?;
+            )?;
+            // Apple requires the sub claim (mailto: or https:) — Chrome doesn't,
+            // which is why this looks fine on desktop and dies on the iPhone.
+            // add_claim takes &mut self, so the one-liner chain has to be split.
+            sig_builder.add_claim("sub", state.vapid_subject.as_str());
+            let sig = sig_builder.build()?;
             let mut msg = WebPushMessageBuilder::new(sub);
             msg.set_vapid_signature(sig);
             msg.set_payload(ContentEncoding::Aes128Gcm, payload.as_bytes());
             client.send(msg.build()?).await
         }
         .await;
-        if let Err(e) = result {
-            eprintln!("push to {} failed: {e}", sub.endpoint);
-            // 404/410 mean the subscription is gone — forget it.
-            if matches!(
-                e,
-                web_push::WebPushError::EndpointNotValid | web_push::WebPushError::EndpointNotFound
-            ) {
-                dead.push(sub.endpoint.clone());
+        match result {
+            Ok(()) => results.push(Ok(())),
+            Err(e) => {
+                // Debug repr carries the HTTP status (e.g. BadJwtToken).
+                eprintln!("push to {} failed: {e:?}", sub.endpoint);
+                results.push(Err(format!("{e:?}")));
+                // 404/410 mean the subscription is gone — forget it.
+                if matches!(
+                    e,
+                    web_push::WebPushError::EndpointNotValid
+                        | web_push::WebPushError::EndpointNotFound
+                ) {
+                    dead.push(sub.endpoint.clone());
+                }
             }
         }
     }
     state.subscriptions.retain(|s| !dead.contains(&s.endpoint));
+    results
 }
 
 /// Runs every TICK_SECONDS. Decides whether a notification is due.
@@ -308,12 +346,55 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "ok": true }))
 }
 
+/// Debuggability endpoint: what the server knows, without secrets. Never
+/// includes vapid_private.
+///
+/// { "subscriptions": 1, "vapid_subject": "mailto:…", "schedule": {…},
+///   "day": {…}, "last_sent": ["2026-08-04", 660], "server_local_time": "13:05" }
+async fn get_status(State(shared): State<Shared>) -> Json<serde_json::Value> {
+    let state = shared.lock().await;
+    let offset = FixedOffset::east_opt(state.schedule.tz_offset_min * 60)
+        .unwrap_or_else(|| FixedOffset::east_opt(0).unwrap());
+    Json(serde_json::json!({
+        "subscriptions": state.subscriptions.len(),
+        "vapid_subject": state.vapid_subject,
+        "schedule": state.schedule,
+        "day": state.day,
+        "last_sent": state.last_sent,
+        "server_local_time": Utc::now().with_timezone(&offset).format("%H:%M").to_string(),
+    }))
+}
+
+/// Fire a push right now, bypassing all schedule/day logic. Returns the
+/// per-subscription results in the body so failures are visible in curl output
+/// and in the app, not just in server logs.
+async fn post_test_push(State(shared): State<Shared>) -> Json<serde_json::Value> {
+    let mut state = shared.lock().await;
+    let results = send_push(
+        &mut state,
+        "Test notification",
+        "Companion push works — this phone can be reached.",
+        false,
+    )
+    .await;
+    save_state(&state); // persist any dead-subscription pruning
+    let results = results
+        .into_iter()
+        .map(|r| match r {
+            Ok(()) => serde_json::json!({ "ok": true }),
+            Err(e) => serde_json::json!({ "ok": false, "error": e }),
+        })
+        .collect::<Vec<_>>();
+    Json(serde_json::json!({ "sent_to": results.len(), "results": results }))
+}
+
 // ─────────────────────────── main ───────────────────────────
 
 #[tokio::main]
 async fn main() {
     let mut initial = load_state();
     ensure_vapid(&mut initial);
+    ensure_vapid_subject(&mut initial);
     save_state(&initial);
     let shared: Shared = Arc::new(Mutex::new(initial));
 
@@ -336,6 +417,8 @@ async fn main() {
 
     let router = Router::new()
         .route("/api/health", get(health))
+        .route("/api/status", get(get_status))
+        .route("/api/test-push", post(post_test_push))
         .route("/api/vapid-public-key", get(get_vapid))
         .route("/api/subscribe", post(post_subscribe))
         .route("/api/schedule", post(post_schedule))

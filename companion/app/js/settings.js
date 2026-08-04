@@ -6,6 +6,7 @@ import { getAll, importAll } from './db.js';
 import { registerScreen, showScreen, el, toast } from './ui.js';
 import {
   permissionState, enableNotifications, hasServer, syncSchedule, syncDayAction,
+  ensurePushRegistered,
 } from './notify.js';
 
 function segButtons(container, options, selected, onPick) {
@@ -41,8 +42,26 @@ async function render() {
   const status = document.getElementById('notif-status');
   const perm = permissionState();
   const server = await hasServer();
+  // When the server is up, check how many subscriptions it holds so the row
+  // can distinguish "registered" from "permission granted but this device is
+  // NOT registered" — the silently-failed case this screen must surface.
+  let detail = '';
+  if (perm === 'granted' && server) {
+    try {
+      const res = await fetch('/api/status');
+      if (res.ok) {
+        const st = await res.json();
+        detail =
+          st.subscriptions >= 1
+            ? ' (registered)'
+            : ' — this device is NOT registered';
+      }
+    } catch {
+      /* offline blip — keep the plain status text */
+    }
+  }
   status.textContent =
-    perm === 'granted' ? (server ? 'Push ✓' : 'Local only (no server)') :
+    perm === 'granted' ? (server ? `Push ✓${detail}` : 'Local only (no server)') :
     perm === 'denied' ? 'Blocked in system settings' :
     perm === 'unsupported' ? 'Add to Home Screen first' : 'Off';
   document.getElementById('notif-enable').hidden = perm === 'granted' || perm === 'denied';
@@ -61,6 +80,34 @@ export function initSettings() {
   document.getElementById('notif-enable').addEventListener('click', async () => {
     const result = await enableNotifications();
     toast(result === 'granted' ? 'Notifications on' : 'Not enabled');
+    render();
+  });
+
+  // Always visible recovery + diagnostics: surface the real error, don't
+  // swallow it into a server log the user will never see.
+  document.getElementById('notif-test').addEventListener('click', async () => {
+    if (!(await hasServer())) {
+      toast('No server — foreground reminders only');
+      return;
+    }
+    try {
+      const res = await fetch('/api/test-push', { method: 'POST' });
+      const body = await res.json();
+      const failed = (body.results ?? []).filter((r) => !r.ok);
+      if (failed.length > 0) {
+        toast(`Push failed: ${failed[0].error}`);
+      } else {
+        toast(`Test push sent to ${body.sent_to ?? 0} device(s)`);
+      }
+    } catch (err) {
+      toast('Test push failed — is the server reachable?');
+      console.warn(err);
+    }
+  });
+
+  document.getElementById('notif-reregister').addEventListener('click', async () => {
+    const ok = await ensurePushRegistered(true); // force a fresh subscription
+    toast(ok ? 'Device re-registered' : 'Re-register failed — see console');
     render();
   });
 

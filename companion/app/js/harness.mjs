@@ -69,10 +69,20 @@ function fakeIndexedDB() {
 /**
  * Boot the app. Returns helpers for driving and inspecting it.
  * `search` lets tests simulate e.g. '?from=notification'.
+ *
+ * Injectable browser bits (defaults keep tests hermetic/offline):
+ *   `fetch`               — stub; defaults to throwing 'offline in tests'
+ *   `serviceWorker`       — fake navigator.serviceWorker (register/ready/…)
+ *   `notificationPermission` — defines window.Notification with this value
  */
 const idb = fakeIndexedDB();
 
-export async function bootApp({ search = '' } = {}) {
+export async function bootApp({
+  search = '',
+  fetch: fetchStub,
+  serviceWorker,
+  notificationPermission,
+} = {}) {
   idb._rows.clear(); // fresh history for every test
   const html = readFileSync(join(APP_DIR, 'index.html'), 'utf8');
   const dom = new JSDOM(html, {
@@ -85,14 +95,31 @@ export async function bootApp({ search = '' } = {}) {
   window.indexedDB = idb;
   window.IDBKeyRange = { bound: (lower, upper) => ({ lower, upper }) };
   window.crypto.randomUUID ??= () => `id-${Math.random().toString(36).slice(2)}`;
-  window.fetch = async () => { throw new Error('offline in tests'); }; // no server
+  window.fetch = fetchStub ?? (async () => { throw new Error('offline in tests'); }); // no server by default
   window.scrollTo = () => {};
   Object.defineProperty(window.document, 'hidden', { value: false, configurable: true });
+  if (notificationPermission) {
+    Object.defineProperty(window, 'Notification', {
+      value: { permission: notificationPermission },
+      configurable: true,
+    });
+  }
+  if (serviceWorker) {
+    Object.defineProperty(window.navigator, 'serviceWorker', {
+      value: serviceWorker,
+      configurable: true,
+    });
+  }
 
   // Expose globals the modules read at import time. Some (crypto, location,
   // navigator) are getter-only on globalThis, hence defineProperty.
   const globals = ['window', 'document', 'localStorage', 'indexedDB', 'IDBKeyRange',
     'crypto', 'fetch', 'navigator', 'location', 'history'];
+  if (notificationPermission) {
+    globals.push('Notification');
+  } else {
+    delete globalThis.Notification; // don't leak a prior boot's permission
+  }
   for (const key of globals) {
     Object.defineProperty(globalThis, key, { value: window[key], configurable: true, writable: true });
   }
