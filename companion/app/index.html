@@ -8,6 +8,11 @@
   <meta name="theme-color" content="#44584a">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <!-- Keep the apple-* metas: iOS Home Screen standalone still keys off them
+       (manifest display: standalone covers iOS 13+, this is the fallback).
+       Chrome warns the apple one is deprecated — that's desktop noise; the
+       app targets iPhone Safari installed to Home Screen. -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Companion">
@@ -82,6 +87,7 @@
     <button class="backbtn" data-nav="screen-picker">‹ Back</button>
   </header>
   <h2 class="big">Where's your<br>energy?</h2>
+  <p class="center-note" id="energy-hint" hidden>Tap one to continue with your 5 Questions.</p>
   <div class="lights">
     <button class="light green"  data-level="green">Green<small>thriving</small></button>
     <button class="light yellow" data-level="yellow">Yellow<small>danger of going red</small></button>
@@ -109,26 +115,35 @@
 <!-- ═══════════ 5 QUESTIONS ═══════════ -->
 <section id="screen-questions" hidden>
   <header class="appbar">
-    <button class="backbtn" data-nav="screen-picker">‹ Back</button>
+    <!-- not data-nav: Back returns to the traffic light, not the picker -->
+    <button class="backbtn" id="questions-back">‹ Back</button>
     <h2>5 Questions</h2>
     <span></span>
   </header>
   <form id="questions-form" class="stack">
     <label>What am I doing right now?
       <textarea name="doing" rows="2"></textarea>
+      <div class="chips" id="chips-doing" aria-label="Past answers"></div>
     </label>
     <label>With what goal?
       <textarea name="goal" rows="2"></textarea>
+      <div class="chips" id="chips-goal" aria-label="Past answers"></div>
     </label>
-    <div class="chips" id="goal-chips" aria-label="Goal examples"></div>
     <label>Am I progressing towards it?
       <textarea name="progressing" rows="2"></textarea>
+      <div class="chips" id="chips-progressing" aria-label="Quick answers"></div>
     </label>
-    <label>How am I feeling?
-      <textarea name="feeling" rows="2"></textarea>
-    </label>
+    <div class="q-block">
+      <div class="q-title">How am I feeling?</div>
+      <ul class="stack" id="q-feelings-list"></ul>
+      <div class="add-row">
+        <input type="text" id="q-feeling-add" placeholder="add a feeling (any word that fits)" autocomplete="off">
+        <button type="button" id="q-feeling-add-btn">Add</button>
+      </div>
+    </div>
     <label>Continue as I was, or change something?
       <textarea name="next" rows="2"></textarea>
+      <div class="chips" id="chips-next" aria-label="Past answers"></div>
     </label>
     <button class="btn" type="submit">Save reflection</button>
   </form>

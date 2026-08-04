@@ -4,6 +4,13 @@
 // Reflection record shape (see AGENTS.md for the contract):
 //   { id: uuid, type: 'energy'|'questions'|'feelings', at: ISO string,
 //     day: 'YYYY-MM-DD' (local), data: {...type-specific} }
+//   data:
+//     energy:    { level: 'green'|'yellow'|'red', note: string }
+//     questions: { doing, goal, progressing, next (strings),
+//                  energy: 'green'|'yellow'|'red',           // tapped light (mandatory)
+//                  values: { [name: string]: 0..100 } }     // feelings snapshot (mandatory)
+//                  // legacy records may carry a 'feeling' text answer instead
+//     feelings:  { values: { [name: string]: 0..100 } }
 
 const DB_NAME = 'companion';
 const DB_VERSION = 1;

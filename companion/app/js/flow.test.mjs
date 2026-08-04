@@ -70,22 +70,33 @@ test('energy: recent notes appear as one-tap chips next time', async () => {
   assert.equal(app.$('#note-text').value, 'meeting drained me');
 });
 
-test('5 questions: saves answers and returns to picker', async () => {
+test('5 questions: traffic light → sliders → one combined record', async () => {
   const app = await bootApp();
   await app.click('.fab');
   await app.click(app.byText('.opt', '5 Questions'));
-  assert.deepEqual(app.visibleScreens(), ['screen-questions']);
 
-  await app.click(app.byText('#goal-chips .chip', 'relaxing')); // goal example chip
-  assert.equal(app.$('[name="goal"]').value, 'relaxing');
+  // The big flow starts on the traffic light, and there is NO note screen.
+  assert.deepEqual(app.visibleScreens(), ['screen-energy']);
+  assert.equal(app.$('#energy-hint').hidden, false, 'flow hint is visible');
+  await app.click('.light.yellow');
+  assert.deepEqual(app.visibleScreens(), ['screen-questions'], 'straight to the questions, no note');
 
+  // Feelings sliders come from the shared store; add one.
+  await app.type('#q-feeling-add', 'tired');
+  await app.click('#q-feeling-add-btn');
+  assert.equal(app.$$('#q-feelings-list .feel').length, 1);
+
+  await app.type('[name="goal"]', 'relaxing');
   await app.type('[name="doing"]', 'sitting on the balcony');
   await app.submit('#questions-form');
 
-  const saved = app.records().at(-1);
+  assert.equal(app.records().length, 1, 'one combined record, nothing orphaned');
+  const saved = app.records()[0];
   assert.equal(saved.type, 'questions');
   assert.equal(saved.data.doing, 'sitting on the balcony');
   assert.equal(saved.data.goal, 'relaxing');
+  assert.equal(saved.data.energy, 'yellow', 'the tapped light lives in the record');
+  assert.deepEqual(saved.data.values, { tired: 50 }, 'feelings snapshot lives in the record');
   assert.deepEqual(app.visibleScreens(), ['screen-picker']);
 });
 
@@ -93,9 +104,153 @@ test('5 questions: empty form is refused', async () => {
   const app = await bootApp();
   await app.click('.fab');
   await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.green');
+  await app.type('#q-feeling-add', 'tired');
+  await app.click('#q-feeling-add-btn');
   await app.submit('#questions-form');
   assert.equal(app.records().length, 0);
   assert.deepEqual(app.visibleScreens(), ['screen-questions'], 'stays put');
+});
+
+test('5 questions: feelings are mandatory (like the standalone screen)', async () => {
+  const app = await bootApp();
+  await app.click('.fab');
+  await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.green');
+  await app.type('[name="doing"]', 'writing');
+  await app.submit('#questions-form');
+  assert.equal(app.records().length, 0);
+  assert.match(app.$('#toast').textContent, /Add a feeling first/);
+  assert.deepEqual(app.visibleScreens(), ['screen-questions'], 'stays put');
+});
+
+test('5 questions: progressing always shows the fixed quick-answer chips', async () => {
+  const app = await bootApp();
+  await app.click('.fab');
+  await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.green');
+
+  const chips = app.$$('#chips-progressing .chip').map((c) => c.textContent);
+  assert.deepEqual(chips, ['sure', 'probably', 'maybe', 'not really', 'no']);
+
+  await app.click(app.byText('#chips-progressing .chip', 'not really'));
+  assert.equal(app.$('[name="progressing"]').value, 'not really');
+});
+
+test('5 questions: past answers become chips for doing, goal and next', async () => {
+  const app = await bootApp();
+
+  // Fresh install: no history yet → the dynamic chip rows are hidden.
+  await app.click('.fab');
+  await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.green');
+  assert.equal(app.$('#chips-doing').hidden, true, 'doing row hidden without history');
+  assert.equal(app.$('#chips-goal').hidden, true);
+
+  // Save a reflection with real answers.
+  await app.type('#q-feeling-add', 'tired');
+  await app.click('#q-feeling-add-btn');
+  await app.type('[name="doing"]', 'sitting on the balcony');
+  await app.type('[name="goal"]', 'relaxing');
+  await app.type('[name="next"]', 'keep going');
+  await app.submit('#questions-form');
+
+  // Re-enter: each question offers its own past answer as a chip.
+  await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.green');
+  assert.equal(app.$('#chips-doing').hidden, false, 'doing row appears once there is history');
+  assert.equal(app.byText('#chips-doing .chip', 'sitting on the balcony').textContent, 'sitting on the balcony');
+  assert.equal(app.byText('#chips-goal .chip', 'relaxing').textContent, 'relaxing');
+  assert.equal(app.byText('#chips-next .chip', 'keep going').textContent, 'keep going');
+
+  // Tapping a chip fills that question's box.
+  await app.click(app.byText('#chips-doing .chip', 'sitting on the balcony'));
+  assert.equal(app.$('[name="doing"]').value, 'sitting on the balcony');
+});
+
+test('5 questions: Back returns to the traffic light; re-tap changes the energy', async () => {
+  const app = await bootApp();
+  await app.click('.fab');
+  await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.green');
+  await app.click('#questions-back');
+  assert.deepEqual(app.visibleScreens(), ['screen-energy']);
+  assert.ok(app.$('.light.green').classList.contains('sel'), 'picked light is highlighted');
+  await app.click('.light.red');
+  assert.deepEqual(app.visibleScreens(), ['screen-questions']);
+  await app.type('#q-feeling-add', 'tired');
+  await app.click('#q-feeling-add-btn');
+  await app.type('[name="doing"]', 'working');
+  await app.submit('#questions-form');
+  assert.equal(app.records()[0].data.energy, 'red', 're-tap replaced the energy');
+});
+
+test('5 questions: feelings sliders share the exact state with the standalone screen', async () => {
+  const app = await bootApp();
+
+  // Set up state via the standalone feelings screen (add + slide).
+  await app.click('.fab');
+  await app.click(app.byText('.opt', 'Feelings'));
+  await app.type('#feeling-add', 'calm');
+  await app.click('#feeling-add-form button[type="submit"]');
+  const slider = app.$$('#feelings-list input[type="range"]')[0];
+  slider.value = '64';
+  slider.dispatchEvent(new app.window.Event('input', { bubbles: true }));
+
+  // The 5 Questions flow loads the exact same list + values.
+  await app.click('#screen-feelings .backbtn');
+  await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.green');
+  assert.equal(app.$$('#q-feelings-list .feel').length, 1);
+  assert.equal(app.$('#q-feelings-list .feel b').textContent, 'calm');
+  assert.equal(app.$$('#q-feelings-list input[type="range"]')[0].value, '64', 'same slider state');
+
+  // Removal in the questions flow propagates back.
+  await app.click(app.$$('#q-feelings-list .x')[0]);
+  await app.click('#questions-back');
+  await app.click('#screen-energy .backbtn');
+  await app.click(app.byText('.opt', 'Feelings'));
+  assert.equal(app.$$('#feelings-list .feel').length, 0, 'removal propagated to the standalone screen');
+});
+
+test('home: the combined 5 Questions record tints the dot and opens in detail', async () => {
+  const app = await bootApp();
+  await app.click('.fab');
+  await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.yellow');
+  await app.type('#q-feeling-add', 'tired');
+  await app.click('#q-feeling-add-btn');
+  const slider = app.$$('#q-feelings-list input[type="range"]')[0];
+  slider.value = '72';
+  slider.dispatchEvent(new app.window.Event('input', { bubbles: true }));
+  await app.type('[name="doing"]', 'coding');
+  await app.submit('#questions-form');
+
+  await app.click(app.byText('.btn.quiet', 'Back to home'));
+  assert.equal(app.$$('#cal-grid .d.yellow').length, 1, 'dot tinted by energy inside the record');
+
+  await app.click('#day-timeline .row');
+  const text = app.$('#detail-body').textContent;
+  assert.match(text, /Energy/);
+  assert.match(text, /yellow/);
+  assert.match(text, /tired/);
+  assert.match(text, /72\/100/);
+});
+
+test('detail: legacy 5 Questions records (text feeling, no energy) still render', async () => {
+  const app = await bootApp();
+  const now = new Date();
+  const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  app.idb._rows.set('legacy-1', {
+    id: 'legacy-1', type: 'questions', at: now.toISOString(), day,
+    data: { doing: 'walking', feeling: 'peaceful', next: 'stay outside' },
+  });
+  await app.click('.fab'); // leave home and come back so the timeline re-renders
+  await app.click(app.byText('.btn.quiet', 'Back to home'));
+  await app.click('#day-timeline .row');
+  const text = app.$('#detail-body').textContent;
+  assert.match(text, /Feeling/);
+  assert.match(text, /peaceful/);
 });
 
 test('feelings: add, slide, snapshot; sliders persist to the next session', async () => {
@@ -407,11 +562,15 @@ test('full storage: 5 questions keep your answers on screen', async () => {
   const app = await bootApp({ idbFail: true });
   await app.click('.fab');
   await app.click(app.byText('.opt', '5 Questions'));
+  await app.click('.light.green'); // held, not saved — nothing can fail yet
+  await app.type('#q-feeling-add', 'tired');
+  await app.click('#q-feeling-add-btn');
   await app.type('[name="doing"]', 'sitting on the balcony');
   await app.submit('#questions-form');
   assert.deepEqual(app.visibleScreens(), ['screen-questions'], 'does not advance');
   assert.match(app.$('#toast').textContent, /Couldn't save/);
   assert.equal(app.$('[name="doing"]').value, 'sitting on the balcony', 'answers not wiped');
+  assert.equal(app.records().length, 0, 'nothing was written');
 });
 
 test('full storage: the energy note cannot be enriched, note is kept on screen', async () => {

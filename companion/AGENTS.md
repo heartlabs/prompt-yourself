@@ -65,7 +65,10 @@ Changing any of these means changing **both** sides — grep before editing:
   day: 'YYYY-MM-DD' /* local date, denormalized for the day index */,
   data: {
     // energy:    { level: 'green'|'yellow'|'red', note: string }
-    // questions: { doing, goal, progressing, feeling, next }  (strings, may be '')
+    // questions: { doing, goal, progressing, next (strings),
+    //               energy: 'green'|'yellow'|'red',        // mandatory, from the traffic light
+    //               values: { [name: string]: 0..100 } }  // mandatory feelings snapshot
+    //               (legacy records may have a 'feeling' text answer instead)
     // feelings:  { values: { [name: string]: 0..100 } }
   } }
 ```

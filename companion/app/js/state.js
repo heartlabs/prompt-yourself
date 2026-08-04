@@ -1,5 +1,6 @@
 // Small, non-historical state in localStorage: settings, today's flags,
-// feelings slider positions, recent energy notes. History lives in db.js.
+// feelings slider positions, recent energy notes, recent 5-Questions answers.
+// History lives in db.js.
 
 import { dayOf } from './db.js';
 
@@ -90,4 +91,22 @@ export function addRecentNote(text) {
   if (!trimmed) return;
   const list = [trimmed, ...getRecentNotes().filter((n) => n !== trimmed)];
   write('recentNotes', { list: list.slice(0, MAX_RECENT_NOTES) });
+}
+
+// ── recent 5-Questions answers (one-tap chips per question) ──
+// Fed on every saved questions reflection — same pattern as recent energy
+// notes above: most recent first, deduped, capped, one list per field.
+const MAX_RECENT_ANSWERS = 5;
+
+export function getRecentAnswers(field) {
+  return read('recentAnswers', { list: {} }).list[field] ?? [];
+}
+
+export function addRecentAnswer(field, text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  const list = read('recentAnswers', { list: {} }).list;
+  const current = list[field] ?? [];
+  const next = [trimmed, ...current.filter((n) => n !== trimmed)].slice(0, MAX_RECENT_ANSWERS);
+  write('recentAnswers', { list: { ...list, [field]: next } });
 }

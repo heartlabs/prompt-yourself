@@ -26,10 +26,16 @@ export function reflectionToMarkdown(r) {
       return r.data.note ? `${head}\n${r.data.note}` : head;
     }
     case 'questions': {
+      const head = `### ${time} — 5 Questions ${ENERGY_EMOJI[r.data.energy] ?? ''}`.trimEnd();
+      // 'feeling' stays in QUESTION_LABELS for legacy records (free text); new
+      // records have no text answer, so that line never renders for sliders.
       const lines = Object.entries(QUESTION_LABELS)
         .filter(([key]) => r.data[key])
         .map(([key, label]) => `- **${label}:** ${r.data[key]}`);
-      return [`### ${time} — 5 Questions`, ...lines].join('\n');
+      if (r.data.values && Object.keys(r.data.values).length) {
+        lines.push(...Object.entries(r.data.values).map(([name, value]) => `- ${name}: ${value}/100`));
+      }
+      return [head, ...lines].join('\n');
     }
     case 'feelings': {
       const lines = Object.entries(r.data.values ?? {}).map(

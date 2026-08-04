@@ -43,9 +43,12 @@ async function renderCalendar() {
       const day = `${monthKey(shownMonth)}-${String(n).padStart(2, '0')}`;
       const records = byDay.get(day) ?? [];
 
-      // Neutral dot when tracked; tinted only by energy check-ins (worst of day).
+      // Neutral dot when tracked; tinted by the worst energy of the day —
+      // standalone check-ins AND the energy inside 5 Questions records.
       let dotClass = records.length ? 'has' : '';
-      const energies = records.filter((r) => r.type === 'energy').map((r) => r.data.level);
+      const energies = records
+        .filter((r) => r.type === 'energy' || (r.type === 'questions' && r.data.energy))
+        .map((r) => (r.type === 'energy' ? r.data.level : r.data.energy));
       if (energies.length) {
         dotClass = energies.sort((a, b) => ENERGY_RANK[b] - ENERGY_RANK[a])[0];
       }
@@ -144,12 +147,17 @@ function renderDetail() {
     parts.push(qa('Level', r.data.level));
     if (r.data.note) parts.push(qa('Note', r.data.note));
   } else if (r.type === 'questions') {
+    if (r.data.energy) parts.push(qa('Energy', r.data.energy));
+    // 'feeling' renders for legacy records only (new ones use the sliders).
     const labels = {
       doing: 'Doing right now', goal: 'With what goal', progressing: 'Progressing?',
       feeling: 'Feeling', next: 'Continue or change?',
     };
     for (const [key, label] of Object.entries(labels)) {
       if (r.data[key]) parts.push(qa(label, r.data[key]));
+    }
+    for (const [name, value] of Object.entries(r.data.values ?? {})) {
+      parts.push(qa(name, `${value}/100`));
     }
   } else if (r.type === 'feelings') {
     for (const [name, value] of Object.entries(r.data.values ?? {})) {
