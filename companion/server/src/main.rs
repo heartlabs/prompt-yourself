@@ -121,8 +121,7 @@ fn ensure_vapid(state: &mut AppState) {
 /// 400 BadJwtToken; Chrome/FCM is lenient, which is why this only bites on iOS.
 /// Read once at startup; override with POCKET_VAPID_SUBJECT.
 fn vapid_subject() -> String {
-    std::env::var("POCKET_VAPID_SUBJECT")
-        .unwrap_or_else(|_| "mailto:pocket@localhost".to_string())
+    std::env::var("POCKET_VAPID_SUBJECT").unwrap_or_else(|_| "mailto:pocket@localhost".to_string())
 }
 
 /// Persist the subject so /api/status can show it (never secrets, only this).
