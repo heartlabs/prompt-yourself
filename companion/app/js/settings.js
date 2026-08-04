@@ -4,6 +4,7 @@ import { getSettings, saveSettings, updateToday } from './state.js';
 import { RHYTHMS, SNOOZE_OPTIONS } from './schedule.js';
 import { getAll, importAll } from './db.js';
 import { registerScreen, showScreen, el, toast } from './ui.js';
+import { VERSION } from './version.js';
 import {
   permissionState, enableNotifications, hasServer, syncSchedule, syncDayAction,
   ensurePushRegistered,
@@ -25,6 +26,7 @@ async function render() {
   const s = getSettings();
   document.getElementById('set-start').value = s.startTime;
   document.getElementById('set-end').value = s.endTime;
+  document.getElementById('app-version').textContent = `Companion ${VERSION}`;
 
   segButtons(
     document.getElementById('set-rhythm'),

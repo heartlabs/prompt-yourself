@@ -82,7 +82,8 @@ Nothing else should need to change.
   built-in `[hidden]` rule, every screen renders stacked at once, and the app
   looks completely dead (clicks "do nothing"). This has already happened once.
   The test `home shows exactly one screen` guards it.
-- **Bump `VERSION` in `sw.js` on every app change**, or installed PWAs keep
+- **Bump `VERSION` in `app/js/version.js` on every app change** (it busts the
+  SW cache and is shown in the Settings footer), or installed PWAs keep
   serving stale cached files. This is the #1 "my change does nothing" trap.
 - Starting a reflection by hand uses `#start-reflection` → `openPickerFresh()`,
   deliberately *not* `data-nav` — a new session must un-dim finished items.

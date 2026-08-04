@@ -20,7 +20,7 @@ document.getElementById('start-reflection').addEventListener('click', openPicker
 
 // ── service worker ──
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
+  navigator.serviceWorker.register('sw.js', { type: 'module' });
   // Messages from the SW (notification action buttons).
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data === 'snooze') snoozeToday();
@@ -28,6 +28,15 @@ if ('serviceWorker' in navigator) {
       updateToday({ stopped: true });
       toast('Quiet until tomorrow');
     }
+  });
+  // A newly installed SW (new VERSION deployed) takes over via skipWaiting +
+  // clients.claim — reload once so this page actually runs the new build
+  // instead of showing the old version until the next launch.
+  let refreshed = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshed) return;
+    refreshed = true;
+    location.reload();
   });
 }
 

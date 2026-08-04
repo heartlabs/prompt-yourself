@@ -1,7 +1,9 @@
 // Service worker: offline app shell + Web Push display + notification actions.
-// Bump VERSION whenever any app file changes — it busts the cache.
+// VERSION lives in js/version.js (shared with the settings footer) — bump it
+// there on every app change, it busts this cache.
 
-const VERSION = 'v5';
+import { VERSION } from './js/version.js';
+
 const CACHE = `companion-${VERSION}`;
 const SHELL = [
   './',
@@ -9,6 +11,7 @@ const SHELL = [
   'css/style.css',
   'js/main.js', 'js/ui.js', 'js/db.js', 'js/state.js', 'js/schedule.js',
   'js/markdown.js', 'js/notify.js', 'js/home.js', 'js/reflect.js', 'js/settings.js',
+  'js/version.js',
   'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png',
 ];

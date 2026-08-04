@@ -208,6 +208,12 @@ test('settings: stop for today silences and goes home', async () => {
   assert.equal(JSON.parse(app.window.localStorage.getItem('today')).stopped, true);
 });
 
+test('settings: footer shows the app version (update check)', async () => {
+  const app = await bootApp();
+  await app.click('[data-nav="screen-settings"]');
+  assert.match(app.$('#app-version').textContent, /^Companion v\d+$/);
+});
+
 test('settings: test + re-register buttons are always visible (recovery UI)', async () => {
   // Regression guard for "no way to recover from a silently failed
   // registration": once permission is granted, notif-enable disappears, so

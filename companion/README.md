@@ -187,7 +187,9 @@ cd server && cargo build                          # server
 The UI tests boot the real `index.html` in jsdom and click through every
 screen, so a broken flow fails the suite instead of your evening.
 
-After changing any file in `app/`, bump `VERSION` in `app/sw.js` so installed
-clients pick up the new files.
+After changing any file in `app/`, bump `VERSION` in `app/js/version.js` so
+installed clients pick up the new files. That same value is shown at the
+bottom of the app's Settings screen — after deploying, launch the app once
+(a fresh install of the update) and check the footer says the new version.
 
 Read **AGENTS.md** before making changes.
