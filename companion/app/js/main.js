@@ -23,13 +23,22 @@ if ('serviceWorker' in navigator) {
   // updateViaCache: 'none' — WebKit may otherwise serve sw.js (and its
   // imported js/version.js) from the HTTP cache, which is exactly how a PWA
   // gets stuck on an old build. nginx.conf also forces no-cache on /sw.js.
-  navigator.serviceWorker.register('sw.js', { type: 'module', updateViaCache: 'none' });
-  // Messages from the SW (notification action buttons).
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data === 'snooze') snoozeToday();
-    if (event.data === 'stop') {
-      updateToday({ stopped: true });
-      toast('Quiet until tomorrow');
+  navigator.serviceWorker
+    .register('sw.js', { type: 'module', updateViaCache: 'none' })
+    .catch((err) => console.warn('SW registration failed — no offline shell, push unavailable', err));
+  // Messages from the SW (notification action buttons). Payload:
+  // { action: 'snooze'|'stop', ok: did the SW's own /api/day POST succeed? }
+  navigator.serviceWorker.addEventListener('message', async (event) => {
+    const msg = event.data ?? {};
+    if (msg.action === 'snooze') {
+      snoozeToday(msg.ok);
+    } else if (msg.action === 'stop') {
+      const savedLocal = updateToday({ stopped: true });
+      // The SW already retried; the page may still have connectivity it lacked.
+      let synced = msg.ok;
+      if (!synced) synced = await syncDayAction('stop');
+      if (!savedLocal) toast("Couldn't save — is storage full?");
+      else toast(synced ? 'Quiet until tomorrow' : "Quiet until tomorrow — couldn't reach the server, the next reminder may still come");
     }
   });
   // A newly installed SW (new VERSION deployed) takes over via skipWaiting +
@@ -58,11 +67,15 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-function snoozeToday() {
+async function snoozeToday(ok) {
   const min = getSettings().snoozeMin;
-  updateToday({ snoozeUntil: Date.now() + min * 60_000 });
-  syncDayAction('snooze');
-  toast(`Snoozed ${min} min`);
+  const savedLocal = updateToday({ snoozeUntil: Date.now() + min * 60_000 });
+  // The SW already told the server when ok; when it failed, the page may
+  // still have connectivity it lacked — one honest retry, then tell the truth.
+  let synced = ok;
+  if (!synced) synced = await syncDayAction('snooze');
+  if (!savedLocal) toast("Couldn't save — is storage full?");
+  else toast(synced ? `Snoozed ${min} min` : `Snoozed ${min} min — couldn't reach the server, the next reminder may still come`);
 }
 
 // ── entry: from a notification / Shortcuts automation, or normal open ──
@@ -91,7 +104,9 @@ startForegroundTicker(() => {
 hasServer().then((server) => {
   if (!server) return;
   syncSchedule();
-  ensurePushRegistered();
+  ensurePushRegistered().then((ok) => {
+    if (!ok) console.warn('push registration incomplete — see Settings → Notifications');
+  });
 });
 
 // Ensure "today" state exists/rolls over even if nothing else touches it.

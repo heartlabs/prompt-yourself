@@ -23,6 +23,21 @@ const REFLECTIONS = [
 let doneThisSession = new Set();
 let pendingEnergyRecord = null; // saved energy record awaiting its optional note
 
+/**
+ * Guarded reflection save: a storage failure must never look like a saved
+ * reflection. Toasts + warns so the user knows, returns null so the caller
+ * can stay on the screen and retry instead of losing input.
+ */
+async function saveReflection(type, data) {
+  try {
+    return await addReflection(type, data);
+  } catch (err) {
+    console.warn('reflection save failed', err);
+    toast("Couldn't save — is storage full?");
+    return null;
+  }
+}
+
 export function openPickerFresh() {
   doneThisSession = new Set();
   showScreen('screen-picker');
@@ -59,15 +74,21 @@ function initCommit() {
   document.getElementById('commit-yes').addEventListener('click', async () => {
     const endTime = document.getElementById('commit-end').value;
     const rhythm = document.getElementById('commit-rhythm').value;
-    updateToday({ committed: true, endTime, rhythm });
+    if (!updateToday({ committed: true, endTime, rhythm })) {
+      // Commit is only a flag; the reflection flow itself still works — warn,
+      // don't block (the picker must open either way).
+      toast("Couldn't save — is storage full?");
+    }
     const [h, m] = endTime.split(':').map(Number);
     syncDayAction('commit', { end_min: h * 60 + m, rhythm });
     openPickerFresh();
   });
-  document.getElementById('commit-skip').addEventListener('click', () => {
-    updateToday({ skipped: true });
-    syncDayAction('skip');
-    toast('Skipped — see you tomorrow');
+  document.getElementById('commit-skip').addEventListener('click', async () => {
+    const saved = updateToday({ skipped: true });
+    const synced = await syncDayAction('skip');
+    if (!saved) toast("Couldn't save — is storage full?");
+    else if (!synced) toast("Skipped — couldn't reach the server, the next reminder may still come");
+    else toast('Skipped — see you tomorrow');
     showScreen('screen-home');
   });
   registerScreen('screen-commit', { onShow: renderCommit });
@@ -111,8 +132,8 @@ function initEnergy() {
   for (const btn of document.querySelectorAll('#screen-energy .light')) {
     btn.addEventListener('click', async () => {
       // Tap = saved. The note screen only enriches the already-saved record.
-      pendingEnergyRecord = await addReflection('energy', { level: btn.dataset.level, note: '' });
-      showScreen('screen-energy-note');
+      pendingEnergyRecord = await saveReflection('energy', { level: btn.dataset.level, note: '' });
+      if (pendingEnergyRecord) showScreen('screen-energy-note');
     });
   }
 
@@ -142,8 +163,14 @@ function initEnergy() {
     if (note && pendingEnergyRecord) {
       // Rewrite the record with the note (put overwrites by id).
       pendingEnergyRecord.data.note = note;
-      await importAll([pendingEnergyRecord]);
-      addRecentNote(note);
+      try {
+        await importAll([pendingEnergyRecord]);
+        addRecentNote(note);
+      } catch (err) {
+        console.warn('note save failed', err);
+        toast("Couldn't save — is storage full?");
+        return; // keep the note on screen — Done to retry, Skip to discard
+      }
     }
     pendingEnergyRecord = null;
     finishReflection('energy');
@@ -174,7 +201,8 @@ function initQuestions() {
       ['doing', 'goal', 'progressing', 'feeling', 'next'].map((k) => [k, form.elements[k].value.trim()])
     );
     if (!Object.values(data).some(Boolean)) return toast('Write at least one answer');
-    await addReflection('questions', data);
+    const saved = await saveReflection('questions', data);
+    if (!saved) return; // keep the answers on screen
     form.reset();
     finishReflection('questions');
   });
@@ -234,7 +262,8 @@ function initFeelings() {
     const feelings = getFeelings();
     if (!feelings.length) return toast('Add a feeling first');
     const values = Object.fromEntries(feelings.map((f) => [f.name, f.value]));
-    await addReflection('feelings', { values });
+    const saved = await saveReflection('feelings', { values });
+    if (!saved) return;
     finishReflection('feelings');
   });
 

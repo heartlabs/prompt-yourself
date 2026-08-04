@@ -13,7 +13,15 @@ function read(key, fallback) {
 }
 
 function write(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (err) {
+    // Never crash the app on a broken localStorage (private mode, quota).
+    // Callers decide how loudly to surface it; every call site at least warns.
+    console.warn(`localStorage write failed (${key})`, err);
+    return false;
+  }
 }
 
 // ── settings ──
@@ -29,9 +37,7 @@ export function getSettings() {
 }
 
 export function saveSettings(patch) {
-  const next = { ...getSettings(), ...patch };
-  write('settings', next);
-  return next;
+  return write('settings', { ...getSettings(), ...patch });
 }
 
 // ── today (auto-resets when the date changes) ──
@@ -58,9 +64,7 @@ export function getToday() {
 }
 
 export function updateToday(patch) {
-  const next = { ...getToday(), ...patch };
-  write('today', next);
-  return next;
+  return write('today', { ...getToday(), ...patch });
 }
 
 // ── feelings sliders (persist between sessions) ──
@@ -71,7 +75,7 @@ export function getFeelings() {
 }
 
 export function saveFeelings(list) {
-  write('feelings', { list });
+  return write('feelings', { list });
 }
 
 // ── recent energy notes (one-tap chips) ──

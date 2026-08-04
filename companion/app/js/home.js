@@ -23,77 +23,90 @@ function monthKey(d) {
 
 async function renderCalendar() {
   const grid = document.getElementById('cal-grid');
-  const title = document.getElementById('cal-title');
-  title.textContent = shownMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  try {
+    const title = document.getElementById('cal-title');
+    title.textContent = shownMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
-  const byDay = await getMonth(monthKey(shownMonth));
-  grid.replaceChildren();
+    const byDay = await getMonth(monthKey(shownMonth));
+    grid.replaceChildren();
 
-  for (const dow of ['M', 'T', 'W', 'T', 'F', 'S', 'S']) {
-    grid.append(el('span', { class: 'dow' }, dow));
-  }
-
-  // Monday-first offset for the 1st of the month.
-  const firstDow = (shownMonth.getDay() + 6) % 7;
-  for (let i = 0; i < firstDow; i++) grid.append(el('span'));
-
-  const daysInMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() + 1, 0).getDate();
-  for (let n = 1; n <= daysInMonth; n++) {
-    const day = `${monthKey(shownMonth)}-${String(n).padStart(2, '0')}`;
-    const records = byDay.get(day) ?? [];
-
-    // Neutral dot when tracked; tinted only by energy check-ins (worst of day).
-    let dotClass = records.length ? 'has' : '';
-    const energies = records.filter((r) => r.type === 'energy').map((r) => r.data.level);
-    if (energies.length) {
-      dotClass = energies.sort((a, b) => ENERGY_RANK[b] - ENERGY_RANK[a])[0];
+    for (const dow of ['M', 'T', 'W', 'T', 'F', 'S', 'S']) {
+      grid.append(el('span', { class: 'dow' }, dow));
     }
 
-    const cell = el(
-      'button',
-      {
-        class: `d ${dotClass} ${day === selectedDay ? 'sel' : ''}`,
-        onclick: () => {
-          selectedDay = day;
-          renderCalendar();
-          renderTimeline();
+    // Monday-first offset for the 1st of the month.
+    const firstDow = (shownMonth.getDay() + 6) % 7;
+    for (let i = 0; i < firstDow; i++) grid.append(el('span'));
+
+    const daysInMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() + 1, 0).getDate();
+    for (let n = 1; n <= daysInMonth; n++) {
+      const day = `${monthKey(shownMonth)}-${String(n).padStart(2, '0')}`;
+      const records = byDay.get(day) ?? [];
+
+      // Neutral dot when tracked; tinted only by energy check-ins (worst of day).
+      let dotClass = records.length ? 'has' : '';
+      const energies = records.filter((r) => r.type === 'energy').map((r) => r.data.level);
+      if (energies.length) {
+        dotClass = energies.sort((a, b) => ENERGY_RANK[b] - ENERGY_RANK[a])[0];
+      }
+
+      const cell = el(
+        'button',
+        {
+          class: `d ${dotClass} ${day === selectedDay ? 'sel' : ''}`,
+          onclick: () => {
+            selectedDay = day;
+            renderCalendar();
+            renderTimeline();
+          },
         },
-      },
-      String(n),
-      el('span', { class: 'dot' })
-    );
-    grid.append(cell);
+        String(n),
+        el('span', { class: 'dot' })
+      );
+      grid.append(cell);
+    }
+  } catch (err) {
+    // Blank history is indistinguishable from "no data" — say it out loud.
+    console.warn('calendar failed to load', err);
+    grid.replaceChildren();
+    toast("Couldn't load history");
   }
 }
 
 async function renderTimeline() {
   const list = document.getElementById('day-timeline');
-  const title = document.getElementById('day-title');
-  const records = await getDay(selectedDay);
+  try {
+    const title = document.getElementById('day-title');
+    const records = await getDay(selectedDay);
 
-  const dayDate = new Date(`${selectedDay}T12:00:00`);
-  const dayLabel = dayDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-  title.textContent = records.length
-    ? `${dayLabel} · ${records.length} reflection${records.length > 1 ? 's' : ''}`
-    : `${dayLabel} · nothing yet`;
+    const dayDate = new Date(`${selectedDay}T12:00:00`);
+    const dayLabel = dayDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    title.textContent = records.length
+      ? `${dayLabel} · ${records.length} reflection${records.length > 1 ? 's' : ''}`
+      : `${dayLabel} · nothing yet`;
 
-  list.replaceChildren(
-    ...records.map((r) => {
-      const time = new Date(r.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-      const pip = el('span', { class: `pip ${r.type === 'energy' ? r.data.level : 'n'}` });
-      return el(
-        'li',
-        {},
-        el(
-          'button',
-          { class: 'row', onclick: () => openDetail(r) },
-          el('time', {}, time),
-          pip,
-          el('span', { class: 'what' }, summaryLine(r))
-        )
-      );
-    })
-  );
+    list.replaceChildren(
+      ...records.map((r) => {
+        const time = new Date(r.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+        const pip = el('span', { class: `pip ${r.type === 'energy' ? r.data.level : 'n'}` });
+        return el(
+          'li',
+          {},
+          el(
+            'button',
+            { class: 'row', onclick: () => openDetail(r) },
+            el('time', {}, time),
+            pip,
+            el('span', { class: 'what' }, summaryLine(r))
+          )
+        );
+      })
+    );
+  } catch (err) {
+    console.warn('timeline failed to load', err);
+    list.replaceChildren();
+    toast("Couldn't load history");
+  }
 }
 
 function summaryLine(r) {

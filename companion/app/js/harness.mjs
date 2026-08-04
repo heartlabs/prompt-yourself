@@ -20,14 +20,22 @@ const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 // One shared instance: db.js caches its connection in a module-level promise,
 // and node caches modules across tests in a file. Tests get isolation by
 // clearing the rows in bootApp() instead of by swapping the database.
+// `state.failWrites` (set per-boot via { idbFail: true }) makes add/put
+// reject and abort the transaction — simulating a full storage.
 function fakeIndexedDB() {
+  const state = { failWrites: false };
   const rows = new Map(); // id → record
 
-  const request = (resultFn) => {
+  const request = (resultFn, fail = false) => {
     const req = { onsuccess: null, onerror: null, result: undefined };
     queueMicrotask(() => {
-      req.result = resultFn();
-      req.onsuccess?.();
+      if (typeof fail === 'function' ? fail() : fail) {
+        req.error = new Error('QuotaExceededError (fake)');
+        req.onerror?.();
+      } else {
+        req.result = resultFn();
+        req.onsuccess?.();
+      }
     });
     return req;
   };
@@ -38,26 +46,38 @@ function fakeIndexedDB() {
     return record.day >= query.lower && record.day <= query.upper; // IDBKeyRange.bound
   };
 
-  const store = {
-    add: (record) => request(() => (rows.set(record.id, record), record.id)),
-    put: (record) => request(() => (rows.set(record.id, record), record.id)),
+  const readStore = {
     getAll: (query) => request(() => [...rows.values()].filter((r) => matches(r, query))),
     index: () => ({ getAll: (query) => request(() => [...rows.values()].filter((r) => matches(r, query))) }),
     createIndex: () => {},
   };
 
+  const writeStore = {
+    add: (record) => request(() => (rows.set(record.id, record), record.id), () => state.failWrites && (abort(), true)),
+    put: (record) => request(() => (rows.set(record.id, record), record.id), () => state.failWrites && (abort(), true)),
+    ...readStore,
+  };
+
+  // One transaction per use; a failed write aborts it (real IDB does this),
+  // so importAll's tx.onerror fires instead of oncomplete. Completion must be
+  // a macrotask: requests queued inside the loop settle in microtasks first,
+  // and only then does the transaction complete (or abort).
+  let abort = () => {}; // set by transaction(); used by writeStore above
   const transaction = () => {
-    const tx = { objectStore: () => store, oncomplete: null, onerror: null };
-    queueMicrotask(() => tx.oncomplete?.());
+    let aborted = false;
+    abort = () => (aborted = true);
+    const tx = { objectStore: () => writeStore, oncomplete: null, onerror: null };
+    setTimeout(() => (aborted ? tx.onerror?.() : tx.oncomplete?.()), 0);
     return tx;
   };
 
   return {
     _rows: rows,
+    _state: state,
     open: () => {
       const req = { onsuccess: null, onerror: null, onupgradeneeded: null, result: null };
       queueMicrotask(() => {
-        req.result = { transaction, createObjectStore: () => store, objectStoreNames: { contains: () => true } };
+        req.result = { transaction, createObjectStore: () => writeStore, objectStoreNames: { contains: () => true } };
         req.onupgradeneeded?.();
         req.onsuccess?.();
       });
@@ -82,8 +102,11 @@ export async function bootApp({
   fetch: fetchStub,
   serviceWorker,
   notificationPermission,
+  idbFail = false,
+  storageFail = false,
 } = {}) {
   idb._rows.clear(); // fresh history for every test
+  idb._state.failWrites = idbFail;
   const html = readFileSync(join(APP_DIR, 'index.html'), 'utf8');
   const dom = new JSDOM(html, {
     url: `https://companion.test/${search}`,
@@ -97,11 +120,29 @@ export async function bootApp({
   window.crypto.randomUUID ??= () => `id-${Math.random().toString(36).slice(2)}`;
   window.fetch = fetchStub ?? (async () => { throw new Error('offline in tests'); }); // no server by default
   window.scrollTo = () => {};
+  // jsdom's real Storage proxied its methods away from the instance, so
+  // `ls.setItem = fn` silently no-ops — swap in a stub that throws on write
+  // instead (simulates private mode / quota).
+  if (storageFail) {
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: () => null,
+        setItem: () => { throw new Error('QuotaExceededError'); },
+        removeItem: () => {},
+        key: () => null,
+        length: 0,
+      },
+      configurable: true,
+    });
+  }
   Object.defineProperty(window.document, 'hidden', { value: false, configurable: true });
   Object.defineProperty(window.document, 'visibilityState', { value: 'visible', configurable: true });
   if (notificationPermission) {
     Object.defineProperty(window, 'Notification', {
-      value: { permission: notificationPermission },
+      value: {
+        permission: notificationPermission,
+        requestPermission: async () => notificationPermission,
+      },
       configurable: true,
     });
   }

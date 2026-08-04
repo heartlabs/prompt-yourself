@@ -364,3 +364,87 @@ test('back buttons return to the expected screens', async () => {
   await app.click('#screen-energy .backbtn');
   assert.deepEqual(app.visibleScreens(), ['screen-picker']);
 });
+
+// ── silent-failure guards (SILENT-FAILURES-PLAN.md) ──
+
+test('broken localStorage: commit still opens the picker and says it won\'t persist', async () => {
+  const app = await bootApp({ search: '?from=notification', storageFail: true });
+  await app.click('#commit-yes');
+  assert.deepEqual(app.visibleScreens(), ['screen-picker'], 'picker still opens');
+  assert.match(app.$('#toast').textContent, /Couldn't save/, 'user is told the commit did not persist');
+});
+
+test('full storage: energy tap stays on the lights and says nothing saved', async () => {
+  const app = await bootApp({ idbFail: true });
+  await app.click('.fab');
+  await app.click(app.byText('.opt', 'Energy'));
+  await app.click('.light.green');
+  assert.deepEqual(app.visibleScreens(), ['screen-energy'], 'stays on the lights');
+  assert.match(app.$('#toast').textContent, /Couldn't save/);
+  assert.equal(app.records().length, 0, 'nothing was written');
+});
+
+test('full storage: 5 questions keep your answers on screen', async () => {
+  const app = await bootApp({ idbFail: true });
+  await app.click('.fab');
+  await app.click(app.byText('.opt', '5 Questions'));
+  await app.type('[name="doing"]', 'sitting on the balcony');
+  await app.submit('#questions-form');
+  assert.deepEqual(app.visibleScreens(), ['screen-questions'], 'does not advance');
+  assert.match(app.$('#toast').textContent, /Couldn't save/);
+  assert.equal(app.$('[name="doing"]').value, 'sitting on the balcony', 'answers not wiped');
+});
+
+test('full storage: the energy note cannot be enriched, note is kept on screen', async () => {
+  // The tap itself succeeds only if the DB is writable; to hit the note-enrich
+  // failure we need the FIRST write to succeed and the second (importAll) to
+  // fail — not expressible with a static idbFail, so simulate storage filling
+  // up between the two writes.
+  const app = await bootApp();
+  await app.click('.fab');
+  await app.click(app.byText('.opt', 'Energy'));
+  await app.click('.light.green'); // saved fine
+  app.idb._state.failWrites = true; // storage now "full"
+  await app.type('#note-text', 'a note that cannot be saved');
+  await app.click('#note-done');
+  assert.deepEqual(app.visibleScreens(), ['screen-energy-note'], 'stays on the note screen');
+  assert.match(app.$('#toast').textContent, /Couldn't save/);
+  assert.equal(app.$('#note-text').value, 'a note that cannot be saved', 'note text not wiped');
+  assert.equal(app.records().length, 1, 'the energy record itself is intact');
+});
+
+test('stop for today is honest when the server is unreachable', async () => {
+  const app = await bootApp(); // default fetch → 'offline in tests'
+  await app.click('[data-nav="screen-settings"]');
+  await app.click('#stop-today');
+  assert.deepEqual(app.visibleScreens(), ['screen-home']);
+  assert.match(app.$('#toast').textContent, /couldn't reach the server/);
+  assert.equal(JSON.parse(app.window.localStorage.getItem('today')).stopped, true, 'locally quiet regardless');
+});
+
+test('enable notifications tells the truth when registration fails', async () => {
+  // Server up (health/vapid/status fine) but the subscription POST is rejected
+  // — the old code toasted "Notifications on" anyway.
+  const fetchStub = async (url, opts = {}) => {
+    if (url === '/api/health') return { ok: true };
+    if (url === '/api/vapid-public-key') return { ok: true, json: async () => ({ key: 'k' }) };
+    if (url === '/api/status') return { ok: true, json: async () => ({ subscriptions: 1 }) };
+    if (url === '/api/subscribe') return { ok: false, status: 500 };
+    return { ok: true, status: 204 };
+  };
+  const serviceWorker = {
+    register: async () => {},
+    addEventListener: () => {},
+    ready: Promise.resolve({
+      pushManager: {
+        getSubscription: async () => null,
+        subscribe: async () => ({ toJSON: () => ({ endpoint: 'e', keys: { p256dh: 'k', auth: 'a' } }) }),
+      },
+    }),
+  };
+  const app = await bootApp({ fetch: fetchStub, serviceWorker, notificationPermission: 'granted' });
+  await app.click('[data-nav="screen-settings"]');
+  await app.click('#notif-enable');
+  await waitFor(() => /not registered/.test(app.$('#toast').textContent));
+  assert.match(app.$('#toast').textContent, /not registered/);
+});

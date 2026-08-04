@@ -1,6 +1,6 @@
 // Settings screen: daily window, rhythm, snooze, notifications, backup.
 
-import { getSettings, saveSettings, updateToday } from './state.js';
+import { getSettings, saveSettings, updateToday, getFeelings, saveFeelings } from './state.js';
 import { RHYTHMS, SNOOZE_OPTIONS } from './schedule.js';
 import { getAll, importAll } from './db.js';
 import { registerScreen, showScreen, el, toast } from './ui.js';
@@ -32,13 +32,21 @@ async function render() {
     document.getElementById('set-rhythm'),
     Object.entries(RHYTHMS).map(([key, { label }]) => ({ key, label })),
     s.rhythm,
-    (rhythm) => { saveSettings({ rhythm }); syncSchedule(); render(); }
+    (rhythm) => {
+      if (!saveSettings({ rhythm })) toast("Couldn't save — is storage full?");
+      syncSchedule();
+      render();
+    }
   );
   segButtons(
     document.getElementById('set-snooze'),
     SNOOZE_OPTIONS.map((min) => ({ key: String(min), label: `${min} min` })),
     String(s.snoozeMin),
-    (min) => { saveSettings({ snoozeMin: Number(min) }); syncSchedule(); render(); }
+    (min) => {
+      if (!saveSettings({ snoozeMin: Number(min) })) toast("Couldn't save — is storage full?");
+      syncSchedule();
+      render();
+    }
   );
 
   const status = document.getElementById('notif-status');
@@ -71,17 +79,24 @@ async function render() {
 
 export function initSettings() {
   document.getElementById('set-start').addEventListener('change', (e) => {
-    saveSettings({ startTime: e.target.value });
+    if (!saveSettings({ startTime: e.target.value })) toast("Couldn't save — is storage full?");
     syncSchedule();
   });
   document.getElementById('set-end').addEventListener('change', (e) => {
-    saveSettings({ endTime: e.target.value });
+    if (!saveSettings({ endTime: e.target.value })) toast("Couldn't save — is storage full?");
     syncSchedule();
   });
 
   document.getElementById('notif-enable').addEventListener('click', async () => {
     const result = await enableNotifications();
-    toast(result === 'granted' ? 'Notifications on' : 'Not enabled');
+    const msg = {
+      granted: 'Notifications on',
+      'granted-unregistered': 'Notifications on, but not registered — check Status above',
+      'granted-no-server': 'Notifications on — server offline, will retry next launch',
+      denied: 'Notifications blocked — enable in system settings',
+      unsupported: 'Add to Home Screen first',
+    }[result] ?? 'Not enabled';
+    toast(msg);
     render();
   });
 
@@ -109,33 +124,41 @@ export function initSettings() {
 
   document.getElementById('notif-reregister').addEventListener('click', async () => {
     const ok = await ensurePushRegistered(true); // force a fresh subscription
-    toast(ok ? 'Device re-registered' : 'Re-register failed — see console');
+    toast(ok ? 'Device re-registered' : 'Re-register failed — check Status above');
     render();
   });
 
-  document.getElementById('stop-today').addEventListener('click', () => {
-    updateToday({ stopped: true });
-    syncDayAction('stop');
-    toast('Quiet until tomorrow');
+  document.getElementById('stop-today').addEventListener('click', async () => {
+    const saved = updateToday({ stopped: true });
+    const synced = await syncDayAction('stop');
+    if (!saved) toast("Couldn't save — is storage full?");
+    else if (!synced) toast("Quiet until tomorrow — couldn't reach the server, the next reminder may still come");
+    else toast('Quiet until tomorrow');
     showScreen('screen-home');
   });
 
   // ── backup ──
   document.getElementById('export-btn').addEventListener('click', async () => {
-    const backup = {
-      app: 'companion', version: 1, exportedAt: new Date().toISOString(),
-      reflections: await getAll(),
-      // settings & feelings included so a restore feels complete:
-      settings: getSettings(),
-      feelings: JSON.parse(localStorage.getItem('feelings') ?? '{"list":[]}').list,
-    };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const a = el('a', {
-      href: URL.createObjectURL(blob),
-      download: `companion-backup-${new Date().toISOString().slice(0, 10)}.json`,
-    });
-    a.click();
-    URL.revokeObjectURL(a.href);
+    try {
+      const backup = {
+        app: 'companion', version: 1, exportedAt: new Date().toISOString(),
+        reflections: await getAll(),
+        // settings & feelings included so a restore feels complete:
+        settings: getSettings(),
+        feelings: getFeelings(),
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const a = el('a', {
+        href: URL.createObjectURL(blob),
+        download: `companion-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      });
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (err) {
+      // A broken storage (private mode / quota) must not look like a fine export.
+      console.warn('export failed', err);
+      toast('Export failed — could not read storage');
+    }
   });
 
   document.getElementById('import-btn').addEventListener('click', () =>
@@ -150,11 +173,12 @@ export function initSettings() {
         throw new Error('not a companion backup');
       }
       const count = await importAll(backup.reflections);
-      if (backup.settings) saveSettings(backup.settings);
-      if (Array.isArray(backup.feelings)) {
-        localStorage.setItem('feelings', JSON.stringify({ list: backup.feelings }));
-      }
-      toast(`Imported ${count} reflections`);
+      let settingsSaved = true;
+      if (backup.settings) settingsSaved = saveSettings(backup.settings) && settingsSaved;
+      if (Array.isArray(backup.feelings)) settingsSaved = saveFeelings(backup.feelings) && settingsSaved;
+      toast(settingsSaved
+        ? `Imported ${count} reflections`
+        : `Imported ${count} reflections — but couldn't save settings on this device`);
     } catch (err) {
       toast('Import failed — is this a Companion backup?');
       console.warn(err);

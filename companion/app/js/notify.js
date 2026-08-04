@@ -36,22 +36,30 @@ export async function hasServer() {
 }
 
 async function post(path, body) {
-  if (!(await hasServer())) return;
+  if (!(await hasServer())) return false;
   try {
-    await fetch(path, {
+    const res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      // A 4xx/5xx must never be treated as success — the caller decides
+      // whether to tell the user, but the console always knows.
+      console.warn(`POST ${path} → HTTP ${res.status}`);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.warn(`POST ${path} failed`, err);
+    return false;
   }
 }
 
 /** Push current settings to the server (call after any settings change). */
 export async function syncSchedule() {
   const s = getSettings();
-  await post('/api/schedule', {
+  return post('/api/schedule', {
     start_min: toMinutes(s.startTime),
     end_min: toMinutes(s.endTime),
     rhythm: s.rhythm,
@@ -62,7 +70,7 @@ export async function syncSchedule() {
 
 /** Tell the server about a day action so pushes follow suit. */
 export async function syncDayAction(action, extra = {}) {
-  await post('/api/day', { action, ...extra });
+  return post('/api/day', { action, ...extra });
 }
 
 // ── permission + push subscription ──
@@ -72,14 +80,21 @@ export function permissionState() {
   return Notification.permission; // 'default' | 'granted' | 'denied'
 }
 
-/** Must be called from a user gesture (button tap) — iOS requires it. */
+/**
+ * Must be called from a user gesture (button tap) — iOS requires it.
+ * Returns a status the caller can toast without guessing:
+ *   'granted'            → permission granted AND subscription registered
+ *   'granted-unregistered' → granted, but the subscription POST failed
+ *   'granted-no-server'  → granted, server unreachable (retries next launch)
+ *   'default' | 'denied' | 'unsupported' → permission didn't end granted
+ */
 export async function enableNotifications() {
   if (!('Notification' in window)) return 'unsupported';
   const permission = await Notification.requestPermission();
-  if (permission === 'granted') {
-    await ensurePushRegistered();
-  }
-  return permission;
+  if (permission !== 'granted') return permission;
+  if (!(await hasServer())) return 'granted-no-server';
+  const registered = await ensurePushRegistered();
+  return registered ? 'granted' : 'granted-unregistered';
 }
 
 /**
@@ -133,8 +148,10 @@ async function subscribePush() {
         applicationServerKey: urlBase64ToUint8Array(key),
       });
     }
-    await post('/api/subscribe', { subscription: subscription.toJSON() });
-    return true;
+    // Return the POST result, not an assumed success: a 4xx/5xx here means
+    // the server never got this subscription, and "Re-register" / boot
+    // self-heal toasts must not claim it did.
+    return post('/api/subscribe', { subscription: subscription.toJSON() });
   } catch (err) {
     console.warn('push subscribe failed', err);
     return false;

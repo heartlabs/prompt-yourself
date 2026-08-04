@@ -86,16 +86,46 @@ self.addEventListener('notificationclick', (event) => {
   const action = event.action;
 
   if (action === 'snooze' || action === 'stop') {
-    // Tell the server directly (works even when the page isn't open) …
+    // Tell the server directly (works even when the page isn't open). Retried
+    // with backoff: a lock-screen tap can land in a brief offline window, and
+    // a single failed POST would silently leave the server pushing as if the
+    // user had never tapped. If it still fails, say so out loud (below).
+    const syncDay = async (attempt) => {
+      try {
+        const res = await fetch('/api/day', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return true;
+      } catch (err) {
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, [2000, 5000, 10000][attempt]));
+          return syncDay(attempt + 1);
+        }
+        console.warn(`day action "${action}" failed after retries`, err);
+        return false;
+      }
+    };
     event.waitUntil(
-      fetch('/api/day', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      }).catch(() => {})
+      syncDay(0)
+        .then((ok) => {
+          if (!ok) {
+            // A failed tap must never look applied: say so out loud (and any
+            // open page gets the same truth toasted via postMessage below).
+            self.registration.showNotification('Companion', {
+              body: `${action === 'snooze' ? 'Snooze' : 'Stop for today'} didn't apply — couldn't reach the server. The next reminder may still come.`,
+              icon: 'icons/icon-192.png',
+              badge: 'icons/icon-192.png',
+              tag: 'companion',
+            });
+          }
+          return self.clients.matchAll({ type: 'window' });
+        })
         // … and any open page, so foreground state stays in sync.
-        .then(() => self.clients.matchAll({ type: 'window' }))
-        .then((clients) => clients.forEach((c) => c.postMessage(action)))
+        .then((clients) => clients.forEach((c) => c.postMessage({ action, ok })))
+        .catch((err) => console.warn('notification action handling failed', err))
     );
     return;
   }

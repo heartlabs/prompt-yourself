@@ -42,7 +42,9 @@ export function dayOf(date) {
 
 export async function addReflection(type, data, when = new Date()) {
   const record = {
-    id: crypto.randomUUID(),
+    // randomUUID is secure-context-only; README mandates HTTPS, but a cheap
+    // fallback keeps reflections savable on a plain-HTTP host (LAN testing).
+    id: crypto.randomUUID?.() ?? `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
     type,
     at: when.toISOString(),
     day: dayOf(when),
