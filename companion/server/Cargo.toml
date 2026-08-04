@@ -14,11 +14,18 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tower-http = { version = "0.5", features = ["fs", "cors"] }
-web-push = { version = "0.10", default-features = false, features = ["hyper-client"] }
+# web-push 0.11 carries the push host's response body in its errors
+# (WebPushError::Other(ErrorInfo) with the raw body preserved), so a 403
+# {"reason":"BadJwtToken"} is visible instead of a bare Other("403").
+web-push = { version = "0.11", default-features = false, features = ["hyper-client"] }
 chrono = "0.4"
 base64 = "0.22"
 p256 = { version = "0.13", features = ["ecdh"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
+
+[dev-dependencies]
+# Only for tests: parse_response takes http 0.2's StatusCode.
+http = "0.2"
 
 # Cross-compiling to a static Linux binary (x86_64-unknown-linux-musl) needs
 # OpenSSL built for that target: web-push pulls in openssl-sys via native-tls,

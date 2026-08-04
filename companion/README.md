@@ -51,15 +51,20 @@ On first run it generates a VAPID keypair into `companion-state.json`
 subscription and schedule). `PORT=9000 cargo run` to change the port.
 
 **VAPID subject:** Apple's push service rejects any VAPID JWT without a `sub`
-claim (`400 BadJwtToken`); Chrome is lenient, which is why pushes work on
-desktop and silently die on the iPhone. The server always sends a `sub` claim;
-set the contact URI via env (default `mailto:pocket@localhost`):
+claim — and also rejects *invalid* subject values: `mailto:...@localhost`
+returns `403 BadJwtToken` (verified against web.push.apple.com, Aug 2026),
+so the old default made iOS push silently impossible. Chrome is lenient,
+which is why this only bites on the iPhone. The server always sends a valid
+`sub`; set your own contact URI via env. The env var **wins over the stored
+value on every restart**, so a deploy can repair a bad subject already
+persisted in `companion-state.json`:
 
 ```sh
 POCKET_VAPID_SUBJECT="mailto:you@example.com" cargo run --release
+# or: POCKET_VAPID_SUBJECT="https://your-domain.example"
 ```
 
-Don't "simplify" this away — the `sub` claim is required for iOS.
+Don't "simplify" this away — a valid `sub` claim is required for iOS.
 
 ### Debugging background push
 

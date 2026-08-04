@@ -117,18 +117,24 @@ fn ensure_vapid(state: &mut AppState) {
     println!("Generated new VAPID keypair (stored in {STATE_FILE}).");
 }
 
-/// The VAPID `sub` claim — a mailto: or https: contact URI. Apple's push
-/// service (web.push.apple.com) rejects any VAPID JWT without a sub claim with
-/// 400 BadJwtToken; Chrome/FCM is lenient, which is why this only bites on iOS.
-/// Read once at startup; override with POCKET_VAPID_SUBJECT.
-fn vapid_subject() -> String {
-    std::env::var("POCKET_VAPID_SUBJECT").unwrap_or_else(|_| "mailto:pocket@localhost".to_string())
+/// Default VAPID `sub` — a mailto: or https: contact URI. Apple's push
+/// service rejects any VAPID JWT without a sub claim, and it also rejects
+/// mailto: subjects whose domain it won't accept (e.g. `@localhost` →
+/// 403 BadJwtToken — verified against web.push.apple.com, Aug 2026).
+/// Chrome/FCM is lenient, which is why this only bites on iOS.
+fn default_vapid_subject() -> &'static str {
+    "https://github.com/heartlabs/prompt-yourself"
 }
 
-/// Persist the subject so /api/status can show it (never secrets, only this).
+/// Resolve the subject to send: the env var always wins on restart (so a
+/// deploy can fix a bad value already persisted in the state file), then
+/// whatever is stored, then the default. Persisted so /api/status can show
+/// it (never secrets, only this).
 fn ensure_vapid_subject(state: &mut AppState) {
-    if state.vapid_subject.is_empty() {
-        state.vapid_subject = vapid_subject();
+    if let Ok(sub) = std::env::var("POCKET_VAPID_SUBJECT") {
+        state.vapid_subject = sub;
+    } else if state.vapid_subject.is_empty() {
+        state.vapid_subject = default_vapid_subject().to_string();
     }
 }
 
@@ -152,12 +158,56 @@ fn slot_times(start: u32, end: u32, rhythm: &str) -> Vec<u32> {
 
 // ─────────────────────────── push sending ───────────────────────────
 
+/// What a single push attempt produced, with enough fidelity to tell "the
+/// endpoint is dead" (prune it) from "our request was rejected" (fix the
+/// server) from "Apple didn't answer" (transient).
+enum PushOutcome {
+    Ok,
+    /// The push host did not answer within PUSH_TIMEOUT_SECS. Transient —
+    /// Apple throttles servers that send repeated invalid requests. NEVER prune.
+    TimedOut,
+    /// Build or send failed; web-push 0.11 errors carry the push host's
+    /// response body when it sent one (e.g.
+    /// Other(ErrorInfo{message: "{\"reason\":\"BadJwtToken\"}"})).
+    Failed(web_push::WebPushError),
+}
+
+/// Decide whether a failed push means the subscription is dead and should be
+/// pruned. 404/410 always. Apple 403 with a JWT/VAPID reason (BadJwtToken,
+/// VapidPkHashMismatch, VapidTimestampInvalid) means OUR request is wrong —
+/// the subscription is fine, keep it. Any other 403 (Unregistered,
+/// BadDeviceToken) is a dead endpoint.
+fn should_prune(status: Option<u16>, reason: &str) -> bool {
+    match status {
+        Some(404) | Some(410) => true,
+        Some(403) => {
+            let r = reason.to_ascii_lowercase();
+            !(r.contains("jwt") || r.contains("vapid"))
+        }
+        _ => false,
+    }
+}
+
+/// Reduce a web-push error to (HTTP status, reason body) for the prune
+/// decision. web-push 0.11 keeps the host's body in ErrorInfo::message — for
+/// Apple's {"reason":"..."} bodies that's the raw JSON. Transport errors
+/// (Unspecified) have no status.
+fn status_and_reason(e: &web_push::WebPushError) -> (Option<u16>, String) {
+    match e {
+        web_push::WebPushError::Unauthorized(info) => (Some(401), info.message.clone()),
+        web_push::WebPushError::BadRequest(info) => (Some(400), info.message.clone()),
+        web_push::WebPushError::EndpointNotValid(info) => (Some(410), info.message.clone()),
+        web_push::WebPushError::EndpointNotFound(info) => (Some(404), info.message.clone()),
+        web_push::WebPushError::ServerError { info, .. } => (Some(500), info.message.clone()),
+        web_push::WebPushError::Other(info) => (Some(info.code), info.message.clone()),
+        _ => (None, String::new()),
+    }
+}
+
 /// Sends a push to every subscription. Returns one (endpoint, result) pair per
 /// subscription so callers (e.g. /api/test-push) can surface failures instead
-/// of only logging. Dead subscriptions are pruned on 404/410/403 — Apple
-/// answers 403 for endpoints that are no longer valid (PWA deleted/reinstalled,
-/// or unsubscribed). Timeouts are NOT pruned: a timeout means Apple stopped
-/// answering (throttling), not that the endpoint is gone.
+/// of only logging. Result strings carry the push host's reason body when it
+/// sent one — the info that used to hide behind Other("403").
 async fn send_push(
     state: &mut AppState,
     title: &str,
@@ -169,76 +219,81 @@ async fn send_push(
     let mut results: Vec<(String, Result<(), String>)> = Vec::new();
     let mut dead: Vec<String> = Vec::new();
     for sub in &state.subscriptions {
-        let result = async {
-            let mut sig_builder = VapidSignatureBuilder::from_base64(
-                &state.vapid_private,
-                web_push::URL_SAFE_NO_PAD,
-                sub,
-            )?;
-            // Apple requires the sub claim (mailto: or https:) — Chrome doesn't,
-            // which is why this looks fine on desktop and dies on the iPhone.
+        let message = async {
+            let mut sig_builder = VapidSignatureBuilder::from_base64(&state.vapid_private, sub)?;
+            // Apple requires a VALID sub claim (https: or mailto: with a real
+            // domain — `mailto:...@localhost` → 403 BadJwtToken; Chrome doesn't
+            // care, which is why this looks fine on desktop and dies on iOS).
             // add_claim takes &mut self, so the one-liner chain has to be split.
             sig_builder.add_claim("sub", state.vapid_subject.as_str());
             let sig = sig_builder.build()?;
             let mut msg = WebPushMessageBuilder::new(sub);
             msg.set_vapid_signature(sig);
             msg.set_payload(ContentEncoding::Aes128Gcm, payload.as_bytes());
-            let message = msg.build()?;
-            // Bound every request: the web-push hyper client has no timeout of
-            // its own, and the state lock is held across this send — a stuck
-            // connection would wedge the whole server (status/schedule/day/tick
-            // all block on the mutex). 10s per subscription is plenty for Apple.
-            tokio::time::timeout(
-                std::time::Duration::from_secs(PUSH_TIMEOUT_SECS),
-                client.send(message),
-            )
-            .await
-            .map_err(|_| web_push::WebPushError::Other("timeout".to_string()))?
+            msg.build()
         }
         .await;
+
+        let outcome = match message {
+            Err(e) => PushOutcome::Failed(e),
+            Ok(message) => {
+                // Bound every request: the state lock is held across this send
+                // (status/schedule/day/tick all block on the mutex), so a stuck
+                // connection would wedge the whole server. 10s per subscription
+                // is plenty for Apple.
+                match tokio::time::timeout(
+                    std::time::Duration::from_secs(PUSH_TIMEOUT_SECS),
+                    client.send(message),
+                )
+                .await
+                {
+                    Err(_) => PushOutcome::TimedOut,
+                    Ok(Ok(())) => PushOutcome::Ok,
+                    Ok(Err(e)) => PushOutcome::Failed(e),
+                }
+            }
+        };
+
         let endpoint = sub.endpoint.clone();
-        match result {
-            Ok(()) => results.push((endpoint, Ok(()))),
-            Err(e) => {
-                // Debug repr carries the HTTP status (e.g. BadJwtToken).
-                eprintln!("push to {} failed: {e:?}", sub.endpoint);
-                // Unspecified is the crate's opaque transport error (hyper::Error
-                // → Unspecified): the request never completed — DNS, firewall,
-                // TLS handshake or a dropped connection to the push host. It is
-                // NOT a VAPID/HTTP-status problem; those surface as BadRequest /
-                // Unauthorized / EndpointNotFound etc. instead.
-                if matches!(e, web_push::WebPushError::Unspecified) {
+        match outcome {
+            PushOutcome::Ok => results.push((endpoint, Ok(()))),
+            PushOutcome::TimedOut => {
+                eprintln!(
+                    "push to {} timed out after {PUSH_TIMEOUT_SECS}s — Apple may be \
+                     throttling this server after repeated invalid requests",
+                    sub.endpoint
+                );
+                results.push((endpoint, Err("timeout".into())));
+            }
+            PushOutcome::Failed(e) => {
+                // Display carries the reason body when the host sent one, e.g.
+                // "other: code 403, errno 999: unknown error ({\"reason\":\"BadJwtToken\"})"
+                // — the detail /api/test-push used to hide behind Other("403").
+                eprintln!("push to {} failed: {e}", sub.endpoint);
+                if matches!(&e, web_push::WebPushError::Unspecified) {
                     eprintln!(
                         "  hint: transport failure talking to the push endpoint — \
                          check egress/TLS from this server (try: curl -sI https://web.push.apple.com)"
                     );
                 }
-                results.push((endpoint.clone(), Err(format!("{e:?}"))));
-                // 404/410 and Apple's 403 all mean this endpoint is gone — forget it.
-                // Single-user server: 403 is always endpoint death, never a global
-                // authorization failure. Even a wrong guess self-corrects: the phone
-                // re-registers its live subscription on every app launch.
-                if matches!(
-                    e,
-                    web_push::WebPushError::EndpointNotValid
-                        | web_push::WebPushError::EndpointNotFound
-                ) {
-                    dead.push(endpoint);
-                } else if matches!(
-                    e,
-                    web_push::WebPushError::Other(ref s) if s.as_str() == "403"
-                ) {
-                    dead.push(endpoint);
-                } else if matches!(
-                    e,
-                    web_push::WebPushError::Other(ref s) if s.as_str() == "timeout"
-                ) {
+                let (status, reason) = status_and_reason(&e);
+                if should_prune(status, &reason) {
+                    if status == Some(403) {
+                        eprintln!(
+                            "  hint: Apple 403 — endpoint is dead (PWA deleted/reinstalled, \
+                             or unsubscribed). Pruning; the phone re-registers on next launch."
+                        );
+                    }
+                    dead.push(endpoint.clone());
+                } else if status == Some(403) {
                     eprintln!(
-                        "  hint: push endpoint did not answer within {PUSH_TIMEOUT_SECS}s — \
-                         Apple may be throttling this server after repeated invalid requests; \
-                         dead subscriptions are pruned automatically"
+                        "  hint: Apple 403 with a JWT/VAPID reason — the subscription is fine, \
+                         OUR request is being rejected. Check POCKET_VAPID_SUBJECT (a \
+                         mailto:...@localhost subject → BadJwtToken), the VAPID keypair, and \
+                         the server clock. NOT pruning."
                     );
                 }
+                results.push((endpoint, Err(format!("{e}"))));
             }
         }
     }
@@ -484,4 +539,65 @@ async fn main() {
         .await
         .expect("bind failed");
     axum::serve(listener, router).await.expect("server crashed");
+}
+
+#[cfg(test)]
+mod tests {
+    use http::StatusCode;
+
+    /// Apple's web push error body is {"reason":"..."} — web-push 0.11 can't
+    /// map it onto ErrorInfo's fields, but its fallback keeps the RAW body in
+    /// `message`. This is what makes 403 BadJwtToken debuggable. Guard it so a
+    /// crate bump can't silently lose the reason again.
+    #[test]
+    fn apple_403_reason_is_preserved() {
+        let err = web_push::request_builder::parse_response(
+            StatusCode::FORBIDDEN,
+            br#"{"reason":"BadJwtToken"}"#.to_vec(),
+        )
+        .unwrap_err();
+        match &err {
+            web_push::WebPushError::Other(info) => {
+                assert_eq!(info.code, 403);
+                assert!(
+                    info.message.contains("BadJwtToken"),
+                    "reason body must survive: {info:?}"
+                );
+            }
+            other => panic!("expected Other(ErrorInfo), got {other:?}"),
+        }
+        // …and it must survive the status/reason reduction used by send_push.
+        let (status, reason) = super::status_and_reason(&err);
+        assert_eq!(status, Some(403));
+        assert!(reason.contains("BadJwtToken"));
+    }
+
+    /// The prune/keep decision must tell "our request is rejected" (JWT/VAPID
+    /// reason — subscription is fine, keep it) from "the endpoint is dead"
+    /// (prune it). This is what used to be a blanket "403 → prune", which
+    /// deleted healthy subscriptions whenever Apple rejected our JWT.
+    #[test]
+    fn jwt_403_is_not_pruned_but_dead_endpoints_are() {
+        use super::should_prune;
+        // Apple 403 with a JWT/VAPID reason: OUR bug, keep the subscription.
+        assert!(!should_prune(Some(403), "{\"reason\":\"BadJwtToken\"}"));
+        assert!(!should_prune(
+            Some(403),
+            "{\"reason\":\"VapidPkHashMismatch\"}"
+        ));
+        assert!(!should_prune(
+            Some(403),
+            "{\"reason\":\"VapidTimestampInvalid\"}"
+        ));
+        // Dead endpoints: prune.
+        assert!(should_prune(Some(403), "{\"reason\":\"Unregistered\"}"));
+        assert!(should_prune(Some(403), "{\"reason\":\"BadDeviceToken\"}"));
+        assert!(should_prune(Some(403), "")); // no reason → assume dead
+        assert!(should_prune(Some(404), ""));
+        assert!(should_prune(Some(410), ""));
+        // Transient: never prune.
+        assert!(!should_prune(Some(429), "throttled"));
+        assert!(!should_prune(Some(500), ""));
+        assert!(!should_prune(None, "")); // transport / timeout
+    }
 }

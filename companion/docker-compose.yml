@@ -9,6 +9,11 @@ services:
       dockerfile: Dockerfile
     container_name: companion
     restart: unless-stopped
+    # VAPID `sub` claim — Apple rejects the old mailto:...@localhost default
+    # with 403 BadJwtToken (iOS push never worked with it). Env wins over the
+    # value persisted in the state file on every restart.
+    environment:
+      - POCKET_VAPID_SUBJECT=https://companion.heartlabs.eu
     # No host ports are published: the container is only reachable on
     # companion_network (same per-app pattern as the other apps on this
     # server, e.g. needs_network). The reverse proxy is connected to that
