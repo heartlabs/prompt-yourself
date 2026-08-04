@@ -187,6 +187,17 @@ async fn send_push(
             Err(e) => {
                 // Debug repr carries the HTTP status (e.g. BadJwtToken).
                 eprintln!("push to {} failed: {e:?}", sub.endpoint);
+                // Unspecified is the crate's opaque transport error (hyper::Error
+                // → Unspecified): the request never completed — DNS, firewall,
+                // TLS handshake or a dropped connection to the push host. It is
+                // NOT a VAPID/HTTP-status problem; those surface as BadRequest /
+                // Unauthorized / EndpointNotFound etc. instead.
+                if matches!(e, web_push::WebPushError::Unspecified) {
+                    eprintln!(
+                        "  hint: transport failure talking to the push endpoint — \
+                         check egress/TLS from this server (try: curl -sI https://web.push.apple.com)"
+                    );
+                }
                 results.push(Err(format!("{e:?}")));
                 // 404/410 mean the subscription is gone — forget it.
                 if matches!(

@@ -7,9 +7,13 @@ FROM debian:bookworm-slim
 
 # nginx serves the PWA on :80 and proxies /api/* to the backend on :4000.
 # curl is used by the compose healthcheck. The stock default site is removed
-# so our nginx.conf (below) owns port 80.
+# so our nginx.conf (below) owns port 80. ca-certificates is REQUIRED: the
+# push server must validate Apple's TLS cert (web.push.apple.com), and
+# neither nginx nor curl depend on it — without it every push fails with
+# "Unspecified" (TLS handshake can't be verified) and container curl dies
+# with "error setting certificate file".
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx curl \
+    && apt-get install -y --no-install-recommends nginx curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default
 
