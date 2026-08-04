@@ -17,7 +17,9 @@ use async_openai_wasm::{
     Client,
 };
 
-use crate::domain::ports::openai::{ChatError, ChatMessage, ChatResponse, OpenAiPort, ToolCall, ToolDefinition, UsageInfo};
+use crate::domain::ports::openai::{
+    ChatError, ChatMessage, ChatResponse, OpenAiPort, ToolCall, ToolDefinition, UsageInfo,
+};
 
 // ─── Adapter ────────────────────────────────────────────────────────────────
 
@@ -59,9 +61,7 @@ impl OpenAiPort for OpenAiAdapter {
         for msg in openai_messages.iter_mut().rev() {
             if let ChatCompletionRequestMessage::User(user) = msg {
                 if let ChatCompletionRequestUserMessageContent::Text(ref mut text) = user.content {
-                    let meta = format!(
-                        "[metadata]\n  timestamp: {now}\n[/metadata]\n\n"
-                    );
+                    let meta = format!("[metadata]\n  timestamp: {now}\n[/metadata]\n\n");
                     *text = meta + text;
                 }
                 break;
@@ -85,9 +85,10 @@ impl OpenAiPort for OpenAiAdapter {
 
         let usage = extract_usage(response.usage.as_ref());
 
-        let choice = response.choices.first().ok_or_else(|| {
-            ChatError::Other("No choices returned from OpenAI API".to_string())
-        })?;
+        let choice = response
+            .choices
+            .first()
+            .ok_or_else(|| ChatError::Other("No choices returned from OpenAI API".to_string()))?;
 
         let message = &choice.message;
         let content = message.content.clone();
@@ -106,7 +107,13 @@ impl OpenAiPort for OpenAiAdapter {
                 .collect();
 
             if !calls.is_empty() {
-                return Ok((ChatResponse::ToolCalls { content, tool_calls: calls }, usage));
+                return Ok((
+                    ChatResponse::ToolCalls {
+                        content,
+                        tool_calls: calls,
+                    },
+                    usage,
+                ));
             }
         }
 
@@ -182,12 +189,10 @@ fn to_openai_messages(messages: Vec<ChatMessage>) -> Vec<ChatCompletionRequestMe
             ChatMessage::Tool {
                 content,
                 tool_call_id,
-            } => {
-                ChatCompletionRequestMessage::Tool(ChatCompletionRequestToolMessage {
-                    content: ChatCompletionRequestToolMessageContent::Text(content),
-                    tool_call_id,
-                })
-            }
+            } => ChatCompletionRequestMessage::Tool(ChatCompletionRequestToolMessage {
+                content: ChatCompletionRequestToolMessageContent::Text(content),
+                tool_call_id,
+            }),
         })
         .collect()
 }

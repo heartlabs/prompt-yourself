@@ -4,7 +4,9 @@ use std::cell::RefCell;
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused_imports))]
 use chrono::Utc;
-use prompt_yourself_core::domain::entities::game::{GameError, Quest, QuestStatus, TimelineEntryData};
+use prompt_yourself_core::domain::entities::game::{
+    GameError, Quest, QuestStatus, TimelineEntryData,
+};
 use prompt_yourself_core::domain::ports::quest_repository::QuestRepository;
 #[cfg(target_arch = "wasm32")]
 use serde_json::json;
@@ -45,7 +47,12 @@ pub fn wasm_set_quest_repository_callbacks(callbacks: &js_sys::Object) -> Result
         .map_err(|_| JsError::new("saveQuests callback missing"))?
         .dyn_into::<js_sys::Function>()
         .map_err(|_| JsError::new("saveQuests must be a function"))?;
-    QUEST_CALLBACKS.with(|cb| { *cb.borrow_mut() = Some(QuestCallbacks { load_quests, save_quests }); });
+    QUEST_CALLBACKS.with(|cb| {
+        *cb.borrow_mut() = Some(QuestCallbacks {
+            load_quests,
+            save_quests,
+        });
+    });
     QUEST_CACHE_LOADED.with(|loaded| *loaded.borrow_mut() = false);
     Ok(())
 }
@@ -55,7 +62,8 @@ pub fn wasm_clear_game_data() {
     QUEST_CACHE.with(|c| *c.borrow_mut() = Vec::new());
     QUEST_CACHE_LOADED.with(|l| *l.borrow_mut() = false);
     timeline_repository::timeline_internals::TIMELINE_CACHE.with(|c| *c.borrow_mut() = Vec::new());
-    timeline_repository::timeline_internals::TIMELINE_CACHE_LOADED.with(|l| *l.borrow_mut() = false);
+    timeline_repository::timeline_internals::TIMELINE_CACHE_LOADED
+        .with(|l| *l.borrow_mut() = false);
 }
 
 // ─── Adapter ────────────────────────────────────────────────────────────────
@@ -71,7 +79,10 @@ impl QuestRepository for WasmQuestRepository {
         QUEST_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             if cache.iter().any(|q| q.title == quest.title) {
-                return Err(GameError::Other(format!("Quest with title '{}' already exists", quest.title)));
+                return Err(GameError::Other(format!(
+                    "Quest with title '{}' already exists",
+                    quest.title
+                )));
             }
             cache.push(quest);
             Ok(())
@@ -84,11 +95,15 @@ impl QuestRepository for WasmQuestRepository {
         ensure_cache_loaded().await?;
         QUEST_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            let quest = cache.iter_mut().find(|q| q.id == id).ok_or_else(|| {
-                GameError::Other(format!("No quest found with id '{}'", id))
-            })?;
+            let quest = cache
+                .iter_mut()
+                .find(|q| q.id == id)
+                .ok_or_else(|| GameError::Other(format!("No quest found with id '{}'", id)))?;
             if quest.status == QuestStatus::Completed {
-                return Err(GameError::Other(format!("Quest '{}' is already completed", quest.title)));
+                return Err(GameError::Other(format!(
+                    "Quest '{}' is already completed",
+                    quest.title
+                )));
             }
             quest.status = QuestStatus::Completed;
             Ok(())
@@ -99,13 +114,25 @@ impl QuestRepository for WasmQuestRepository {
     async fn find_open(&self) -> Vec<Quest> {
         ensure_cache_loaded().await.ok();
         QUEST_CACHE.with(|cache| {
-            cache.borrow().iter().filter(|q| q.status == QuestStatus::Open || q.status == QuestStatus::Pinned).cloned().collect()
+            cache
+                .borrow()
+                .iter()
+                .filter(|q| q.status == QuestStatus::Open || q.status == QuestStatus::Pinned)
+                .cloned()
+                .collect()
         })
     }
 
     async fn find_pinned(&self) -> Vec<Quest> {
         ensure_cache_loaded().await.ok();
-        QUEST_CACHE.with(|cache| cache.borrow().iter().filter(|q| q.status == QuestStatus::Pinned).cloned().collect())
+        QUEST_CACHE.with(|cache| {
+            cache
+                .borrow()
+                .iter()
+                .filter(|q| q.status == QuestStatus::Pinned)
+                .cloned()
+                .collect()
+        })
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Quest>, GameError> {
@@ -123,12 +150,16 @@ impl QuestRepository for WasmQuestRepository {
         ensure_cache_loaded().await?;
         QUEST_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            let pos = cache.iter().position(|q| q.id == id).ok_or_else(|| {
-                GameError::Other(format!("No quest found with id '{}'", id))
-            })?;
+            let pos = cache
+                .iter()
+                .position(|q| q.id == id)
+                .ok_or_else(|| GameError::Other(format!("No quest found with id '{}'", id)))?;
             let current_title = cache[pos].title.clone();
             if current_title != quest.title && cache.iter().any(|q| q.title == quest.title) {
-                return Err(GameError::Other(format!("A quest with title '{}' already exists", quest.title)));
+                return Err(GameError::Other(format!(
+                    "A quest with title '{}' already exists",
+                    quest.title
+                )));
             }
             cache[pos] = quest;
             Ok(())
@@ -140,13 +171,27 @@ impl QuestRepository for WasmQuestRepository {
 #[cfg(not(target_arch = "wasm32"))]
 #[async_trait::async_trait]
 impl QuestRepository for WasmQuestRepository {
-    async fn insert(&mut self, _quest: Quest) -> Result<(), GameError> { unreachable!() }
-    async fn mark_completed(&mut self, _id: Uuid) -> Result<(), GameError> { unreachable!() }
-    async fn find_open(&self) -> Vec<Quest> { unreachable!() }
-    async fn find_pinned(&self) -> Vec<Quest> { unreachable!() }
-    async fn find_by_id(&self, _id: Uuid) -> Result<Option<Quest>, GameError> { unreachable!() }
-    async fn title_exists(&self, _title: &str) -> bool { unreachable!() }
-    async fn update(&mut self, _id: Uuid, _quest: Quest) -> Result<(), GameError> { unreachable!() }
+    async fn insert(&mut self, _quest: Quest) -> Result<(), GameError> {
+        unreachable!()
+    }
+    async fn mark_completed(&mut self, _id: Uuid) -> Result<(), GameError> {
+        unreachable!()
+    }
+    async fn find_open(&self) -> Vec<Quest> {
+        unreachable!()
+    }
+    async fn find_pinned(&self) -> Vec<Quest> {
+        unreachable!()
+    }
+    async fn find_by_id(&self, _id: Uuid) -> Result<Option<Quest>, GameError> {
+        unreachable!()
+    }
+    async fn title_exists(&self, _title: &str) -> bool {
+        unreachable!()
+    }
+    async fn update(&mut self, _id: Uuid, _quest: Quest) -> Result<(), GameError> {
+        unreachable!()
+    }
 }
 
 // ─── Quest helpers (WASM only) ─────────────────────────────────────────────
@@ -154,7 +199,9 @@ impl QuestRepository for WasmQuestRepository {
 #[cfg(target_arch = "wasm32")]
 pub(crate) async fn ensure_cache_loaded() -> Result<(), GameError> {
     let already_loaded = QUEST_CACHE_LOADED.with(|l| *l.borrow());
-    if already_loaded { return Ok(()); }
+    if already_loaded {
+        return Ok(());
+    }
 
     let cb = QUEST_CALLBACKS.with(|c| {
         c.borrow().as_ref().map(|cb| cb.load_quests.clone()).ok_or_else(|| {
@@ -163,25 +210,45 @@ pub(crate) async fn ensure_cache_loaded() -> Result<(), GameError> {
     })?;
 
     let this = JsValue::null();
-    let promise_val = cb.call0(&this).map_err(|e| GameError::Other(format!("loadQuests callback threw: {:?}", e)))?;
+    let promise_val = cb
+        .call0(&this)
+        .map_err(|e| GameError::Other(format!("loadQuests callback threw: {:?}", e)))?;
     let promise = js_sys::Promise::from(promise_val);
-    let json_val = wasm_bindgen_futures::JsFuture::from(promise).await.map_err(|e| GameError::Other(format!("loadQuests callback rejected: {:?}", e)))?;
-    let json_str: String = json_val.as_string().ok_or_else(|| GameError::Other("loadQuests callback must return a string".into()))?;
+    let json_val = wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| GameError::Other(format!("loadQuests callback rejected: {:?}", e)))?;
+    let json_str: String = json_val
+        .as_string()
+        .ok_or_else(|| GameError::Other("loadQuests callback must return a string".into()))?;
 
-    let quests: Vec<Quest> = serde_json::from_str(&json_str).map_err(|e| GameError::Other(e.to_string()))?;
-    QUEST_CACHE.with(|cache| { *cache.borrow_mut() = quests; });
+    let quests: Vec<Quest> =
+        serde_json::from_str(&json_str).map_err(|e| GameError::Other(e.to_string()))?;
+    QUEST_CACHE.with(|cache| {
+        *cache.borrow_mut() = quests;
+    });
     QUEST_CACHE_LOADED.with(|l| *l.borrow_mut() = true);
     Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) async fn persist_cache() -> Result<(), GameError> {
-    let json_str = QUEST_CACHE.with(|cache| serde_json::to_string(&*cache.borrow()).map_err(|e| GameError::Other(e.to_string())))?;
-    let cb = QUEST_CALLBACKS.with(|c| c.borrow().as_ref().map(|cb| cb.save_quests.clone()).ok_or_else(|| GameError::Other("Quest repository callbacks not set".into())))?;
+    let json_str = QUEST_CACHE.with(|cache| {
+        serde_json::to_string(&*cache.borrow()).map_err(|e| GameError::Other(e.to_string()))
+    })?;
+    let cb = QUEST_CALLBACKS.with(|c| {
+        c.borrow()
+            .as_ref()
+            .map(|cb| cb.save_quests.clone())
+            .ok_or_else(|| GameError::Other("Quest repository callbacks not set".into()))
+    })?;
     let this = JsValue::null();
     let arg = JsValue::from(&json_str);
-    let promise_val = cb.call1(&this, &arg).map_err(|e| GameError::Other(format!("saveQuests callback threw: {:?}", e)))?;
-    wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise_val)).await.map_err(|e| GameError::Other(format!("saveQuests callback rejected: {:?}", e)))?;
+    let promise_val = cb
+        .call1(&this, &arg)
+        .map_err(|e| GameError::Other(format!("saveQuests callback threw: {:?}", e)))?;
+    wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise_val))
+        .await
+        .map_err(|e| GameError::Other(format!("saveQuests callback rejected: {:?}", e)))?;
     Ok(())
 }
 
@@ -246,4 +313,6 @@ pub async fn get_quest_state_from_cache() -> String {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn get_quest_state_from_cache() -> String { String::new() }
+pub async fn get_quest_state_from_cache() -> String {
+    String::new()
+}

@@ -22,5 +22,9 @@ pub trait TimelineRepository: Send {
 
     /// Update the energy level of a CheckIn entry.
     /// Returns GameError if the entry is not a CheckIn variant.
-    async fn update_energy_level(&mut self, entry_id: Uuid, level: EnergyLevel) -> Result<(), GameError>;
+    async fn update_energy_level(
+        &mut self,
+        entry_id: Uuid,
+        level: EnergyLevel,
+    ) -> Result<(), GameError>;
 }

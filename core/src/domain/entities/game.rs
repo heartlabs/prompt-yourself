@@ -39,7 +39,10 @@ impl GameService {
         quest_repo: Box<dyn QuestRepository>,
         timeline_repo: Box<dyn TimelineRepository>,
     ) -> Self {
-        Self { quest_repo, timeline_repo }
+        Self {
+            quest_repo,
+            timeline_repo,
+        }
     }
 
     /// Insert a new quest. If no id is set, a new UUID is generated.
@@ -50,10 +53,10 @@ impl GameService {
 
     /// Complete a quest identified by UUID.
     pub async fn complete_quest(&mut self, quest_id: Uuid) -> Result<(), GameError> {
-        let quest = self.quest_repo.find_by_id(quest_id).await?
-            .ok_or_else(|| GameError::Other(format!(
-                "No quest found with id '{}'", quest_id
-            )))?;
+        let quest =
+            self.quest_repo.find_by_id(quest_id).await?.ok_or_else(|| {
+                GameError::Other(format!("No quest found with id '{}'", quest_id))
+            })?;
 
         match quest.status {
             QuestStatus::Completed => {
@@ -114,7 +117,11 @@ impl GameService {
         self.timeline_repo.remove(id).await
     }
 
-    pub async fn reassign_timeline_entry(&mut self, entry_id: Uuid, quest_id: Uuid) -> Result<(), GameError> {
+    pub async fn reassign_timeline_entry(
+        &mut self,
+        entry_id: Uuid,
+        quest_id: Uuid,
+    ) -> Result<(), GameError> {
         self.timeline_repo.reassign(entry_id, quest_id).await
     }
 
@@ -127,7 +134,10 @@ impl GameService {
         let entry = TimelineEntry {
             id: Uuid::new_v4(),
             occurred_on: Utc::now(),
-            data: TimelineEntryData::CheckIn { energy_level, description },
+            data: TimelineEntryData::CheckIn {
+                energy_level,
+                description,
+            },
         };
         self.timeline_repo.record(entry).await
     }
@@ -138,7 +148,9 @@ impl GameService {
         entry_id: Uuid,
         level: EnergyLevel,
     ) -> Result<(), GameError> {
-        self.timeline_repo.update_energy_level(entry_id, level).await
+        self.timeline_repo
+            .update_energy_level(entry_id, level)
+            .await
     }
 
     pub async fn find_quest_by_id(&self, id: Uuid) -> Result<Option<Quest>, GameError> {

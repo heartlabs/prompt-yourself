@@ -3,7 +3,9 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::domain::entities::game::{EnergyLevel, GameService, Quest, QuestStatus, TimelineEntryData};
+use crate::domain::entities::game::{
+    EnergyLevel, GameService, Quest, QuestStatus, TimelineEntryData,
+};
 use crate::domain::ports::openai::{ToolCall, ToolDefinition};
 
 pub struct ToolOutcome {
@@ -16,8 +18,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "register_quest".to_string(),
-            description: "Register a new quest for the user to work toward."
-                .to_string(),
+            description: "Register a new quest for the user to work toward.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -76,8 +77,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "record_check_in".to_string(),
-            description: "Record a check-in with the user's current energy level. "
-                .to_string(),
+            description: "Record a check-in with the user's current energy level. ".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -136,11 +136,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     ]
 }
 
-pub async fn execute(
-    game: &mut GameService,
-    call: &ToolCall,
-    day: NaiveDate,
-) -> ToolOutcome {
+pub async fn execute(game: &mut GameService, call: &ToolCall, day: NaiveDate) -> ToolOutcome {
     let (user_message, llm_message) = match call.name.as_str() {
         "register_quest" => execute_register_quest(game, call).await,
         "complete_quest" => execute_complete_quest(game, call).await,
@@ -166,17 +162,29 @@ pub async fn execute(
 
 async fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (String, String) {
     #[derive(Deserialize)]
-    struct Args { title: String, description: String, points: u32, #[serde(default)] pinned: bool }
+    struct Args {
+        title: String,
+        description: String,
+        points: u32,
+        #[serde(default)]
+        pinned: bool,
+    }
 
     let args: Args = match serde_json::from_str(&call.arguments) {
         Ok(a) => a,
-        Err(e) => return (
-            "⚠️ Could not parse quest arguments".into(),
-            format!("error: failed to parse register_quest arguments: {e}"),
-        ),
+        Err(e) => {
+            return (
+                "⚠️ Could not parse quest arguments".into(),
+                format!("error: failed to parse register_quest arguments: {e}"),
+            )
+        }
     };
 
-    let status = if args.pinned { QuestStatus::Pinned } else { QuestStatus::Open };
+    let status = if args.pinned {
+        QuestStatus::Pinned
+    } else {
+        QuestStatus::Open
+    };
 
     let quest = Quest {
         id: Uuid::nil(), // GameService.register_quest generates the real UUID
@@ -188,8 +196,14 @@ async fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (Str
 
     match game.register_quest(quest).await {
         Ok(()) => (
-            format!("✅ Quest registered: **{}** ({} pts)", args.title, args.points),
-            format!("Quest '{}' registered with {} points. Description: {}", args.title, args.points, args.description),
+            format!(
+                "✅ Quest registered: **{}** ({} pts)",
+                args.title, args.points
+            ),
+            format!(
+                "Quest '{}' registered with {} points. Description: {}",
+                args.title, args.points, args.description
+            ),
         ),
         Err(e) => (format!("⚠️ {e}"), format!("error: {e}")),
     }
@@ -197,22 +211,29 @@ async fn execute_register_quest(game: &mut GameService, call: &ToolCall) -> (Str
 
 async fn execute_complete_quest(game: &mut GameService, call: &ToolCall) -> (String, String) {
     #[derive(Deserialize)]
-    struct Args { #[serde(rename = "questId")] quest_id: String }
+    struct Args {
+        #[serde(rename = "questId")]
+        quest_id: String,
+    }
 
     let args: Args = match serde_json::from_str(&call.arguments) {
         Ok(a) => a,
-        Err(e) => return (
-            "⚠️ Could not parse quest arguments".into(),
-            format!("error: failed to parse complete_quest arguments: {e}"),
-        ),
+        Err(e) => {
+            return (
+                "⚠️ Could not parse quest arguments".into(),
+                format!("error: failed to parse complete_quest arguments: {e}"),
+            )
+        }
     };
 
     let id: Uuid = match args.quest_id.parse() {
         Ok(id) => id,
-        Err(e) => return (
-            format!("⚠️ Invalid quest ID: {e}"),
-            format!("error: invalid quest UUID '{}': {e}", args.quest_id),
-        ),
+        Err(e) => {
+            return (
+                format!("⚠️ Invalid quest ID: {e}"),
+                format!("error: invalid quest UUID '{}': {e}", args.quest_id),
+            )
+        }
     };
 
     match game.complete_quest(id).await {
@@ -227,7 +248,8 @@ async fn execute_complete_quest(game: &mut GameService, call: &ToolCall) -> (Str
 async fn execute_update_quest(game: &mut GameService, call: &ToolCall) -> (String, String) {
     #[derive(Deserialize)]
     struct Args {
-        #[serde(rename = "questId")] quest_id: String,
+        #[serde(rename = "questId")]
+        quest_id: String,
         title: Option<String>,
         description: Option<String>,
         points: Option<u32>,
@@ -236,31 +258,39 @@ async fn execute_update_quest(game: &mut GameService, call: &ToolCall) -> (Strin
 
     let args: Args = match serde_json::from_str(&call.arguments) {
         Ok(a) => a,
-        Err(e) => return (
-            "⚠️ Could not parse quest arguments".into(),
-            format!("error: failed to parse update_quest arguments: {e}"),
-        ),
+        Err(e) => {
+            return (
+                "⚠️ Could not parse quest arguments".into(),
+                format!("error: failed to parse update_quest arguments: {e}"),
+            )
+        }
     };
 
     let id: Uuid = match args.quest_id.parse() {
         Ok(id) => id,
-        Err(e) => return (
-            format!("⚠️ Invalid quest ID: {e}"),
-            format!("error: invalid quest UUID '{}': {e}", args.quest_id),
-        ),
+        Err(e) => {
+            return (
+                format!("⚠️ Invalid quest ID: {e}"),
+                format!("error: invalid quest UUID '{}': {e}", args.quest_id),
+            )
+        }
     };
 
     let current = match game.find_quest_by_id(id).await {
         Ok(Some(q)) => q,
-        Ok(None) => return (
-            format!("⚠️ No quest found with id '{}'", args.quest_id),
-            format!("error: quest '{}' not found", args.quest_id),
-        ),
+        Ok(None) => {
+            return (
+                format!("⚠️ No quest found with id '{}'", args.quest_id),
+                format!("error: quest '{}' not found", args.quest_id),
+            )
+        }
         Err(e) => return (format!("⚠️ {e}"), format!("error: {e}")),
     };
 
     let new_title = args.title.unwrap_or_else(|| current.title.clone());
-    let new_description = args.description.unwrap_or_else(|| current.description.clone());
+    let new_description = args
+        .description
+        .unwrap_or_else(|| current.description.clone());
     let new_points = args.points.unwrap_or(current.points);
     let new_status = match args.pinned {
         Some(true) => QuestStatus::Pinned,
@@ -279,12 +309,27 @@ async fn execute_update_quest(game: &mut GameService, call: &ToolCall) -> (Strin
     match game.update_quest(id, updated).await {
         Ok(()) => {
             let mut changes = Vec::new();
-            if new_title != current.title { changes.push(format!("title → \"{}\"", new_title)); }
-            if new_description != current.description { changes.push("description updated".into()); }
-            if new_points != current.points { changes.push(format!("points → {}", new_points)); }
-            if new_status != current.status { changes.push(format!("status → {:?}", new_status)); }
-            let desc = if changes.is_empty() { "No changes made.".into() } else { changes.join(", ") };
-            (format!("✅ Quest updated: **\"{}\"** — {}", new_title, desc), format!("Quest '{}' updated: {}", new_title, desc))
+            if new_title != current.title {
+                changes.push(format!("title → \"{}\"", new_title));
+            }
+            if new_description != current.description {
+                changes.push("description updated".into());
+            }
+            if new_points != current.points {
+                changes.push(format!("points → {}", new_points));
+            }
+            if new_status != current.status {
+                changes.push(format!("status → {:?}", new_status));
+            }
+            let desc = if changes.is_empty() {
+                "No changes made.".into()
+            } else {
+                changes.join(", ")
+            };
+            (
+                format!("✅ Quest updated: **\"{}\"** — {}", new_title, desc),
+                format!("Quest '{}' updated: {}", new_title, desc),
+            )
         }
         Err(e) => (format!("⚠️ {e}"), format!("error: {e}")),
     }
@@ -294,49 +339,68 @@ async fn execute_update_timeline(game: &mut GameService, call: &ToolCall) -> (St
     #[derive(Deserialize)]
     struct Args {
         action: String,
-        #[serde(rename = "entryId")] entry_id: String,
-        #[serde(rename = "newQuestId")] new_quest_id: Option<String>,
+        #[serde(rename = "entryId")]
+        entry_id: String,
+        #[serde(rename = "newQuestId")]
+        new_quest_id: Option<String>,
     }
 
     let args: Args = match serde_json::from_str(&call.arguments) {
         Ok(a) => a,
-        Err(e) => return (
-            "⚠️ Could not parse timeline arguments".into(),
-            format!("error: failed to parse update_timeline arguments: {e}"),
-        ),
+        Err(e) => {
+            return (
+                "⚠️ Could not parse timeline arguments".into(),
+                format!("error: failed to parse update_timeline arguments: {e}"),
+            )
+        }
     };
 
     let entry_id: Uuid = match args.entry_id.parse() {
         Ok(id) => id,
-        Err(e) => return (
-            format!("⚠️ Invalid entry ID: {e}"),
-            format!("error: invalid timeline entry UUID '{}': {e}", args.entry_id),
-        ),
+        Err(e) => {
+            return (
+                format!("⚠️ Invalid entry ID: {e}"),
+                format!(
+                    "error: invalid timeline entry UUID '{}': {e}",
+                    args.entry_id
+                ),
+            )
+        }
     };
 
     match args.action.as_str() {
         "remove" => match game.remove_timeline_entry(entry_id).await {
-            Ok(()) => ("✅ Timeline entry removed".into(), format!("Timeline entry '{}' removed", args.entry_id)),
+            Ok(()) => (
+                "✅ Timeline entry removed".into(),
+                format!("Timeline entry '{}' removed", args.entry_id),
+            ),
             Err(e) => (format!("⚠️ {e}"), format!("error: {e}")),
         },
         "reassign" => {
             let new_quest_id: Uuid = match &args.new_quest_id {
                 Some(s) => match s.parse() {
                     Ok(id) => id,
-                    Err(e) => return (
-                        format!("⚠️ Invalid quest ID: {e}"),
-                        format!("error: invalid quest UUID '{}': {e}", s),
-                    ),
+                    Err(e) => {
+                        return (
+                            format!("⚠️ Invalid quest ID: {e}"),
+                            format!("error: invalid quest UUID '{}': {e}", s),
+                        )
+                    }
                 },
-                None => return (
-                    "⚠️ newQuestId is required for reassign action".into(),
-                    "error: newQuestId missing for reassign".into(),
-                ),
+                None => {
+                    return (
+                        "⚠️ newQuestId is required for reassign action".into(),
+                        "error: newQuestId missing for reassign".into(),
+                    )
+                }
             };
             match game.reassign_timeline_entry(entry_id, new_quest_id).await {
                 Ok(()) => (
                     format!("✅ Timeline entry reassigned to quest '{}'", new_quest_id),
-                    format!("Timeline entry '{}' reassigned to quest '{}'", args.entry_id, new_quest_id),
+                    format!(
+                        "Timeline entry '{}' reassigned to quest '{}'",
+                        args.entry_id, new_quest_id
+                    ),
                 ),
                 Err(e) => (format!("⚠️ {e}"), format!("error: {e}")),
             }
@@ -357,26 +421,36 @@ async fn execute_record_check_in(game: &mut GameService, call: &ToolCall) -> (St
 
     let args: Args = match serde_json::from_str(&call.arguments) {
         Ok(a) => a,
-        Err(e) => return (
-            "⚠️ Could not parse check-in arguments".into(),
-            format!("error: failed to parse record_check_in arguments: {e}"),
-        ),
+        Err(e) => {
+            return (
+                "⚠️ Could not parse check-in arguments".into(),
+                format!("error: failed to parse record_check_in arguments: {e}"),
+            )
+        }
     };
 
     let level = match args.level.as_str() {
         "green" => EnergyLevel::Green,
         "yellow" => EnergyLevel::Yellow,
         "red" => EnergyLevel::Red,
-        other => return (
-            format!("⚠️ Invalid energy level: {other}"),
-            format!("error: invalid energy level '{other}'"),
-        ),
+        other => {
+            return (
+                format!("⚠️ Invalid energy level: {other}"),
+                format!("error: invalid energy level '{other}'"),
+            )
+        }
     };
 
     match game.record_check_in(level, args.description.clone()).await {
         Ok(()) => (
-            format!("✅ Check-in recorded: {} — {}", args.level, args.description),
-            format!("Check-in recorded with energy {:?}. Description: {}", level, args.description),
+            format!(
+                "✅ Check-in recorded: {} — {}",
+                args.level, args.description
+            ),
+            format!(
+                "Check-in recorded with energy {:?}. Description: {}",
+                level, args.description
+            ),
         ),
         Err(e) => (format!("⚠️ {e}"), format!("error: {e}")),
     }
@@ -390,14 +464,20 @@ async fn execute_list_timeline(
     let entries = game.timeline_entries(day).await;
 
     if entries.is_empty() {
-        return ("📜 No timeline entries for today.".into(), "No timeline entries for today.".into());
+        return (
+            "📜 No timeline entries for today.".into(),
+            "No timeline entries for today.".into(),
+        );
     }
 
     let mut lines = vec![format!("📜 {} timeline entries:", entries.len())];
 
     for entry in &entries {
         match &entry.data {
-            TimelineEntryData::CheckIn { energy_level, description } => {
+            TimelineEntryData::CheckIn {
+                energy_level,
+                description,
+            } => {
                 lines.push(format!(
                     "  - id: {}, type: check_in, time: {}, energy: {:?}, description: \"{}\", points: 5",
                     entry.id, entry.occurred_on.format("%H:%M:%S"), energy_level, description,
@@ -412,7 +492,8 @@ async fn execute_list_timeline(
                 } else {
                     lines.push(format!(
                         "  - id: {}, type: quest_completion, time: {}, quest: (deleted)",
-                        entry.id, entry.occurred_on.format("%H:%M:%S"),
+                        entry.id,
+                        entry.occurred_on.format("%H:%M:%S"),
                     ));
                 }
             }
@@ -420,7 +501,10 @@ async fn execute_list_timeline(
     }
 
     let llm_msg = lines.join("\n");
-    (format!("📜 {} timeline entries today", entries.len()), llm_msg)
+    (
+        format!("📜 {} timeline entries today", entries.len()),
+        llm_msg,
+    )
 }
 
 async fn execute_list_open_quests(
@@ -457,7 +541,10 @@ async fn execute_list_open_quests(
         lines.push(format!("✅ {} today ({} pts)", timeline.len(), pts_today));
         for entry in &timeline {
             match &entry.data {
-                TimelineEntryData::CheckIn { energy_level, description } => {
+                TimelineEntryData::CheckIn {
+                    energy_level,
+                    description,
+                } => {
                     lines.push(format!(
                         "  - id: {}, type: check_in, energy: {:?}, description: \"{}\", points: 5",
                         entry.id, energy_level, description,
@@ -479,7 +566,10 @@ async fn execute_list_open_quests(
     let open_count = open_quests.len();
     let total_count = timeline.len();
     let pts_today: u32 = game.total_points(day).await;
-    let user_msg = format!("📋 {} active, {} entries today ({} pts)", open_count, total_count, pts_today);
+    let user_msg = format!(
+        "📋 {} active, {} entries today ({} pts)",
+        open_count, total_count, pts_today
+    );
 
     (user_msg, llm_msg)
 }

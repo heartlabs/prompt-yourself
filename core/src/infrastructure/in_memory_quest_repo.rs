@@ -39,9 +39,10 @@ impl QuestRepository for InMemoryQuestRepository {
     }
 
     async fn mark_completed(&mut self, id: Uuid) -> Result<(), GameError> {
-        let quest = self.quests.get_mut(&id).ok_or_else(|| {
-            GameError::Other(format!("No quest found with id '{}'", id))
-        })?;
+        let quest = self
+            .quests
+            .get_mut(&id)
+            .ok_or_else(|| GameError::Other(format!("No quest found with id '{}'", id)))?;
 
         if quest.status == QuestStatus::Completed {
             return Err(GameError::Other(format!(
@@ -80,10 +81,7 @@ impl QuestRepository for InMemoryQuestRepository {
 
     async fn update(&mut self, id: Uuid, quest: Quest) -> Result<(), GameError> {
         if !self.quests.contains_key(&id) {
-            return Err(GameError::Other(format!(
-                "No quest found with id '{}'",
-                id
-            )));
+            return Err(GameError::Other(format!("No quest found with id '{}'", id)));
         }
 
         // If the title is changing, make sure the new title doesn't clash

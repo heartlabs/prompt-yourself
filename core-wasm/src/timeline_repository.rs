@@ -4,7 +4,9 @@ use std::cell::RefCell;
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused_imports))]
 use chrono::NaiveDate;
-use prompt_yourself_core::domain::entities::game::{EnergyLevel, GameError, TimelineEntry, TimelineEntryData};
+use prompt_yourself_core::domain::entities::game::{
+    EnergyLevel, GameError, TimelineEntry, TimelineEntryData,
+};
 use prompt_yourself_core::domain::ports::timeline_repository::TimelineRepository;
 #[cfg(target_arch = "wasm32")]
 use serde_json::json;
@@ -44,7 +46,12 @@ pub fn wasm_set_timeline_repository_callbacks(callbacks: &js_sys::Object) -> Res
         .map_err(|_| JsError::new("saveTimeline callback missing"))?
         .dyn_into::<js_sys::Function>()
         .map_err(|_| JsError::new("saveTimeline must be a function"))?;
-    TIMELINE_CALLBACKS.with(|cb| { *cb.borrow_mut() = Some(TimelineCallbacks { load_timeline, save_timeline }); });
+    TIMELINE_CALLBACKS.with(|cb| {
+        *cb.borrow_mut() = Some(TimelineCallbacks {
+            load_timeline,
+            save_timeline,
+        });
+    });
     TIMELINE_CACHE_LOADED.with(|loaded| *loaded.borrow_mut() = false);
     Ok(())
 }
@@ -66,7 +73,12 @@ impl TimelineRepository for WasmTimelineRepository {
     async fn find_by_date(&self, day: NaiveDate) -> Vec<TimelineEntry> {
         ensure_cache_loaded().await.ok();
         TIMELINE_CACHE.with(|cache| {
-            let mut results: Vec<TimelineEntry> = cache.borrow().iter().filter(|e| e.occurred_on.date_naive() == day).cloned().collect();
+            let mut results: Vec<TimelineEntry> = cache
+                .borrow()
+                .iter()
+                .filter(|e| e.occurred_on.date_naive() == day)
+                .cloned()
+                .collect();
             results.sort_by_key(|e| e.occurred_on);
             results
         })
@@ -77,7 +89,10 @@ impl TimelineRepository for WasmTimelineRepository {
         ensure_cache_loaded().await?;
         TIMELINE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            let pos = cache.iter().position(|e| e.id == id).ok_or_else(|| GameError::Other(format!("No timeline entry with id '{}'", id)))?;
+            let pos = cache
+                .iter()
+                .position(|e| e.id == id)
+                .ok_or_else(|| GameError::Other(format!("No timeline entry with id '{}'", id)))?;
             cache.remove(pos);
             Ok(())
         })?;
@@ -89,30 +104,44 @@ impl TimelineRepository for WasmTimelineRepository {
         ensure_cache_loaded().await?;
         TIMELINE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            let entry = cache.iter_mut().find(|e| e.id == entry_id).ok_or_else(|| GameError::Other(format!("No timeline entry with id '{}'", entry_id)))?;
+            let entry = cache.iter_mut().find(|e| e.id == entry_id).ok_or_else(|| {
+                GameError::Other(format!("No timeline entry with id '{}'", entry_id))
+            })?;
             match &mut entry.data {
-                TimelineEntryData::QuestCompletion { quest_id: ref mut qid } => {
+                TimelineEntryData::QuestCompletion {
+                    quest_id: ref mut qid,
+                } => {
                     *qid = quest_id;
                     Ok(())
                 }
-                _ => Err(GameError::Other("Cannot reassign a non-quest timeline entry".into())),
+                _ => Err(GameError::Other(
+                    "Cannot reassign a non-quest timeline entry".into(),
+                )),
             }
         })?;
         persist_cache().await
     }
 
-    async fn update_energy_level(&mut self, entry_id: Uuid, level: EnergyLevel) -> Result<(), GameError> {
+    async fn update_energy_level(
+        &mut self,
+        entry_id: Uuid,
+        level: EnergyLevel,
+    ) -> Result<(), GameError> {
         let _guard = ReentryGuard::try_enter()?;
         ensure_cache_loaded().await?;
         TIMELINE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            let entry = cache.iter_mut().find(|e| e.id == entry_id).ok_or_else(|| GameError::Other(format!("No timeline entry with id '{}'", entry_id)))?;
+            let entry = cache.iter_mut().find(|e| e.id == entry_id).ok_or_else(|| {
+                GameError::Other(format!("No timeline entry with id '{}'", entry_id))
+            })?;
             match &mut entry.data {
                 TimelineEntryData::CheckIn { energy_level, .. } => {
                     *energy_level = level;
                     Ok(())
                 }
-                _ => Err(GameError::Other("Cannot change energy on a non-check-in entry".into())),
+                _ => Err(GameError::Other(
+                    "Cannot change energy on a non-check-in entry".into(),
+                )),
             }
         })?;
         persist_cache().await
@@ -122,11 +151,25 @@ impl TimelineRepository for WasmTimelineRepository {
 #[cfg(not(target_arch = "wasm32"))]
 #[async_trait::async_trait]
 impl TimelineRepository for WasmTimelineRepository {
-    async fn record(&mut self, _entry: TimelineEntry) -> Result<(), GameError> { unreachable!() }
-    async fn find_by_date(&self, _day: NaiveDate) -> Vec<TimelineEntry> { unreachable!() }
-    async fn remove(&mut self, _id: Uuid) -> Result<(), GameError> { unreachable!() }
-    async fn reassign(&mut self, _entry_id: Uuid, _quest_id: Uuid) -> Result<(), GameError> { unreachable!() }
-    async fn update_energy_level(&mut self, _entry_id: Uuid, _level: EnergyLevel) -> Result<(), GameError> { unreachable!() }
+    async fn record(&mut self, _entry: TimelineEntry) -> Result<(), GameError> {
+        unreachable!()
+    }
+    async fn find_by_date(&self, _day: NaiveDate) -> Vec<TimelineEntry> {
+        unreachable!()
+    }
+    async fn remove(&mut self, _id: Uuid) -> Result<(), GameError> {
+        unreachable!()
+    }
+    async fn reassign(&mut self, _entry_id: Uuid, _quest_id: Uuid) -> Result<(), GameError> {
+        unreachable!()
+    }
+    async fn update_energy_level(
+        &mut self,
+        _entry_id: Uuid,
+        _level: EnergyLevel,
+    ) -> Result<(), GameError> {
+        unreachable!()
+    }
 }
 
 // ─── Timeline helpers (WASM only) ──────────────────────────────────────────
@@ -134,34 +177,62 @@ impl TimelineRepository for WasmTimelineRepository {
 #[cfg(target_arch = "wasm32")]
 pub(crate) async fn ensure_cache_loaded() -> Result<(), GameError> {
     let already_loaded = TIMELINE_CACHE_LOADED.with(|l| *l.borrow());
-    if already_loaded { return Ok(()); }
+    if already_loaded {
+        return Ok(());
+    }
 
     let cb = TIMELINE_CALLBACKS.with(|c| {
-        c.borrow().as_ref().map(|cb| cb.load_timeline.clone()).ok_or_else(|| {
-            GameError::Other("Timeline repository callbacks not set. Call setTimelineRepositoryCallbacks().".into())
-        })
+        c.borrow()
+            .as_ref()
+            .map(|cb| cb.load_timeline.clone())
+            .ok_or_else(|| {
+                GameError::Other(
+                    "Timeline repository callbacks not set. Call setTimelineRepositoryCallbacks()."
+                        .into(),
+                )
+            })
     })?;
 
     let this = JsValue::null();
-    let promise_val = cb.call0(&this).map_err(|e| GameError::Other(format!("loadTimeline callback threw: {:?}", e)))?;
+    let promise_val = cb
+        .call0(&this)
+        .map_err(|e| GameError::Other(format!("loadTimeline callback threw: {:?}", e)))?;
     let promise = js_sys::Promise::from(promise_val);
-    let json_val = wasm_bindgen_futures::JsFuture::from(promise).await.map_err(|e| GameError::Other(format!("loadTimeline callback rejected: {:?}", e)))?;
-    let json_str: String = json_val.as_string().ok_or_else(|| GameError::Other("loadTimeline callback must return a string".into()))?;
+    let json_val = wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| GameError::Other(format!("loadTimeline callback rejected: {:?}", e)))?;
+    let json_str: String = json_val
+        .as_string()
+        .ok_or_else(|| GameError::Other("loadTimeline callback must return a string".into()))?;
 
-    let entries: Vec<TimelineEntry> = serde_json::from_str(&json_str).map_err(|e| GameError::Other(e.to_string()))?;
-    TIMELINE_CACHE.with(|cache| { *cache.borrow_mut() = entries; });
+    let entries: Vec<TimelineEntry> =
+        serde_json::from_str(&json_str).map_err(|e| GameError::Other(e.to_string()))?;
+    TIMELINE_CACHE.with(|cache| {
+        *cache.borrow_mut() = entries;
+    });
     TIMELINE_CACHE_LOADED.with(|l| *l.borrow_mut() = true);
     Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) async fn persist_cache() -> Result<(), GameError> {
-    let json_str = TIMELINE_CACHE.with(|cache| serde_json::to_string(&*cache.borrow()).map_err(|e| GameError::Other(e.to_string())))?;
-    let cb = TIMELINE_CALLBACKS.with(|c| c.borrow().as_ref().map(|cb| cb.save_timeline.clone()).ok_or_else(|| GameError::Other("Timeline repository callbacks not set".into())))?;
+    let json_str = TIMELINE_CACHE.with(|cache| {
+        serde_json::to_string(&*cache.borrow()).map_err(|e| GameError::Other(e.to_string()))
+    })?;
+    let cb = TIMELINE_CALLBACKS.with(|c| {
+        c.borrow()
+            .as_ref()
+            .map(|cb| cb.save_timeline.clone())
+            .ok_or_else(|| GameError::Other("Timeline repository callbacks not set".into()))
+    })?;
     let this = JsValue::null();
     let arg = JsValue::from(&json_str);
-    let promise_val = cb.call1(&this, &arg).map_err(|e| GameError::Other(format!("saveTimeline callback threw: {:?}", e)))?;
-    wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise_val)).await.map_err(|e| GameError::Other(format!("saveTimeline callback rejected: {:?}", e)))?;
+    let promise_val = cb
+        .call1(&this, &arg)
+        .map_err(|e| GameError::Other(format!("saveTimeline callback threw: {:?}", e)))?;
+    wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise_val))
+        .await
+        .map_err(|e| GameError::Other(format!("saveTimeline callback rejected: {:?}", e)))?;
     Ok(())
 }
 
@@ -172,17 +243,24 @@ pub(crate) async fn persist_cache() -> Result<(), GameError> {
 pub async fn wasm_update_timeline_entry_energy(entry_id: &str, level: &str) -> Result<(), JsError> {
     #[cfg(target_arch = "wasm32")]
     async fn impl_(entry_id: &str, level: &str) -> Result<(), JsError> {
-        let id: Uuid = entry_id.parse().map_err(|e| JsError::new(&format!("Invalid entry ID: {e}")))?;
+        let id: Uuid = entry_id
+            .parse()
+            .map_err(|e| JsError::new(&format!("Invalid entry ID: {e}")))?;
         let energy = match level {
             "green" => EnergyLevel::Green,
             "yellow" => EnergyLevel::Yellow,
             "red" => EnergyLevel::Red,
             other => return Err(JsError::new(&format!("Invalid energy level: {other}"))),
         };
-        ensure_cache_loaded().await.map_err(|e| JsError::new(&e.to_string()))?;
+        ensure_cache_loaded()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
         TIMELINE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            let entry = cache.iter_mut().find(|e| e.id == id).ok_or_else(|| JsError::new(&format!("No timeline entry with id '{entry_id}'")))?;
+            let entry = cache
+                .iter_mut()
+                .find(|e| e.id == id)
+                .ok_or_else(|| JsError::new(&format!("No timeline entry with id '{entry_id}'")))?;
             match &mut entry.data {
                 TimelineEntryData::CheckIn { energy_level, .. } => {
                     *energy_level = energy;
@@ -191,12 +269,16 @@ pub async fn wasm_update_timeline_entry_energy(entry_id: &str, level: &str) -> R
                 _ => Err(JsError::new("Cannot change energy on a non-check-in entry")),
             }
         })?;
-        persist_cache().await.map_err(|e| JsError::new(&e.to_string()))
+        persist_cache()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     async fn impl_(_entry_id: &str, _level: &str) -> Result<(), JsError> {
-        Err(JsError::new("updateTimelineEntryEnergy is only available on WASM"))
+        Err(JsError::new(
+            "updateTimelineEntryEnergy is only available on WASM",
+        ))
     }
 
     impl_(entry_id, level).await
@@ -209,15 +291,24 @@ pub async fn wasm_update_timeline_entry_energy(entry_id: &str, level: &str) -> R
 pub async fn wasm_get_timeline_for_date(year: i32, month: u8, day: u8) -> Result<String, JsError> {
     #[cfg(target_arch = "wasm32")]
     async fn impl_(year: i32, month: u8, day: u8) -> Result<String, JsError> {
-        use chrono::NaiveDate;
         use crate::quest_repository;
+        use chrono::NaiveDate;
 
-        quest_repository::ensure_cache_loaded().await.map_err(|e| JsError::new(&e.to_string()))?;
-        ensure_cache_loaded().await.map_err(|e| JsError::new(&e.to_string()))?;
+        quest_repository::ensure_cache_loaded()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        ensure_cache_loaded()
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
         let date = match NaiveDate::from_ymd_opt(year, month as u32, day as u32) {
             Some(d) => d,
-            None => return Err(JsError::new(&format!("Invalid date: {}-{:02}-{:02}", year, month, day))),
+            None => {
+                return Err(JsError::new(&format!(
+                    "Invalid date: {}-{:02}-{:02}",
+                    year, month, day
+                )))
+            }
         };
 
         let result = quest_repository::quest_internals::QUEST_CACHE.with(|qc| {

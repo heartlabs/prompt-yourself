@@ -1,8 +1,8 @@
 //! Shared re-entrancy guard used by both repository adapters.
 
+use prompt_yourself_core::domain::entities::game::GameError;
 #[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
-use prompt_yourself_core::domain::entities::game::GameError;
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {

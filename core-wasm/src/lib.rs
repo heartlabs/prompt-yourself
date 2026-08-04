@@ -20,14 +20,14 @@
 use std::cell::RefCell;
 use std::sync::{Mutex, OnceLock};
 
-mod reentry_guard;
 mod quest_repository;
+mod reentry_guard;
 mod timeline_repository;
 
-pub use quest_repository::wasm_set_quest_repository_callbacks as setQuestRepositoryCallbacks;
 pub use quest_repository::wasm_clear_game_data as clearGameData;
-pub use timeline_repository::wasm_set_timeline_repository_callbacks as setTimelineRepositoryCallbacks;
+pub use quest_repository::wasm_set_quest_repository_callbacks as setQuestRepositoryCallbacks;
 pub use timeline_repository::wasm_get_timeline_for_date as getTimelineForDate;
+pub use timeline_repository::wasm_set_timeline_repository_callbacks as setTimelineRepositoryCallbacks;
 pub use timeline_repository::wasm_update_timeline_entry_energy as updateTimelineEntryEnergy;
 
 // Set a panic hook that logs to console.error so we can see Rust panic
@@ -182,8 +182,6 @@ pub fn wasm_set_api_base(base: &str) {
     let _ = API_BASE.set(base.to_string());
 }
 
-
-
 // ─── Chat initialisation ────────────────────────────────────────────────────
 
 /// Initialise (or reset) the global Chat instance with the given model.
@@ -272,8 +270,7 @@ pub async fn wasm_chat_completion(user_message: &str, day_ms: f64) -> Result<Str
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-    let json = serde_json::to_string(&messages)
-        .map_err(|e| JsError::new(&e.to_string()))?;
+    let json = serde_json::to_string(&messages).map_err(|e| JsError::new(&e.to_string()))?;
 
     Ok(json)
 }
@@ -337,8 +334,6 @@ pub fn wasm_get_token_usage() -> Result<String, JsError> {
 
     let chat = chat_mutex.lock().expect("Chat mutex poisoned");
     let usage = chat.token_usage();
-    let json = serde_json::to_string(usage)
-        .map_err(|e| JsError::new(&e.to_string()))?;
+    let json = serde_json::to_string(usage).map_err(|e| JsError::new(&e.to_string()))?;
     Ok(json)
 }
-

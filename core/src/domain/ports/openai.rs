@@ -58,13 +58,9 @@ pub trait OpenAiPort: Send {
 #[serde(tag = "role", rename_all = "lowercase")]
 pub enum ChatMessage {
     /// System-level instructions for the model.
-    System {
-        content: String,
-    },
+    System { content: String },
     /// A message from the user.
-    User {
-        content: String,
-    },
+    User { content: String },
     /// A response from the model, optionally with tool calls.
     Assistant {
         content: Option<String>,

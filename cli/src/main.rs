@@ -3,11 +3,7 @@ use std::io::{self, BufRead, Write};
 use chrono::Utc;
 use clap::Parser;
 use prompt_yourself_core::domain::ports::openai::ChatMessage;
-use prompt_yourself_core::{
-    InMemoryQuestRepository,
-    InMemoryTimelineRepository,
-    OpenAiAdapter,
-};
+use prompt_yourself_core::{InMemoryQuestRepository, InMemoryTimelineRepository, OpenAiAdapter};
 
 // ─── CLI args ───────────────────────────────────────────────────────────────
 

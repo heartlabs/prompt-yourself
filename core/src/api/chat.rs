@@ -197,11 +197,7 @@ impl Chat {
 
             let (response, usage) = self
                 .openai_port
-                .chat_completion_with_tools(
-                    messages,
-                    MAX_TOKENS,
-                    tools::tool_definitions(),
-                )
+                .chat_completion_with_tools(messages, MAX_TOKENS, tools::tool_definitions())
                 .await?;
 
             // Accumulate token usage
@@ -238,11 +234,7 @@ impl Chat {
 
                     // Execute each tool call
                     for call in &tool_calls {
-                        let outcome = tools::execute(
-                            &mut self.game_service,
-                            call,
-                            day,
-                        ).await;
+                        let outcome = tools::execute(&mut self.game_service, call, day).await;
 
                         // Detailed message for the LLM (internal history only)
                         self.history.push(ChatMessage::Tool {
