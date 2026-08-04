@@ -256,6 +256,7 @@ function initFeelings() {
       renderFeelings();
     }
     input.value = '';
+    input.focus(); // chain several adds without reaching for the input again
   });
 
   document.getElementById('feelings-save').addEventListener('click', async () => {

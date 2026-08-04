@@ -168,6 +168,16 @@ textarea::placeholder, input::placeholder { color: #b5afa2; }
 .stack { display: flex; flex-direction: column; gap: 12px; list-style: none; padding: 0; }
 .stack label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; font-weight: 600; color: #55524a; }
 
+/* ── add-a-feeling row (input + Add button) ── */
+.add-row { display: flex; gap: 8px; }
+.add-row input { flex: 1; }
+.add-row button {
+  flex: none; display: flex; align-items: center;
+  border: 1.5px solid var(--accent); color: var(--accent); background: none;
+  border-radius: 12px; padding: 0 18px; font: inherit; font-weight: 600; cursor: pointer;
+}
+.add-row button:active { opacity: 0.85; }
+
 /* ── feelings sliders ── */
 .feel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px 14px; }
 .feel .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }

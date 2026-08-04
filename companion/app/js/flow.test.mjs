@@ -127,6 +127,25 @@ test('feelings: add, slide, snapshot; sliders persist to the next session', asyn
   assert.equal(app.$$('#feelings-list .feel').length, 1);
 });
 
+test('feelings: a fresh (empty) list has a visible Add button', async () => {
+  // Regression guard: on a fresh install there are no feelings, so the input
+  // alone was a dead-end — Enter is invisible. The Add button must be in the
+  // DOM and work without the keyboard.
+  const app = await bootApp();
+  await app.click('.fab');
+  await app.click(app.byText('.opt', 'Feelings'));
+  assert.equal(app.$$('#feelings-list .feel').length, 0, 'starts empty');
+
+  const addBtn = app.$('#feeling-add-form button[type="submit"]');
+  assert.ok(addBtn, 'Add button exists');
+  assert.equal(addBtn.textContent, 'Add');
+
+  await app.type('#feeling-add', 'anxious');
+  await app.click(addBtn); // no Enter needed
+  assert.equal(app.$$('#feelings-list .feel').length, 1);
+  assert.equal(app.$('#feelings-list .feel b').textContent, 'anxious');
+});
+
 test('feelings: saving with no feelings is refused', async () => {
   const app = await bootApp();
   await app.click('.fab');

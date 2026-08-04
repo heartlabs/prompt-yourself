@@ -4,4 +4,4 @@
 // which build it's running. sw.js imports it (module worker) — don't duplicate
 // it anywhere, or the two copies will drift.
 
-export const VERSION = 'v10';
+export const VERSION = 'v11';
