@@ -97,7 +97,7 @@ export function initSettings() {
       const body = await res.json();
       const failed = (body.results ?? []).filter((r) => !r.ok);
       if (failed.length > 0) {
-        toast(`Push failed: ${failed[0].error}`);
+        toast(`Push: ${failed.length}/${body.sent_to ?? 0} failed — ${failed[0].error}`);
       } else {
         toast(`Test push sent to ${body.sent_to ?? 0} device(s)`);
       }

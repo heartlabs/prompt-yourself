@@ -31,6 +31,7 @@ use web_push::{
 
 const STATE_FILE: &str = "companion-state.json";
 const TICK_SECONDS: u64 = 30;
+const PUSH_TIMEOUT_SECS: u64 = 10;
 
 // ─────────────────────────── state ───────────────────────────
 
@@ -151,19 +152,23 @@ fn slot_times(start: u32, end: u32, rhythm: &str) -> Vec<u32> {
 
 // ─────────────────────────── push sending ───────────────────────────
 
-/// Sends a push to every subscription. Returns one result per subscription so
-/// callers (e.g. /api/test-push) can surface failures instead of only logging.
-/// Dead subscriptions (404/410) are still pruned, as before.
+/// Sends a push to every subscription. Returns one (endpoint, result) pair per
+/// subscription so callers (e.g. /api/test-push) can surface failures instead
+/// of only logging. Dead subscriptions are pruned: 404/410 always, and 403
+/// (Apple: subscription no longer valid, e.g. after a PWA reinstall) only
+/// when another subscription in this batch succeeded — so a global
+/// authorization failure can never wipe the live subscription.
 async fn send_push(
     state: &mut AppState,
     title: &str,
     body: &str,
     first: bool,
-) -> Vec<Result<(), String>> {
+) -> Vec<(String, Result<(), String>)> {
     let payload = serde_json::json!({ "title": title, "body": body, "first": first }).to_string();
     let client = HyperWebPushClient::new();
-    let mut results: Vec<Result<(), String>> = Vec::new();
-    let mut dead: Vec<String> = Vec::new();
+    let mut results: Vec<(String, Result<(), String>)> = Vec::new();
+    let mut dead: Vec<String> = Vec::new();        // 404/410 — always dead
+    let mut maybe_dead: Vec<String> = Vec::new();  // 403 — dead only if others succeeded
     for sub in &state.subscriptions {
         let result = async {
             let mut sig_builder = VapidSignatureBuilder::from_base64(
@@ -179,11 +184,22 @@ async fn send_push(
             let mut msg = WebPushMessageBuilder::new(sub);
             msg.set_vapid_signature(sig);
             msg.set_payload(ContentEncoding::Aes128Gcm, payload.as_bytes());
-            client.send(msg.build()?).await
+            let message = msg.build()?;
+            // Bound every request: the web-push hyper client has no timeout of
+            // its own, and the state lock is held across this send — a stuck
+            // connection would wedge the whole server (status/schedule/day/tick
+            // all block on the mutex). 10s per subscription is plenty for Apple.
+            tokio::time::timeout(
+                std::time::Duration::from_secs(PUSH_TIMEOUT_SECS),
+                client.send(message),
+            )
+            .await
+            .map_err(|_| web_push::WebPushError::Other("timeout".to_string()))?
         }
         .await;
+        let endpoint = sub.endpoint.clone();
         match result {
-            Ok(()) => results.push(Ok(())),
+            Ok(()) => results.push((endpoint, Ok(()))),
             Err(e) => {
                 // Debug repr carries the HTTP status (e.g. BadJwtToken).
                 eprintln!("push to {} failed: {e:?}", sub.endpoint);
@@ -198,17 +214,37 @@ async fn send_push(
                          check egress/TLS from this server (try: curl -sI https://web.push.apple.com)"
                     );
                 }
-                results.push(Err(format!("{e:?}")));
+                results.push((endpoint.clone(), Err(format!("{e:?}"))));
                 // 404/410 mean the subscription is gone — forget it.
                 if matches!(
                     e,
                     web_push::WebPushError::EndpointNotValid
                         | web_push::WebPushError::EndpointNotFound
                 ) {
-                    dead.push(sub.endpoint.clone());
+                    dead.push(endpoint);
+                } else if matches!(
+                    e,
+                    web_push::WebPushError::Other(ref s) if s.as_str() == "403"
+                ) {
+                    // Apple 403 = this endpoint is no longer valid (e.g. the PWA
+                    // was deleted/reinstalled) — but only prune if we're sure it's
+                    // endpoint-specific and not a global authorization problem.
+                    maybe_dead.push(endpoint);
+                } else if matches!(
+                    e,
+                    web_push::WebPushError::Other(ref s) if s.as_str() == "timeout"
+                ) {
+                    eprintln!(
+                        "  hint: push endpoint did not answer within {PUSH_TIMEOUT_SECS}s — \
+                         Apple may be throttling this server after repeated invalid requests; \
+                         dead subscriptions are pruned automatically"
+                    );
                 }
             }
         }
+    }
+    if results.iter().any(|(_, r)| r.is_ok()) {
+        dead.extend(maybe_dead);
     }
     state.subscriptions.retain(|s| !dead.contains(&s.endpoint));
     results
@@ -390,9 +426,9 @@ async fn post_test_push(State(shared): State<Shared>) -> Json<serde_json::Value>
     save_state(&state); // persist any dead-subscription pruning
     let results = results
         .into_iter()
-        .map(|r| match r {
-            Ok(()) => serde_json::json!({ "ok": true }),
-            Err(e) => serde_json::json!({ "ok": false, "error": e }),
+        .map(|(endpoint, r)| match r {
+            Ok(()) => serde_json::json!({ "endpoint": endpoint, "ok": true }),
+            Err(e) => serde_json::json!({ "endpoint": endpoint, "ok": false, "error": e }),
         })
         .collect::<Vec<_>>();
     Json(serde_json::json!({ "sent_to": results.len(), "results": results }))
