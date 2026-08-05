@@ -371,12 +371,12 @@ async fn tick(shared: &Shared) {
     let (title, body) = if first {
         (
             "Good morning — reflect today?",
-            "Confirm today's rhythm, or skip the day. No pressure.",
+            "Confirm today's rhythm",
         )
     } else {
         (
             "Time for a check-in",
-            "A quiet minute with yourself. Pick a reflection — or snooze.",
+            "Pick a reflection",
         )
     };
     send_push(&mut state, title, body, first).await;

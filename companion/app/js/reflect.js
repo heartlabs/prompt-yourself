@@ -21,9 +21,9 @@ const PROGRESSING_EXAMPLES = ['sure', 'probably', 'maybe', 'not really', 'no'];
 const CHIP_FIELDS = ['doing', 'goal', 'next'];
 
 const REFLECTIONS = [
-  { type: 'energy',    emoji: '🚦', title: 'Energy check-in', blurb: 'One tap · a few words if you like' },
-  { type: 'questions', emoji: '🖐', title: '5 Questions',     blurb: 'The full check-in: energy, feelings, 5 questions · ~3 min' },
-  { type: 'feelings',  emoji: '🌊', title: 'Feelings',        blurb: 'Adjust your sliders · ~1 min' },
+  { type: 'energy',    emoji: '🚦', title: 'Energy check-in' },
+  { type: 'questions', emoji: '🖐', title: '5 Questions' },
+  { type: 'feelings',  emoji: '🌊', title: 'Feelings' },
 ];
 
 /** Reflection types finished in this picker session (dimmed, still tappable). */
@@ -108,7 +108,7 @@ function initCommit() {
 function renderPicker() {
   const nav = document.getElementById('picker-options');
   nav.replaceChildren(
-    ...REFLECTIONS.map(({ type, emoji, title, blurb }) => {
+    ...REFLECTIONS.map(({ type, emoji, title }) => {
       const isDone = doneThisSession.has(type);
       return el(
         'button',
@@ -118,7 +118,7 @@ function renderPicker() {
           'span',
           {},
           el('b', {}, title),
-          el('small', {}, isDone ? 'Done just now · tap to redo' : blurb)
+          ...(isDone ? [el('small', {}, 'Done just now · tap to redo')] : [])
         )
       );
     })

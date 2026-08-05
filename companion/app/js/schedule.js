@@ -37,7 +37,7 @@ export function slotTimes(startMin, endMin, rhythm) {
     case 'hourly': return interval(60);
     case '2h':     return interval(120);
     case '3x':     return [startMin, startMin + Math.floor((endMin - startMin) / 2), endMin];
-    case '1x':     return [startMin];
+    case '1x':     return [endMin];
     default:       return interval(60);
   }
 }

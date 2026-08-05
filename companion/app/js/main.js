@@ -89,7 +89,7 @@ if (params.get('from') === 'notification') {
 
 // ── foreground reminders (no server needed, app must be open) ──
 startForegroundTicker(() => {
-  showLocalNotification('Time for a check-in', 'A quiet minute with yourself.');
+  showLocalNotification('Time for a check-in', 'Ready?');
   // If the user is sitting on the home screen, bring up the flow directly.
   if (!document.getElementById('screen-home').hidden && !document.hidden) {
     openFromNotification();
